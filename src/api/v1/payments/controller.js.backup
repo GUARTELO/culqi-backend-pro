@@ -1,0 +1,460 @@
+/**
+ * ============================================================
+ * PAYMENT CONTROLLER
+ * ============================================================
+ * - Orquesta el flujo completo de pagos
+ * - Aplica reglas de negocio
+ * - Maneja errores y respuestas HTTP
+ * - NO contiene lógica de integración (eso es CulqiService)
+ * - Ahora envía correo automático post-pago
+ * ============================================================
+ */
+
+'use strict';
+
+// ========================
+// IMPORTS CON RUTAS ABSOLUTAS (COMPATIBLE CON PM2)
+// ========================
+const path = require('path');
+
+// Servicio de Culqi - carga normal
+const culqiService = require(path.join(__dirname, '../../../services/payment/culqiService'));
+
+// Servicio de Email - carga robusta con fallback
+let emailService;
+try {
+  console.log('🔄 PaymentController: Cargando emailService...');
+  emailService = require(path.join(__dirname, '../../../services/payment/emailService'));
+  console.log('✅ PaymentController: emailService cargado exitosamente');
+  console.log('   Funciones disponibles:', Object.keys(emailService));
+} catch (error) {
+  console.error('❌ PaymentController: Error cargando emailService:', error.message);
+  
+  // Servicio de fallback para que la aplicación no falle
+  emailService = {
+    sendPaymentConfirmation: async (paymentData) => {
+      console.log('📧 FALLBACK: Simulando sendPaymentConfirmation para pago:', paymentData?.id);
+      return { 
+        success: true, 
+        fallback: true,
+        message: 'Email service temporalmente no disponible',
+        timestamp: new Date().toISOString()
+      };
+    },
+    sendPaymentNotification: async (paymentData) => {
+      console.log('📧 FALLBACK: Simulando sendPaymentNotification para pago:', paymentData?.id);
+      return { 
+        success: true, 
+        fallback: true,
+        message: 'Email service temporalmente no disponible',
+        timestamp: new Date().toISOString()
+      };
+    },
+    enviarCorreoComprobante: async (email, productos = [], tipoComprobante = 'boleta') => {
+      console.log('📧 FALLBACK: Simulando enviarCorreoComprobante para:', email);
+      return { 
+        success: true, 
+        fallback: true,
+        message: 'Servicio de email en modo simulación',
+        timestamp: new Date().toISOString()
+      };
+    }
+  };
+}
+
+const logger = require('../../../core/utils/logger');
+const { v4: uuidv4 } = require('uuid');
+
+class PaymentController {
+  constructor() {
+    /**
+     * Estadísticas en memoria
+     * 👉 En producción real usar Redis / DB
+     */
+    this.stats = {
+      totalPayments: 0,
+      successfulPayments: 0,
+      failedPayments: 0,
+      totalAmount: 0,
+    };
+
+    // Bind explícito
+    this.processPayment = this.processPayment.bind(this);
+    this.getStats = this.getStats.bind(this);
+    this.verifyPayment = this.verifyPayment.bind(this);
+
+    logger.info('PaymentController inicializado correctamente');
+  }
+
+  /* ============================================================
+   * PROCESAR PAGO (ENDPOINT PRINCIPAL)
+   * ============================================================
+   */
+  async processPayment(req, res) {
+    const requestId = req.id || `req_${uuidv4()}`;
+    const paymentId = `pay_${uuidv4()}`;
+    const startTime = Date.now();
+
+    try {
+      /* =======================
+       * 1. EXTRAER DATOS
+       * =======================
+       */
+      const paymentData = this._extractPaymentData(req);
+
+      /* =======================
+       * 2. VALIDAR NEGOCIO
+       * =======================
+       */
+      this._validateBusinessRules(paymentData);
+
+      logger.payment(paymentId, 'Payment initiated', {
+        requestId,
+        amount: paymentData.amount,
+        currency: paymentData.currency_code,
+        email: paymentData.email,
+      });
+
+      /* =======================
+       * 3. ENRIQUECER DATA
+       * =======================
+       */
+      const enrichedData = this._enrichPaymentData(paymentData, req, requestId);
+
+      /* =======================
+       * 4. PROCESAR CON CULQI
+       * =======================
+       */
+      const culqiResult = await culqiService.createCharge(enrichedData);
+
+      /* =======================
+       * 5. ACTUALIZAR STATS
+       * =======================
+       */
+      this._updateStats(true, culqiResult.amount);
+
+      logger.payment(paymentId, 'Payment succeeded', {
+        culqiId: culqiResult.id,
+        status: culqiResult.status,
+        duration: `${Date.now() - startTime}ms`,
+      });
+
+      /* =======================
+       * 6. RESPUESTA
+       * =======================
+       */
+      res.status(200).json(this._buildSuccessResponse(
+        paymentId,
+        culqiResult,
+        startTime
+      ));
+
+      /* =======================
+       * 7. POST-PROCESO (ASYNC)
+       * =======================
+       */
+      this._postPaymentTasks(paymentId, culqiResult, paymentData, enrichedData)
+        .catch(err => logger.error('Post-payment error', err));
+
+    } catch (error) {
+      this._handleError(error, paymentId, req, res, startTime);
+    }
+  }
+
+  /* ============================================================
+   * EXTRAER DATA
+   * ============================================================
+   */
+  _extractPaymentData(req) {
+    // ✅ MODIFICADO: Acepta tanto 'currency' como 'currency_code'
+    const {
+      token,
+      amount,
+      currency,           // ← Nuevo: acepta 'currency'
+      currency_code = currency || 'PEN',  // ← MODIFICADO: usa 'currency' si existe
+      email,
+      description,
+      metadata = {},
+    } = req.body;
+
+    if (!token) {
+      throw this._error('MISSING_TOKEN', 'Token requerido', 400);
+    }
+
+    if (!amount || Number(amount) <= 0) {
+      throw this._error('INVALID_AMOUNT', 'Monto inválido', 400);
+    }
+
+    if (!email) {
+      throw this._error('MISSING_EMAIL', 'Email requerido', 400);
+    }
+
+    return {
+      token,
+      amount: Number(amount),
+      currency_code: currency_code.toUpperCase(),
+      email: email.toLowerCase().trim(),
+      description: description || `Pago ${amount} ${currency_code}`,
+      metadata: {
+        ...metadata,
+        // Asegurar que items sea array si existe
+        items: Array.isArray(metadata.items) ? metadata.items : []
+      },
+    };
+  }
+
+  /* ============================================================
+   * VALIDACIONES DE NEGOCIO
+   * ============================================================
+   */
+  _validateBusinessRules(data) {
+    const maxAmount = Number(process.env.MAX_PAYMENT_AMOUNT || 5000);
+
+    if (data.amount > maxAmount) {
+      throw this._error(
+        'AMOUNT_EXCEEDED',
+        `Monto máximo permitido: ${maxAmount}`,
+        400
+      );
+    }
+
+    if (!['PEN', 'USD'].includes(data.currency_code)) {
+      throw this._error(
+        'INVALID_CURRENCY',
+        'Moneda no permitida',
+        400
+      );
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(data.email)) {
+      throw this._error('INVALID_EMAIL', 'Email inválido', 400);
+    }
+  }
+
+  /* ============================================================
+   * ENRIQUECER DATA
+   * ============================================================
+   */
+  _enrichPaymentData(data, req, requestId) {
+    return {
+      ...data,
+      customer_email: data.email, // Campo requerido por emailService
+      ip_address: req.ip,
+      session_id: req.headers['x-session-id'] || `sess_${Date.now()}`,
+      antifraud_details: {
+        customer_ip: req.ip,
+        customer_device: req.get('User-Agent'),
+      },
+      metadata: {
+        ...data.metadata,
+        request_id: requestId,
+        environment: process.env.NODE_ENV,
+        timestamp: new Date().toISOString(),
+        customer_email: data.email,
+        customer_ip: req.ip,
+      },
+    };
+  }
+
+  /* ============================================================
+   * RESPUESTA DE ÉXITO
+   * ============================================================
+   */
+  _buildSuccessResponse(paymentId, culqiResult, startTime) {
+    const response = {
+      success: true,
+      payment: {
+        id: paymentId,
+        culqi_id: culqiResult.id,
+        status: culqiResult.status,
+        amount: culqiResult.amount,
+        currency: culqiResult.currency,
+        receipt_url: culqiResult.receipt_url,
+        created_at: culqiResult.created_at,
+      },
+      metadata: {
+        response_time: `${Date.now() - startTime}ms`,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    if (process.env.NODE_ENV === 'development') {
+      response.debug = {
+        antifraud_score: culqiResult.antifraud_score,
+        merchant_message: culqiResult.merchant_message,
+      };
+    }
+
+    return response;
+  }
+
+  /* ============================================================
+   * MANEJO DE ERRORES
+   * ============================================================
+   */
+  _handleError(error, paymentId, req, res, startTime) {
+    this._updateStats(false, 0);
+
+    logger.payment(paymentId, 'Payment failed', {
+      code: error.code,
+      message: error.message,
+      duration: `${Date.now() - startTime}ms`,
+    });
+
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: {
+        code: error.code || 'INTERNAL_ERROR',
+        message: error.message || 'Error interno',
+        payment_id: paymentId,
+        request_id: req.id,
+        suggestions: this._getSuggestions(error.code),
+      },
+      metadata: {
+        response_time: `${Date.now() - startTime}ms`,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  }
+
+  /* ============================================================
+   * STATS
+   * ============================================================
+   */
+  _updateStats(success, amount) {
+    this.stats.totalPayments++;
+    this.stats.totalAmount += amount;
+
+    success
+      ? this.stats.successfulPayments++
+      : this.stats.failedPayments++;
+  }
+
+  async getStats(req, res) {
+    res.json({
+      success: true,
+      stats: this.stats,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /* ============================================================
+   * VERIFY PAYMENT (SIMULADO)
+   * ============================================================
+   */
+  async verifyPayment(req, res) {
+    res.json({
+      success: true,
+      payment: {
+        id: req.params.paymentId,
+        status: 'completed',
+        verified_at: new Date().toISOString(),
+      },
+    });
+  }
+
+  /* ============================================================
+   * POST PAYMENT TASKS - CORREGIDO
+   * ============================================================
+   */
+  async _postPaymentTasks(paymentId, culqiResult, paymentData, enrichedData) {
+    try {
+      logger.info(`🔔 Iniciando post-payment tasks para ${paymentId}`);
+      
+      // Datos completos para el email
+      const emailData = {
+        id: paymentId,
+        culqi_id: culqiResult.id,
+        customer_email: paymentData.email,
+        amount: culqiResult.amount,
+        currency: culqiResult.currency,
+        status: culqiResult.status,
+        description: paymentData.description,
+        created_at: culqiResult.created_at,
+        items: paymentData.metadata?.items || [],
+        metadata: enrichedData.metadata,
+        tipo_comprobante: paymentData.metadata?.tipo_comprobante || 'boleta'
+      };
+
+      /* =======================
+       * 1. CONFIRMACIÓN AL CLIENTE
+       * =======================
+       */
+      try {
+        const emailResult = await emailService.sendPaymentConfirmation(emailData);
+        logger.info(`📧 Correo de confirmación enviado para ${paymentId}:`, {
+          success: emailResult.success,
+          messageId: emailResult.messageId,
+          customer: paymentData.email
+        });
+      } catch (emailError) {
+        logger.error(`❌ Error enviando correo de confirmación para ${paymentId}:`, emailError.message);
+      }
+
+      /* =======================
+       * 2. NOTIFICACIÓN INTERNA
+       * =======================
+       */
+      try {
+        const notificationResult = await emailService.sendPaymentNotification(emailData);
+        logger.info(`📧 Notificación interna enviada para ${paymentId}:`, {
+          success: notificationResult.success,
+          messageId: notificationResult.messageId
+        });
+      } catch (notifyError) {
+        logger.error(`❌ Error enviando notificación interna para ${paymentId}:`, notifyError.message);
+      }
+
+      /* =======================
+       * 3. USANDO FUNCIÓN ORIGINAL (opcional)
+       * =======================
+       */
+      try {
+        if (emailService.enviarCorreoComprobante) {
+          const comprobanteResult = await emailService.enviarCorreoComprobante(
+            paymentData.email,
+            paymentData.metadata?.items || [],
+            paymentData.metadata?.tipo_comprobante || 'boleta'
+          );
+          logger.info(`📧 Comprobante enviado para ${paymentId}:`, {
+            success: comprobanteResult.success,
+            pdfGenerated: comprobanteResult.pdfGenerated
+          });
+        }
+      } catch (comprobanteError) {
+        logger.error(`❌ Error enviando comprobante para ${paymentId}:`, comprobanteError.message);
+      }
+
+      logger.info(`✅ Post-payment tasks completadas para ${paymentId}`);
+
+    } catch (error) {
+      logger.error(`🔥 Error crítico en post-payment tasks para ${paymentId}:`, {
+        message: error.message,
+        stack: error.stack
+      });
+    }
+  }
+
+  /* ============================================================
+   * HELPERS
+   * ============================================================
+   */
+  _error(code, message, statusCode) {
+    return { code, message, statusCode };
+  }
+
+  _getSuggestions(code) {
+    const map = {
+      MISSING_TOKEN: ['Genera token en frontend'],
+      INVALID_AMOUNT: ['Monto debe ser mayor a 0'],
+      CARD_ERROR: ['Verifica tarjeta', 'Contacta al banco'],
+    };
+
+    return map[code] || ['Intenta nuevamente', 'Contacta soporte'];
+  }
+}
+
+module.exports = new PaymentController();

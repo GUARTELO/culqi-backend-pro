@@ -1,0 +1,10 @@
+﻿{
+  "token": "tkn_test_123",
+  "amount": 10000,
+  "email": "test@test.com",
+  "orderData": {
+    "orderId": "TEST123",
+    "productos": [{"nombre": "Test", "precio": 100, "cantidad": 1}],
+    "cliente": {"nombre": "Test", "email": "test@test.com"}
+  }
+}
