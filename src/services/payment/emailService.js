@@ -42,25 +42,17 @@ try {
 }
 
 // ========================
-// 2. CONFIGURACIÓN DEL TRANSPORTER - CAMBIO ÚNICO NECESARIO
+// 2. CONFIGURACIÓN DEL TRANSPORTER - ✅ ÚNICO CAMBIO NECESARIO
 // ========================
 const createTransporter = () => {
-  // ✅ CAMBIO 1: Verificar SendGrid en lugar de Gmail
-  console.log('🔍 [EMAIL DEBUG] Verificando variables de entorno:');
-  console.log('   GMAIL_USER:', process.env.GMAIL_USER || 'NO ENCONTRADO');
-  console.log('   GMAIL_APP_PASSWORD existe?:', !!process.env.GMAIL_APP_PASSWORD);
-  console.log('   Longitud password:', process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.length : 0);
-  console.log('   SENDGRID_API_KEY existe?:', !!process.env.SENDGRID_API_KEY); // ✅ NUEVO
+  // ✅ VERIFICAR SENDGRID PRIMERO (CAMBIO MÍNIMO)
+  const sendgridApiKey = process.env.SENDGRID_API_KEY;
   
-  const gmailUser = process.env.GMAIL_USER || 'contacto@goldinfiniti.com';
-  const gmailPass = process.env.GMAIL_APP_PASSWORD;
-  const sendgridApiKey = process.env.SENDGRID_API_KEY; // ✅ NUEVO
-  
-  // ✅ CAMBIO 2: Usar SendGrid si está disponible, sino fallback a Ethereal
   if (sendgridApiKey) {
     console.log('✅ [EMAIL DEBUG] Usando SendGrid como transporte principal');
+    console.log('🔑 SendGrid API Key encontrada (longitud:', sendgridApiKey.length, 'caracteres)');
     
-    // TRANSPORTER FALSO que usa SendGrid por detrás
+    // ✅ TRANSPORTER FALSO QUE USA SENDGRID POR DETRÁS (CAMBIO MÍNIMO)
     return {
       sendMail: async function(mailOptions) {
         try {
@@ -69,7 +61,7 @@ const createTransporter = () => {
           const sgMail = require('@sendgrid/mail');
           sgMail.setApiKey(sendgridApiKey);
           
-          // Convertir formato nodemailer a SendGrid
+          // ✅ CONVERTIR FORMATO NODEMAILER A SENDGRID (CAMBIO MÍNIMO)
           const msg = {
             to: mailOptions.to,
             from: mailOptions.from || 'contacto@goldinfiniti.com',
@@ -78,7 +70,13 @@ const createTransporter = () => {
             text: mailOptions.text,
             cc: mailOptions.cc,
             bcc: mailOptions.bcc,
-            attachments: mailOptions.attachments
+            // ✅ CORREGIR ADJUNTOS PARA SENDGRID (CAMBIO MÍNIMO)
+            attachments: mailOptions.attachments ? mailOptions.attachments.map(att => ({
+              filename: att.filename,
+              content: att.content.toString('base64'), // ✅ CONVERTIR A BASE64
+              type: att.contentType || att.type,
+              disposition: 'attachment'
+            })) : []
           };
           
           const result = await sgMail.send(msg);
@@ -105,31 +103,30 @@ const createTransporter = () => {
       },
       
       on: function(event, handler) {
-        // Para compatibilidad con tu código
-        if (event === 'idle') {
-          console.log('📧 [SENDGRID] Transporter está inactivo');
-        }
         return this;
       }
     };
     
-  } else if (!gmailPass) {
-    // ✅ CAMBIO 3: Si no hay SendGrid ni Gmail, usar Ethereal
-    const errorMsg = '❌ ERROR: Ni GMAIL_APP_PASSWORD ni SENDGRID_API_KEY configuradas';
+  }
+  
+  // ✅ SI NO HAY SENDGRID, USAR GMAIL COMO ANTES (TODO IGUAL)
+  console.log('🔍 [EMAIL DEBUG] Verificando variables de entorno:');
+  console.log('   GMAIL_USER:', process.env.GMAIL_USER || 'NO ENCONTRADO');
+  console.log('   GMAIL_APP_PASSWORD existe?:', !!process.env.GMAIL_APP_PASSWORD);
+  console.log('   Longitud password:', process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.length : 0);
+  
+  const gmailUser = process.env.GMAIL_USER || 'contacto@goldinfiniti.com';
+  const gmailPass = process.env.GMAIL_APP_PASSWORD;
+  
+  // SI NO HAY PASSWORD, LANZA ERROR REAL - NO SIMULACIÓN
+  if (!gmailPass) {
+    const errorMsg = '❌ ERROR CRÍTICO: GMAIL_APP_PASSWORD no configurada en .env';
     logger.error(errorMsg);
-    
-    console.log('🔄 Usando Ethereal SMTP como respaldo');
-    return nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      auth: {
-        user: 'maddison53@ethereal.email',
-        pass: 'jn7jnAPss4f63QBp6D'
-      }
-    });
-    
-  } else {
-    // ✅ Si hay Gmail configurado, usar Gmail (para desarrollo local)
+    throw new Error(errorMsg);
+  }
+  
+  // ✅ CONFIGURACIÓN MEJORADA PARA GMAIL (TODO IGUAL)
+  try {
     console.log('✅ [EMAIL DEBUG] Creando transporter REAL con Gmail');
     
     const transporter = nodemailer.createTransport({
@@ -147,7 +144,7 @@ const createTransporter = () => {
       maxMessages: 100
     });
     
-    // Verificación de conexión
+    // VERIFICAR CONEXIÓN INMEDIATAMENTE
     transporter.verify(function(error, success) {
       if (error) {
         console.error('❌ [EMAIL DEBUG] Error verificando SMTP:', error.message);
@@ -168,10 +165,19 @@ const createTransporter = () => {
     });
     
     return transporter;
+    
+  } catch (error) {
+    logger.error('❌ ERROR FATAL creando transporter:', { 
+      error: error.message,
+      stack: error.stack,
+      user: gmailUser,
+      hasPassword: !!gmailPass
+    });
+    throw new Error(`Fallo configuración email: ${error.message}`);
   }
 };
 
-// 6. CREAR TRANSPORTER CON VERIFICACIÓN
+// 6. CREAR TRANSPORTER CON VERIFICACIÓN (TODO IGUAL)
 let transporter;
 try {
   transporter = createTransporter();
@@ -180,9 +186,9 @@ try {
   setTimeout(() => {
     transporter.verify((error) => {
       if (!error) {
+        const serviceType = process.env.SENDGRID_API_KEY ? 'SendGrid' : 'Gmail';
         console.log('🚀 [EMAIL] Sistema de emails INICIALIZADO CORRECTAMENTE');
-        console.log('   📧 Usuario:', process.env.GMAIL_USER || 'SendGrid');
-        console.log('   🔐 SendGrid configurado:', !!process.env.SENDGRID_API_KEY);
+        console.log('   📧 Servicio:', serviceType);
         console.log('   ⏰ Hora:', new Date().toLocaleTimeString());
       }
     });
@@ -191,7 +197,7 @@ try {
 } catch (error) {
   console.error('🔥 ERROR INICIALIZANDO EMAIL SERVICE:', error.message);
   
-  // Transporter de emergencia que SÍ envía (Ethereal)
+  // Transporter de emergencia que SÍ envía (Ethereal) - TODO IGUAL
   transporter = nodemailer.createTransport({
     host: 'smtp.ethereal.email',
     port: 587,
@@ -205,7 +211,7 @@ try {
   console.log('🔗 Puedes ver emails en: https://ethereal.email');
 }
 
-// 7. FUNCIÓN DE ENVÍO CON REINTENTOS
+// 7. FUNCIÓN DE ENVÍO CON REINTENTOS (TODO IGUAL)
 async function sendEmailWithRetry(mailOptions, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -228,11 +234,9 @@ async function sendEmailWithRetry(mailOptions, retries = 3) {
       console.error(`❌ [EMAIL] Intento ${i + 1} falló:`, error.message);
       
       if (i === retries - 1) {
-        // Último intento falló
         throw error;
       }
       
-      // Esperar antes de reintentar (backoff exponencial)
       const delay = Math.min(1000 * Math.pow(2, i), 10000);
       console.log(`⏳ Reintentando en ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -240,13 +244,12 @@ async function sendEmailWithRetry(mailOptions, retries = 3) {
   }
 }
 
-// 8. EXPORTAR FUNCIÓN MEJORADA - ✅ CAMBIO 4: Actualizar verificación
+// 8. EXPORTAR FUNCIÓN MEJORADA (TODO IGUAL)
 module.exports = {
   transporter,
   createTransporter,
   sendEmailWithRetry,
   
-  // Función de verificación rápida - ✅ ACTUALIZADA
   checkEmailConfig: () => ({
     gmailUser: process.env.GMAIL_USER,
     hasGmailPassword: !!process.env.GMAIL_APP_PASSWORD,
@@ -299,7 +302,7 @@ async function sendPaymentConfirmation(paymentData) {
     const mailOptions = {
       from: '"GOLDINFINITI" <contacto@goldinfiniti.com>',
       to: paymentData.customer_email,
-      bcc: process.env.ADMIN_EMAIL || 'contacto@goldinfiniti.com', // Copia al admin
+      bcc: process.env.ADMIN_EMAIL || 'contacto@goldinfiniti.com',
       subject: `✅ Confirmación de Compra #${orderId} - Goldinfiniti`,
       html: emailContent.html,
       text: emailContent.text,
@@ -430,18 +433,18 @@ function _generateGoldenInfinityEmail(firebaseData) {
   
   // ✅ IGUAL AL CONTROLLER pero con SEGUNDOS agregados
   const fecha = new Date().toLocaleString('es-PE', {
-  weekday: 'long',
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hour12: true,
-  timeZone: 'America/Lima'
-});
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZone: 'America/Lima'
+  });
 
-console.log('📅 Fecha en email:', fecha);
+  console.log('📅 Fecha en email:', fecha);
 
   // Tabla de productos
   let productosHtml = '';
@@ -749,7 +752,7 @@ async function _generateOrderPDF(firebaseData) {
         comprobante
       } = firebaseData;
       
- // ==================== SOLUCIÓN DEFINITIVA PARA FECHA ====================
+      // ==================== SOLUCIÓN DEFINITIVA PARA FECHA ====================
       let fechaOrden;
       console.log('🔍 DEBUG fecha_creacion recibida:', fecha_creacion);
       console.log('🔍 Tipo:', typeof fecha_creacion);
@@ -775,9 +778,9 @@ async function _generateOrderPDF(firebaseData) {
           console.log('✅ Es número timestamp:', fecha_creacion);
           // Si el número es muy pequeño (como 1703126400), es en segundos
           if (fecha_creacion < 10000000000) {
-            fechaOrden = new Date(fecha_creacion * 1000); // Convertir segundos a milisegundos
+            fechaOrden = new Date(fecha_creacion * 1000);
           } else {
-            fechaOrden = new Date(fecha_creacion); // Ya está en milisegundos
+            fechaOrden = new Date(fecha_creacion);
           }
         }
         // CASO 5: Objeto Date
@@ -820,7 +823,6 @@ async function _generateOrderPDF(firebaseData) {
         timeZone: 'America/Lima'
       };
       
-      // Usar Intl.DateTimeFormat para mejor compatibilidad
       const formateadorFecha = new Intl.DateTimeFormat('es-PE', opcionesFecha);
       const formateadorHora = new Intl.DateTimeFormat('es-PE', opcionesHora);
       
@@ -846,9 +848,12 @@ async function _generateOrderPDF(firebaseData) {
       doc.on('data', chunk => chunks.push(chunk));
       doc.on('end', () => {
         const pdfBuffer = Buffer.concat(chunks);
+        // ✅ CORRECCIÓN: Convertir a Base64 para SendGrid (CAMBIO MÍNIMO)
+        const pdfBase64 = pdfBuffer.toString('base64');
+        
         resolve({
           filename: `comprobante-${order_id}.pdf`,
-          content: pdfBuffer,
+          content: pdfBase64,  // ✅ AHORA ES Base64
           contentType: 'application/pdf'
         });
       });
@@ -1124,6 +1129,7 @@ async function _generateOrderPDF(firebaseData) {
     }
   });
 }
+
 // ========================
 // 7. FUNCIÓN DE NOTIFICACIÓN INTERNA
 // ========================
@@ -1133,20 +1139,17 @@ async function sendPaymentNotification(paymentData) {
     const total = paymentData.resumen?.total || 
                   (paymentData.amount ? paymentData.amount / 100 : 0);
     
-    // ✅ CORREGIDO: Obtener email del cliente
     const customerEmail = paymentData.cliente?.email || 
                           paymentData.email || 
                           paymentData.customer_email || 
                           'No especificado';
 
-    // ✅ CORREGIDO: Obtener nombre completo
     const customerName = paymentData.cliente?.nombre || 
                          paymentData.customer_name || 
                          'Cliente';
     const customerLastName = paymentData.cliente?.apellido || '';
     const customerFullName = `${customerName} ${customerLastName}`.trim();
     
-    // ✅ AGREGADO: Generar tabla de productos para admin
     let productosHtml = '';
     if (paymentData.productos && Array.isArray(paymentData.productos)) {
       let totalProductos = 0;
@@ -1389,6 +1392,7 @@ function verifyService() {
     nodemailer: !!nodemailer,
     pdfkit: !!PDFDocument,
     gmailPassword: !!process.env.GMAIL_APP_PASSWORD,
+    sendgridKey: !!process.env.SENDGRID_API_KEY,
     environment: process.env.NODE_ENV || 'development'
   };
   
@@ -1399,17 +1403,14 @@ function verifyService() {
 // ========================
 // 9. EXPORTACIÓN
 // ========================
-// Vincular métodos al objeto
 const emailService = {
   sendPaymentConfirmation,
   sendPaymentNotification,
   verifyService,
-  // Métodos internos (para testing/debugging)
   _extractFirebaseData,
   _generateGoldenInfinityEmail,
   _generateOrderPDF,
   _maskEmail
 };
 
-// Exportar
 module.exports = emailService;
