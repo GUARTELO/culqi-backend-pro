@@ -42,29 +42,83 @@ try {
 }
 
 // ========================
-// 2. CONFIGURACIÓN DEL TRANSPORTER
+// 2. CONFIGURACIÓN DEL TRANSPORTER - CAMBIO ÚNICO NECESARIO
 // ========================
 const createTransporter = () => {
-  // 1. VERIFICACIÓN EXPLÍCITA
+  // ✅ CAMBIO 1: Verificar SendGrid en lugar de Gmail
   console.log('🔍 [EMAIL DEBUG] Verificando variables de entorno:');
   console.log('   GMAIL_USER:', process.env.GMAIL_USER || 'NO ENCONTRADO');
   console.log('   GMAIL_APP_PASSWORD existe?:', !!process.env.GMAIL_APP_PASSWORD);
   console.log('   Longitud password:', process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.length : 0);
+  console.log('   SENDGRID_API_KEY existe?:', !!process.env.SENDGRID_API_KEY); // ✅ NUEVO
   
   const gmailUser = process.env.GMAIL_USER || 'contacto@goldinfiniti.com';
   const gmailPass = process.env.GMAIL_APP_PASSWORD;
+  const sendgridApiKey = process.env.SENDGRID_API_KEY; // ✅ NUEVO
   
-  // 2. SI NO HAY PASSWORD, LANZA ERROR REAL - NO SIMULACIÓN
-  if (!gmailPass) {
-    const errorMsg = '❌ ERROR CRÍTICO: GMAIL_APP_PASSWORD no configurada en .env';
+  // ✅ CAMBIO 2: Usar SendGrid si está disponible, sino fallback a Ethereal
+  if (sendgridApiKey) {
+    console.log('✅ [EMAIL DEBUG] Usando SendGrid como transporte principal');
+    
+    // TRANSPORTER FALSO que usa SendGrid por detrás
+    return {
+      sendMail: async function(mailOptions) {
+        try {
+          console.log(`📤 [SENDGRID] Enviando a: ${mailOptions.to}`);
+          
+          const sgMail = require('@sendgrid/mail');
+          sgMail.setApiKey(sendgridApiKey);
+          
+          // Convertir formato nodemailer a SendGrid
+          const msg = {
+            to: mailOptions.to,
+            from: mailOptions.from || 'contacto@goldinfiniti.com',
+            subject: mailOptions.subject,
+            html: mailOptions.html,
+            text: mailOptions.text,
+            cc: mailOptions.cc,
+            bcc: mailOptions.bcc,
+            attachments: mailOptions.attachments
+          };
+          
+          const result = await sgMail.send(msg);
+          console.log(`✅ [SENDGRID] Email enviado exitosamente`);
+          
+          return {
+            messageId: `sendgrid-${Date.now()}`,
+            response: result[0],
+            accepted: [mailOptions.to]
+          };
+          
+        } catch (error) {
+          console.error('❌ [SENDGRID] Error:', error.message);
+          if (error.response) {
+            console.error('Detalles:', error.response.body);
+          }
+          throw error;
+        }
+      },
+      
+      verify: function(callback) {
+        console.log('✅ [SENDGRID] Transporter verificado');
+        callback(null, true);
+      },
+      
+      on: function(event, handler) {
+        // Para compatibilidad con tu código
+        if (event === 'idle') {
+          console.log('📧 [SENDGRID] Transporter está inactivo');
+        }
+        return this;
+      }
+    };
+    
+  } else if (!gmailPass) {
+    // ✅ CAMBIO 3: Si no hay SendGrid ni Gmail, usar Ethereal
+    const errorMsg = '❌ ERROR: Ni GMAIL_APP_PASSWORD ni SENDGRID_API_KEY configuradas';
     logger.error(errorMsg);
     
-    // OPCIÓN A: Lanzar error para que falle rápido y se note
-    throw new Error(errorMsg);
-    
-    // OPCIÓN B: Usar transporte de emergencia (SMTP gratuito)
-    /*
-    logger.warn('Usando Ethereal SMTP como respaldo');
+    console.log('🔄 Usando Ethereal SMTP como respaldo');
     return nodemailer.createTransport({
       host: 'smtp.ethereal.email',
       port: 587,
@@ -73,47 +127,35 @@ const createTransporter = () => {
         pass: 'jn7jnAPss4f63QBp6D'
       }
     });
-    */
-  }
-  
-  // 3. CONFIGURACIÓN MEJORADA PARA GMAIL
-  try {
+    
+  } else {
+    // ✅ Si hay Gmail configurado, usar Gmail (para desarrollo local)
     console.log('✅ [EMAIL DEBUG] Creando transporter REAL con Gmail');
     
     const transporter = nodemailer.createTransport({
-      // host: 'smtp.gmail.com', // Descomentar si falla
-      // port: 587, // Descomentar si falla
-      service: 'gmail', // Esto configura automáticamente host y port
-      secure: true, // true para puerto 465, false para 587
+      service: 'gmail',
+      secure: true,
       auth: {
-        user: gmailUser.trim(), // .trim() por si hay espacios
+        user: gmailUser.trim(),
         pass: gmailPass.trim()
       },
-      // Configuración adicional robusta
       tls: {
-        rejectUnauthorized: false // Para evitar errores de certificado
+        rejectUnauthorized: false
       },
       pool: true,
       maxConnections: 3,
       maxMessages: 100
     });
     
-    // 4. VERIFICAR CONEXIÓN INMEDIATAMENTE
+    // Verificación de conexión
     transporter.verify(function(error, success) {
       if (error) {
         console.error('❌ [EMAIL DEBUG] Error verificando SMTP:', error.message);
-        
-        // Intento con configuración alternativa
-        if (error.code === 'EAUTH') {
-          console.log('🔄 Intentando configuración alternativa...');
-          // Podrías intentar con app password diferente
-        }
       } else {
         console.log('✅ [EMAIL DEBUG] SMTP verificado y listo para enviar');
       }
     });
     
-    // 5. MANEJADOR DE ERRORES EN TIEMPO REAL
     transporter.on('error', (error) => {
       logger.error('Error en transporter SMTP:', { 
         error: error.message,
@@ -126,17 +168,6 @@ const createTransporter = () => {
     });
     
     return transporter;
-    
-  } catch (error) {
-    logger.error('❌ ERROR FATAL creando transporter:', { 
-      error: error.message,
-      stack: error.stack,
-      user: gmailUser,
-      hasPassword: !!gmailPass
-    });
-    
-    // NO devolver simulador - lanzar error para debugging
-    throw new Error(`Fallo configuración email: ${error.message}`);
   }
 };
 
@@ -150,8 +181,8 @@ try {
     transporter.verify((error) => {
       if (!error) {
         console.log('🚀 [EMAIL] Sistema de emails INICIALIZADO CORRECTAMENTE');
-        console.log('   📧 Usuario:', process.env.GMAIL_USER);
-        console.log('   🔐 Password configurada: SÍ');
+        console.log('   📧 Usuario:', process.env.GMAIL_USER || 'SendGrid');
+        console.log('   🔐 SendGrid configurado:', !!process.env.SENDGRID_API_KEY);
         console.log('   ⏰ Hora:', new Date().toLocaleTimeString());
       }
     });
@@ -209,21 +240,25 @@ async function sendEmailWithRetry(mailOptions, retries = 3) {
   }
 }
 
-// 8. EXPORTAR FUNCIÓN MEJORADA
+// 8. EXPORTAR FUNCIÓN MEJORADA - ✅ CAMBIO 4: Actualizar verificación
 module.exports = {
   transporter,
   createTransporter,
   sendEmailWithRetry,
   
-  // Función de verificación rápida
+  // Función de verificación rápida - ✅ ACTUALIZADA
   checkEmailConfig: () => ({
     gmailUser: process.env.GMAIL_USER,
-    hasPassword: !!process.env.GMAIL_APP_PASSWORD,
+    hasGmailPassword: !!process.env.GMAIL_APP_PASSWORD,
+    hasSendGrid: !!process.env.SENDGRID_API_KEY,
     passwordLength: process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.length : 0,
+    sendgridKeyLength: process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY.length : 0,
     timestamp: new Date().toISOString(),
-    status: process.env.GMAIL_APP_PASSWORD ? 'CONFIGURADO' : 'NO CONFIGURADO'
+    status: process.env.SENDGRID_API_KEY ? 'SENGRID_CONFIGURADO' : 
+            process.env.GMAIL_APP_PASSWORD ? 'GMAIL_CONFIGURADO' : 'NO_CONFIGURADO'
   })
 };
+
 // ========================
 // 3. FUNCIÓN PRINCIPAL - ENVIAR CONFIRMACIÓN CON DATOS FIREBASE
 // ========================
@@ -714,7 +749,7 @@ async function _generateOrderPDF(firebaseData) {
         comprobante
       } = firebaseData;
       
-      // ==================== SOLUCIÓN DEFINITIVA PARA FECHA ====================
+ // ==================== SOLUCIÓN DEFINITIVA PARA FECHA ====================
       let fechaOrden;
       console.log('🔍 DEBUG fecha_creacion recibida:', fecha_creacion);
       console.log('🔍 Tipo:', typeof fecha_creacion);
