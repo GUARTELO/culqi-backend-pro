@@ -48,31 +48,20 @@ app.use(helmet({
 }));
 
 // B. CORS - Control de acceso entre dominios
+// B. CORS - Configuración para PRODUCCIÓN
 const corsOptions = {
   origin: function (origin, callback) {
-    // EN DESARROLLO: Permitir estos orígenes locales
-    if (process.env.NODE_ENV === 'development') {
-      const allowedDevOrigins = [
-        'http://127.0.0.1:5502',     // Tu Live Server actual
-        'http://localhost:5502',     // Alternativa
-        'http://localhost:3000',     // Por si pruebas directo
-        'http://localhost:3001',     // Otro puerto común
-        'https://goldinfiniti.com',  // Tu dominio en desarrollo
-        'https://www.goldinfiniti.com',
-      ];
-      
-      if (!origin || allowedDevOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-    }
-    
-    // EN PRODUCCIÓN: Solo tu dominio real
-    const allowedProdOrigins = [
+    // EN PRODUCCIÓN: Permitir estos orígenes
+    const allowedOrigins = [
       'https://goldinfiniti.com',      // TU DOMINIO
       'https://www.goldinfiniti.com',  // TU DOMINIO con www
+      'http://127.0.0.1:5502',         // ← AÑADE ESTO
+      'http://localhost:5502',         // ← AÑADE ESTO
+      'http://localhost:3000',         // ← AÑADE ESTO
+      undefined,                       // Para peticiones sin origen
     ];
     
-    if (!origin || allowedProdOrigins.includes(origin)) {
+    if (allowedOrigins.includes(origin) || !origin) {
       callback(null, true);
     } else {
       console.log('🚨 CORS bloqueado para origen:', origin);
@@ -89,12 +78,10 @@ const corsOptions = {
     'X-Device-Fingerprint',
   ],
   exposedHeaders: ['X-Request-ID', 'X-RateLimit-Limit', 'X-RateLimit-Remaining'],
-  maxAge: 86400, // 24 horas
+  maxAge: 86400,
 };
 
 app.use(cors(corsOptions));
-
-// Preflight requests
 app.options('*', cors(corsOptions));
 
 // C. BODY PARSING - Parsear JSON y URL encoded
