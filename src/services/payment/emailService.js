@@ -412,7 +412,7 @@ function _extractFirebaseData(paymentData) {
 }
 
 // ========================
-// 5. GENERACIÓN DE EMAIL HTML PROFESIONAL - ✅ CORREGIDA HORA PERÚ
+// 5. GENERACIÓN DE EMAIL HTML PROFESIONAL
 // ========================
 /**
  * Genera contenido HTML del email
@@ -431,103 +431,20 @@ function _generateGoldenInfinityEmail(firebaseData) {
     comprobante
   } = firebaseData;
   
-  // ✅ CORRECCIÓN DEFINITIVA PARA HORA PERÚ - FUNCIONA EN RENDER
-  const obtenerHoraPeru = () => {
-    try {
-      // Método 1: Intentar con timezone oficial
-      const fechaConTimezone = new Date().toLocaleString('es-PE', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
-        timeZone: 'America/Lima'
-      });
-      
-      console.log('🕐 Hora con timezone oficial:', fechaConTimezone);
-      
-      // Verificar si la hora es razonable (entre 6 AM y 11 PM Perú)
-      const horaMatch = fechaConTimezone.match(/(\d{1,2}):(\d{2}):(\d{2})/);
-      if (horaMatch) {
-        let hora = parseInt(horaMatch[1]);
-        const minutos = horaMatch[2];
-        const ampm = fechaConTimezone.includes('p. m.') || fechaConTimezone.includes('PM') ? 'PM' : 'AM';
-        
-        // Convertir a 24h para validación
-        if (ampm === 'PM' && hora < 12) hora += 12;
-        if (ampm === 'AM' && hora === 12) hora = 0;
-        
-        console.log(`🔍 Validación hora: ${hora}:${minutos} (${ampm})`);
-        
-        // Si la hora está entre 0-5 AM (UTC+0 en Render), corregir
-        if (hora >= 0 && hora <= 5) {
-          console.log('⚠️ Hora sospechosa detectada (madrugada UTC), corrigiendo...');
-          // Corregir manualmente: Perú es UTC-5
-          const ahora = new Date();
-          const horaUTC = ahora.getUTCHours();
-          const minutosUTC = ahora.getUTCMinutes();
-          
-          // Convertir UTC a Perú (UTC-5)
-          let horaPeru = horaUTC - 5;
-          if (horaPeru < 0) horaPeru += 24;
-          
-          const ampmPeru = horaPeru >= 12 ? 'p. m.' : 'a. m.';
-          let horaDisplay = horaPeru % 12;
-          if (horaDisplay === 0) horaDisplay = 12;
-          
-          const fechaCorregida = new Date().toLocaleString('es-PE', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour12: true
-          }).replace(/\d{1,2}:\d{2}/, `${horaDisplay}:${minutosUTC.toString().padStart(2, '0')}`);
-          
-          console.log(`✅ Hora corregida manualmente: ${horaDisplay}:${minutosUTC} ${ampmPeru}`);
-          return fechaCorregida + (fechaCorregida.includes('p. m.') || fechaCorregida.includes('a. m.') ? '' : ` ${ampmPeru}`);
-        }
-      }
-      
-      return fechaConTimezone;
-      
-    } catch (error) {
-      console.error('❌ Error obteniendo hora Perú:', error.message);
-      
-      // Método 2: Corrección manual garantizada
-      const ahora = new Date();
-      const horaUTC = ahora.getUTCHours();
-      const minutosUTC = ahora.getUTCMinutes();
-      const segundosUTC = ahora.getUTCSeconds();
-      
-      // Perú es UTC-5
-      let horaPeru = horaUTC - 5;
-      if (horaPeru < 0) horaPeru += 24;
-      
-      const ampmPeru = horaPeru >= 12 ? 'p. m.' : 'a. m.';
-      let horaDisplay = horaPeru % 12;
-      if (horaDisplay === 0) horaDisplay = 12;
-      
-      // Obtener fecha en español
-      const opcionesFecha = {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      };
-      
-      const fechaEspanol = new Date().toLocaleDateString('es-PE', opcionesFecha);
-      const horaFormateada = `${horaDisplay}:${minutosUTC.toString().padStart(2, '0')}:${segundosUTC.toString().padStart(2, '0')} ${ampmPeru}`;
-      
-      console.log(`🔄 Usando corrección manual: ${fechaEspanol}, ${horaFormateada}`);
-      return `${fechaEspanol}, ${horaFormateada}`;
-    }
-  };
-  
-  const fecha = obtenerHoraPeru();
-  console.log('📅 Fecha FINAL en email:', fecha);
+  // ✅ IGUAL AL CONTROLLER pero con SEGUNDOS agregados
+  const fecha = new Date().toLocaleString('es-PE', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZone: 'America/Lima'
+  });
+
+  console.log('📅 Fecha en email:', fecha);
 
   // Tabla de productos
   let productosHtml = '';
@@ -596,8 +513,8 @@ function _generateGoldenInfinityEmail(firebaseData) {
       <div class="container">
         <!-- Header -->
         <div class="header">
-          <div class="logo">GOLDINFINITI</div>
-          <div class="subtitle">E-COMMERCE PREMIUM</div>
+          <div class="logo"></div>
+          <div class="subtitle"></div>
           <h1 style="margin-top: 20px; font-size: 28px;">¡COMPRA CONFIRMADA!</h1>
           <p style="margin-top: 10px; font-size: 16px;"> ${cliente.nombre}</p>
         </div>
@@ -815,7 +732,7 @@ www.goldinfiniti.com
 }
 
 // ========================
-// 6. GENERACIÓN DE PDF ADJUNTO PREMIUM - ✅ CORREGIDA HORA PERÚ
+// 6. GENERACIÓN DE PDF ADJUNTO PREMIUM (CON FECHA CORREGIDA)
 // ========================
 /**
  * Genera PDF profesional estilo ecommerce premium
@@ -841,30 +758,37 @@ async function _generateOrderPDF(firebaseData) {
       console.log('🔍 Tipo:', typeof fecha_creacion);
       
       if (fecha_creacion) {
+        // CASO 1: Timestamp de Firebase (objeto con .seconds)
         if (fecha_creacion.seconds !== undefined) {
           console.log('✅ Es timestamp Firebase con seconds:', fecha_creacion.seconds);
           fechaOrden = new Date(fecha_creacion.seconds * 1000);
         }
+        // CASO 2: Timestamp de Firebase (objeto con _seconds)
         else if (fecha_creacion._seconds !== undefined) {
           console.log('✅ Es timestamp Firebase con _seconds:', fecha_creacion._seconds);
           fechaOrden = new Date(fecha_creacion._seconds * 1000);
         }
+        // CASO 3: String ISO
         else if (typeof fecha_creacion === 'string') {
           console.log('✅ Es string ISO:', fecha_creacion);
           fechaOrden = new Date(fecha_creacion);
         }
+        // CASO 4: Número (timestamp en milisegundos)
         else if (typeof fecha_creacion === 'number') {
           console.log('✅ Es número timestamp:', fecha_creacion);
+          // Si el número es muy pequeño (como 1703126400), es en segundos
           if (fecha_creacion < 10000000000) {
             fechaOrden = new Date(fecha_creacion * 1000);
           } else {
             fechaOrden = new Date(fecha_creacion);
           }
         }
+        // CASO 5: Objeto Date
         else if (fecha_creacion instanceof Date) {
           console.log('✅ Es objeto Date');
           fechaOrden = fecha_creacion;
         }
+        // CASO 6: Cualquier otro caso, usar fecha actual
         else {
           console.log('⚠️ Formato no reconocido, usando fecha actual');
           fechaOrden = new Date();
@@ -882,45 +806,6 @@ async function _generateOrderPDF(firebaseData) {
         console.warn('⚠️⚠️⚠️ ATENCIÓN: Fecha es 1970, usando fecha actual');
         fechaOrden = new Date();
       }
-      
-      // ✅ CORRECCIÓN DEFINITIVA PARA HORA PERÚ EN PDF
-      const ajustarHoraAPeru = (fecha) => {
-        // Si la fecha ya parece estar en hora Perú (entre 12 PM y 11 PM), usarla
-        const hora = fecha.getHours();
-        if (hora >= 12 && hora <= 23) {
-          console.log('✅ Hora ya parece ser Perú (12h-23h), usando directamente');
-          return fecha;
-        }
-        
-        // Si no, ajustar manualmente (Render usa UTC, Perú es UTC-5)
-        console.log(`⚠️ Hora sospechosa en PDF: ${hora}:00, ajustando a Perú...`);
-        
-        // Obtener componentes UTC
-        const year = fecha.getUTCFullYear();
-        const month = fecha.getUTCMonth();
-        const day = fecha.getUTCDate();
-        const hourUTC = fecha.getUTCHours();
-        const minutes = fecha.getUTCMinutes();
-        const seconds = fecha.getUTCSeconds();
-        
-        // Convertir UTC a Perú (UTC-5)
-        let horaPeru = hourUTC - 5;
-        if (horaPeru < 0) {
-          horaPeru += 24;
-          // Si cruzamos día, ajustar fecha
-          const nuevaFecha = new Date(Date.UTC(year, month, day - 1, horaPeru, minutes, seconds));
-          console.log(`🔄 Ajustado: UTC ${hourUTC}:${minutes} → Perú ${horaPeru}:${minutes} (día anterior)`);
-          return nuevaFecha;
-        }
-        
-        const nuevaFecha = new Date(Date.UTC(year, month, day, horaPeru, minutes, seconds));
-        console.log(`🔄 Ajustado: UTC ${hourUTC}:${minutes} → Perú ${horaPeru}:${minutes}`);
-        return nuevaFecha;
-      };
-      
-      const fechaPeruAjustada = ajustarHoraAPeru(fechaOrden);
-      console.log('✅ Fecha ajustada a Perú:', fechaPeruAjustada);
-      console.log('✅ Hora Perú:', fechaPeruAjustada.getHours(), ':', fechaPeruAjustada.getMinutes());
       
       // Formatear fechas para Perú
       const opcionesFecha = {
@@ -941,11 +826,11 @@ async function _generateOrderPDF(firebaseData) {
       const formateadorFecha = new Intl.DateTimeFormat('es-PE', opcionesFecha);
       const formateadorHora = new Intl.DateTimeFormat('es-PE', opcionesHora);
       
-      const fechaFormateada = formateadorFecha.format(fechaPeruAjustada);
-      const horaFormateada = formateadorHora.format(fechaPeruAjustada);
+      const fechaFormateada = formateadorFecha.format(fechaOrden);
+      const horaFormateada = formateadorHora.format(fechaOrden);
       
-      console.log('✅ Fecha formateada en PDF:', fechaFormateada);
-      console.log('✅ Hora formateada en PDF:', horaFormateada);
+      console.log('✅ Fecha formateada:', fechaFormateada);
+      console.log('✅ Hora formateada:', horaFormateada);
       
       const doc = new PDFDocument({ 
         size: 'A4', 
@@ -963,21 +848,23 @@ async function _generateOrderPDF(firebaseData) {
       doc.on('data', chunk => chunks.push(chunk));
       doc.on('end', () => {
         const pdfBuffer = Buffer.concat(chunks);
-        // ✅ CORRECCIÓN: Convertir a Base64 para SendGrid
+        // ✅ CORRECCIÓN: Convertir a Base64 para SendGrid (CAMBIO MÍNIMO)
         const pdfBase64 = pdfBuffer.toString('base64');
         
         resolve({
           filename: `comprobante-${order_id}.pdf`,
-          content: pdfBase64,
+          content: pdfBase64,  // ✅ AHORA ES Base64
           contentType: 'application/pdf'
         });
       });
       
       // ==================== HEADER MINIMALISTA ====================
+      // Fondo negro sólido
       doc.rect(0, 0, doc.page.width, 120)
          .fillColor('#000000')
          .fill();
       
+      // Logo y nombre - diseño limpio
       doc.fillColor('#FFFFFF')
          .fontSize(28)
          .font('Helvetica-Bold')
@@ -988,6 +875,7 @@ async function _generateOrderPDF(firebaseData) {
          .font('Helvetica')
          .text('E-COMMERCE PREMIUM', 0, 70, { align: 'center' });
       
+      // Línea decorativa sutil
       doc.strokeColor('#FFD700')
          .lineWidth(2)
          .moveTo(100, 95)
@@ -1005,9 +893,11 @@ async function _generateOrderPDF(firebaseData) {
       doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
       doc.text('INFORMACIÓN DE LA ORDEN', 50, 160);
       
+      // Línea decorativa
       doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, 175).lineTo(doc.page.width - 50, 175).stroke();
       doc.moveDown(1.5);
       
+      // Grid de información minimalista
       doc.fillColor('#333333').fontSize(10).font('Helvetica');
       
       const infoLeft = 50;
@@ -1064,6 +954,7 @@ async function _generateOrderPDF(firebaseData) {
       doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, doc.y + 5).lineTo(doc.page.width - 50, doc.y + 5).stroke();
       doc.moveDown(1.5);
       
+      // Encabezados de tabla
       const tableTop = doc.y;
       const colWidths = [270, 60, 90, 90];
       const colPositions = [50];
@@ -1072,10 +963,12 @@ async function _generateOrderPDF(firebaseData) {
         colPositions[i] = colPositions[i - 1] + colWidths[i - 1];
       }
       
+      // Fondo encabezado minimalista
       doc.rect(colPositions[0], tableTop, colWidths.reduce((a, b) => a + b, 0), 25)
          .fillColor('#f8f9fa')
          .fill();
       
+      // Texto encabezados
       doc.fillColor('#000000').fontSize(9).font('Helvetica-Bold');
       const headers = ['PRODUCTO', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL'];
       
@@ -1087,6 +980,7 @@ async function _generateOrderPDF(firebaseData) {
         });
       });
       
+      // Línea debajo del encabezado
       doc.strokeColor('#FFD700').lineWidth(1)
          .moveTo(colPositions[0], tableTop + 25)
          .lineTo(colPositions[3] + colWidths[3], tableTop + 25)
@@ -1101,17 +995,20 @@ async function _generateOrderPDF(firebaseData) {
         const precio = producto.precio || producto.precioOriginal || 0;
         const subtotal = producto.subtotal || (cantidad * precio);
         
+        // Fondo alternado muy sutil
         if (index % 2 === 0) {
           doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), 35)
              .fillColor('#fafafa')
              .fill();
         }
         
+        // Nombre del producto
         doc.fillColor('#000000').fontSize(9).font('Helvetica');
         doc.text(nombre, colPositions[0] + 10, currentTableY + 8, {
           width: colWidths[0] - 20
         });
         
+        // Detalles adicionales pequeños
         if (producto.color || producto.talla || producto.sku) {
           const detalles = [];
           if (producto.color) detalles.push(`Color: ${producto.color}`);
@@ -1124,23 +1021,27 @@ async function _generateOrderPDF(firebaseData) {
           });
         }
         
+        // Cantidad
         doc.fillColor('#000000').fontSize(9);
         doc.text(cantidad.toString(), colPositions[1] + 5, currentTableY + 12, {
           width: colWidths[1] - 10,
           align: 'center'
         });
         
+        // Precio unitario
         doc.text(`S/ ${precio.toFixed(2)}`, colPositions[2] + 5, currentTableY + 12, {
           width: colWidths[2] - 10,
           align: 'right'
         });
         
+        // Subtotal
         doc.font('Helvetica-Bold');
         doc.text(`S/ ${subtotal.toFixed(2)}`, colPositions[3] + 5, currentTableY + 12, {
           width: colWidths[3] - 10,
           align: 'right'
         });
         
+        // Línea separadora muy sutil
         doc.strokeColor('#e0e0e0').lineWidth(0.3)
            .moveTo(colPositions[0], currentTableY + 35)
            .lineTo(colPositions[3] + colWidths[3], currentTableY + 35)
@@ -1156,6 +1057,7 @@ async function _generateOrderPDF(firebaseData) {
       const summaryBoxWidth = 300;
       const summaryBoxLeft = doc.page.width - summaryBoxWidth - 50;
       
+      // Caja de resumen con bordes redondeados
       doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 150, 5)
          .fillColor('#f8f9fa')
          .fill();
@@ -1176,12 +1078,14 @@ async function _generateOrderPDF(firebaseData) {
       let summaryY = summaryBoxTop + 50;
       const lineHeight = 22;
       
+      // Subtotal
       doc.fillColor('#333333').fontSize(10).font('Helvetica');
       doc.text('Subtotal:', summaryBoxLeft + 15, summaryY);
       doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 115, summaryY, {
         align: 'right'
       });
       
+      // Envío
       if (envio.costo > 0) {
         summaryY += lineHeight;
         doc.text(`Envío (${envio.tipo}):`, summaryBoxLeft + 15, summaryY);
@@ -1190,12 +1094,14 @@ async function _generateOrderPDF(firebaseData) {
         });
       }
       
+      // Línea separadora
       summaryY += lineHeight + 5;
       doc.strokeColor('#FFD700').lineWidth(1)
          .moveTo(summaryBoxLeft + 15, summaryY)
          .lineTo(summaryBoxLeft + summaryBoxWidth - 15, summaryY)
          .stroke();
       
+      // TOTAL - Destacado
       summaryY += 10;
       doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
       doc.text('TOTAL:', summaryBoxLeft + 15, summaryY);
@@ -1207,6 +1113,7 @@ async function _generateOrderPDF(firebaseData) {
       // ==================== FINAL DEL PDF ====================
       doc.moveDown(4);
       
+      // Footer
       doc.fillColor('#333333').fontSize(8).font('Helvetica');
       doc.text('Gracias por su compra. Este documento es su comprobante oficial.', 
         50, doc.page.height - 40, { width: doc.page.width - 100, align: 'center' });
@@ -1327,7 +1234,17 @@ async function sendPaymentNotification(paymentData) {
               </div>
               <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 3px solid #28a745;">
                 <p style="margin: 0 0 8px 0;"><strong>💰 Total:</strong><br><span style="font-size: 24px; font-weight: bold; color: #28a745;">S/ ${total.toFixed(2)}</span></p>
-                <p style="margin: 0 0 8px 0;"><strong>📅 Fecha:</strong><br>${new Date().toLocaleString('es-PE')}</p>
+                <p style="margin: 0 0 8px 0;"><strong>📅 Fecha:</strong><br>${new Date().toLocaleString('es-PE', {
+  weekday: 'long',
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: true,
+  timeZone: 'America/Lima'
+})}</p>
                 <p style="margin: 0;"><strong>🔗 ID Culqi:</strong><br><code style="background: #eee; padding: 2px 5px; border-radius: 3px;">${paymentData.culqi_id || paymentData.id || 'N/A'}</code></p>
               </div>
             </div>
@@ -1437,8 +1354,18 @@ async function sendPaymentNotification(paymentData) {
           <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd;">
             <p style="margin: 0 0 5px 0; font-weight: bold;">Goldinfiniti - Sistema Automático de Notificaciones</p>
             <p style="margin: 0; font-size: 11px;">
-              🔔 Notificación generada automáticamente • ${new Date().toLocaleString('es-PE')}
-            </p>
+  🔔 Notificación generada automáticamente • ${new Date().toLocaleString('es-PE', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZone: 'America/Lima'
+  })}
+</p>
           </div>
         </div>
       `
