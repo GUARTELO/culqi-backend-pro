@@ -32,6 +32,10 @@ const app = express();
 // 2. MIDDLEWARES (EN ORDEN CORRECTO)
 // ============================================
 
+// ============================================
+// 2. MIDDLEWARES (EN ORDEN CORRECTO)
+// ============================================
+
 // A. SEGURIDAD - Helmet (protección de headers)
 app.use(helmet({
   contentSecurityPolicy: {
@@ -58,6 +62,10 @@ const corsOptions = {
       'http://127.0.0.1:5502',         // ← AÑADE ESTO
       'http://localhost:5502',         // ← AÑADE ESTO
       'http://localhost:3000',         // ← AÑADE ESTO
+      'http://127.0.0.1:5500',         // ← AÑADE ESTA LÍNEA (puerto 5500)
+      'http://localhost:5500',         // ← AÑADE ESTA LÍNEA (puerto 5500)
+      'file://',                       // ← AÑADE ESTA LÍNEA (archivos locales)
+      'null',                          // ← AÑADE ESTA LÍNEA (algunos navegadores)
       undefined,                       // Para peticiones sin origen
     ];
     
