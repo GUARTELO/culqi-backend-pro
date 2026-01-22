@@ -333,7 +333,7 @@ class PaymentController {
       res.status(200).json(response);
       
       /* =======================
-       * 9. TAREAS POST-PAGO (OPCIONAL)
+       * 9. TAREAS POST-PAGO (OPCIONAL) - AQUÍ ESTÁ LA CORRECCIÓN
        * =======================
        */
       this._executePostPaymentTasks(
@@ -346,7 +346,7 @@ class PaymentController {
           productos,
           resumen,
           metadata,
-          ordenId: ordenIdCorregido
+          ordenId: ordenIdCorregido // ✅ ESTE ES EL ID CORRECTO: ORD-202601-0029
         },
         emailResult
       ).catch(err => {
@@ -481,123 +481,192 @@ class PaymentController {
    * ENVIAR EMAIL CON DATOS DE FIREBASE
    * ============================================================
    */
- async _sendFirebaseEmail(emailData) {
-  const startTime = Date.now();
-  this.stats.emailStats.attempted++;
-  
-  try {
-    logger.info(`📧 Preparando email para ${emailData.customer_email}`, {
-      orderId: emailData.order_id,
-      productosCount: emailData.productos.length,
-      total: emailData.resumen.total
-    });
+  async _sendFirebaseEmail(emailData) {
+    const startTime = Date.now();
+    this.stats.emailStats.attempted++;
     
-    let emailResult;
-    
-    // 1. PRIMERO: Intenta con EmailService REAL
-    if (emailServiceAvailable && emailService.sendPaymentConfirmation) {
-      logger.info(`📤 Enviando email REAL con EmailService`);
+    try {
+      logger.info(`📧 Preparando email para ${emailData.customer_email}`, {
+        orderId: emailData.order_id,
+        productosCount: emailData.productos.length,
+        total: emailData.resumen.total
+      });
       
-      try {
-        emailResult = await emailService.sendPaymentConfirmation(emailData);
+      let emailResult;
+      
+      // 1. PRIMERO: Intenta con EmailService REAL
+      if (emailServiceAvailable && emailService.sendPaymentConfirmation) {
+        logger.info(`📤 Enviando email REAL con EmailService`);
         
-        if (emailResult.success) {
-          logger.info(`✅ Email enviado exitosamente`, {
-            messageId: emailResult.messageId,
-            customer: this._maskEmail(emailData.customer_email)
-          });
-          this.stats.emailStats.sent++;
+        try {
+          emailResult = await emailService.sendPaymentConfirmation(emailData);
           
-          return {
-            success: true,
-            messageId: emailResult.messageId,
-            duration: Date.now() - startTime,
-            timestamp: new Date().toISOString(),
-            source: 'real_service'
-          };
+          if (emailResult.success) {
+            logger.info(`✅ Email enviado exitosamente`, {
+              messageId: emailResult.messageId,
+              customer: this._maskEmail(emailData.customer_email)
+            });
+            this.stats.emailStats.sent++;
+            
+            return {
+              success: true,
+              messageId: emailResult.messageId,
+              duration: Date.now() - startTime,
+              timestamp: new Date().toISOString(),
+              source: 'real_service'
+            };
+            
+          } else {
+            logger.warn(`⚠️ EmailService respondió con éxito falso`, {
+              error: emailResult.error
+            });
+          }
           
-        } else {
-          logger.warn(`⚠️ EmailService respondió con éxito falso`, {
-            error: emailResult.error
+        } catch (serviceError) {
+          logger.warn(`⚠️ Error ejecutando EmailService`, {
+            error: serviceError.message
           });
         }
-        
-      } catch (serviceError) {
-        logger.warn(`⚠️ Error ejecutando EmailService`, {
-          error: serviceError.message
-        });
       }
+      
+      // 2. FALLBACK: Generar email básico local
+      logger.info(`🔄 Usando modo fallback para ${emailData.customer_email}`);
+      
+      const emailHtml = this._generateEmailHtml(emailData);
+      
+      logger.info(`📝 Email fallback generado para ${emailData.customer_email}`, {
+        orderId: emailData.order_id,
+        total: `S/ ${(emailData.amount / 100).toFixed(2)}`,
+        productos: emailData.productos.length,
+        html_length: emailHtml.length
+      });
+      
+      this.stats.emailStats.queued++;
+      
+      return {
+        success: true,
+        fallback: true,
+        html_generated: true,
+        duration: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+        source: 'fallback',
+        preview: `Orden #${emailData.order_id} - S/ ${(emailData.resumen.total).toFixed(2)}`
+      };
+      
+    } catch (error) {
+      this.stats.emailStats.failed++;
+      
+      logger.error(`❌ Error crítico en _sendFirebaseEmail`, {
+        error: error.message,
+        customer: this._maskEmail(emailData.customer_email),
+        orderId: emailData.order_id
+      });
+      
+      return {
+        success: false,
+        error: error.message,
+        fallback: false,
+        duration: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+        source: 'error'
+      };
     }
-    
-    // 2. FALLBACK: Generar email básico local
-    logger.info(`🔄 Usando modo fallback para ${emailData.customer_email}`);
-    
-    const emailHtml = this._generateEmailHtml(emailData);
-    
-    logger.info(`📝 Email fallback generado para ${emailData.customer_email}`, {
-      orderId: emailData.order_id,
-      total: `S/ ${(emailData.amount / 100).toFixed(2)}`,
-      productos: emailData.productos.length,
-      html_length: emailHtml.length
-    });
-    
-    this.stats.emailStats.queued++;
-    
-    return {
-      success: true,
-      fallback: true,
-      html_generated: true,
-      duration: Date.now() - startTime,
-      timestamp: new Date().toISOString(),
-      source: 'fallback',
-      preview: `Orden #${emailData.order_id} - S/ ${(emailData.resumen.total).toFixed(2)}`
-    };
-    
-  } catch (error) {
-    this.stats.emailStats.failed++;
-    
-    logger.error(`❌ Error crítico en _sendFirebaseEmail`, {
-      error: error.message,
-      customer: this._maskEmail(emailData.customer_email),
-      orderId: emailData.order_id
-    });
-    
-    return {
-      success: false,
-      error: error.message,
-      fallback: false,
-      duration: Date.now() - startTime,
-      timestamp: new Date().toISOString(),
-      source: 'error'
-    };
   }
-}
 
   /* ============================================================
-   * TAREAS POST-PAGO
+   * TAREAS POST-PAGO - CORREGIDO PARA USAR MISMO ID
    * ============================================================
    */
   async _executePostPaymentTasks(paymentId, culqiResult, firebaseData, emailResult) {
     const tasksStartTime = Date.now();
     
     try {
-      logger.info(`🔄 Ejecutando tareas post-pago ${paymentId}`);
+      logger.info(`🔄 Ejecutando tareas post-pago ${paymentId}`, {
+        ordenIdParaNotificacion: firebaseData.ordenId,
+        cliente: firebaseData.cliente?.nombre
+      });
       
       const tasks = [];
       
-      // 1. Notificación interna al administrador
+      // ✅✅✅ CORRECCIÓN CRÍTICA: Notificación interna con MISMO ID
       if (emailServiceAvailable && emailService.sendPaymentNotification) {
+        // PREPARAR DATOS EXACTOS PARA LA NOTIFICACIÓN
         const notificationData = {
-          ...firebaseData,
+          // Información del pago
           id: paymentId,
           culqi_id: culqiResult.id,
-          email_result: emailResult
+          amount: culqiResult.amount,
+          currency: culqiResult.currency || 'PEN',
+          status: culqiResult.status,
+          created_at: culqiResult.created_at || new Date().toISOString(),
+          
+          // ✅✅✅ AQUÍ ESTÁ LA CORRECCIÓN: MISMO ID QUE AL CLIENTE
+          order_id: firebaseData.ordenId, // ORD-202601-0029
+          
+          // Información del cliente
+          customer_email: firebaseData.cliente?.email,
+          customer_name: `${firebaseData.cliente?.nombre || ''} ${firebaseData.cliente?.apellido || ''}`.trim(),
+          customer_phone: firebaseData.cliente?.telefono || '',
+          
+          // Productos
+          productos: firebaseData.productos || [],
+          productos_count: firebaseData.productos?.length || 0,
+          
+          // Resumen
+          resumen: {
+            subtotal: firebaseData.resumen?.subtotal || 0,
+            envio: firebaseData.resumen?.envio || 0,
+            total: firebaseData.resumen?.total || (culqiResult.amount / 100),
+            cantidad_items: firebaseData.resumen?.cantidadItems || 0
+          },
+          
+          // Comprobante
+          comprobante: firebaseData.comprobante || { tipo: 'boleta' },
+          
+          // Envío
+          envio: firebaseData.envio || null,
+          
+          // Resultado del email al cliente
+          email_result: {
+            success: emailResult.success,
+            timestamp: emailResult.timestamp,
+            customer: firebaseData.cliente?.email
+          },
+          
+          // Metadata
+          metadata: {
+            ...firebaseData.metadata,
+            firebase_doc_id: firebaseData.metadata?.firebaseDocId,
+            tipo_compra: firebaseData.metadata?.tipoCompra,
+            procesado_en: new Date().toISOString(),
+            golden_infinity: true,
+            // ✅ DEBUG IMPORTANTE
+            debug_nota: 'NOTIFICACIÓN INTERNA - MISMO ID QUE EMAIL AL CLIENTE',
+            order_id_verificado: firebaseData.ordenId
+          }
         };
+        
+        // ✅ LOG EXPLÍCITO PARA VERIFICAR
+        logger.info(`📧 ENVIANDO NOTIFICACIÓN INTERNA CON ID: ${firebaseData.ordenId}`, {
+          payment_id: paymentId,
+          order_id_en_notification: notificationData.order_id,
+          igual_a_cliente: notificationData.order_id === firebaseData.ordenId
+        });
         
         tasks.push(
           emailService.sendPaymentNotification(notificationData)
+            .then(result => {
+              logger.info(`✅ NOTIFICACIÓN INTERNA ENVIADA PARA ORDEN: ${firebaseData.ordenId}`, {
+                success: result.success,
+                order_id_confirmado: firebaseData.ordenId
+              });
+              return result;
+            })
             .catch(err => {
-              logger.warn(`⚠️ Error notificación interna ${paymentId}`, { error: err.message });
+              logger.warn(`⚠️ Error notificación interna ${paymentId}`, { 
+                error: err.message,
+                ordenId_correcto: firebaseData.ordenId
+              });
               return { success: false, error: err.message };
             })
         );
@@ -612,7 +681,10 @@ class PaymentController {
             firebaseData.cliente.email,
             firebaseData.productos,
             firebaseData.comprobante?.tipo || 'boleta'
-          ).catch(err => {
+          ).then(result => {
+            logger.info(`📄 Comprobante procesado para orden ${firebaseData.ordenId}`);
+            return result;
+          }).catch(err => {
             logger.warn(`⚠️ Error generando comprobante ${paymentId}`, { error: err.message });
             return { success: false, error: err.message };
           })
@@ -622,10 +694,13 @@ class PaymentController {
       // 3. Actualizar Firebase (simulado)
       tasks.push(
         this._updateFirebaseDocument(
-          firebaseData.ordenId,
+          firebaseData.ordenId, // ✅ MISMO ID AQUÍ TAMBIÉN
           culqiResult,
           emailResult
-        ).catch(err => {
+        ).then(result => {
+          logger.info(`📝 Firebase actualizado para orden ${firebaseData.ordenId}`);
+          return result;
+        }).catch(err => {
           logger.warn(`⚠️ Error actualizando Firebase ${paymentId}`, { error: err.message });
           return { success: false, error: err.message };
         })
@@ -638,6 +713,7 @@ class PaymentController {
       const successfulTasks = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
       
       logger.info(`✅ Tareas post-pago completadas ${paymentId}`, {
+        ordenIdFinal: firebaseData.ordenId,
         totalTasks: tasks.length,
         successfulTasks,
         duration: `${tasksDuration}ms`,
@@ -647,6 +723,7 @@ class PaymentController {
     } catch (error) {
       logger.error(`🔥 Error en tareas post-pago ${paymentId}`, {
         error: error.message,
+        ordenId: firebaseData.ordenId,
         duration: `${Date.now() - tasksStartTime}ms`,
         critical: false
       });
