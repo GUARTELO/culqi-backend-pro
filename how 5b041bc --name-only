@@ -1,0 +1,118 @@
+[33mcommit 09af5f5a6ec3cd1095d82cb7785b41a32343dc70[m
+Author: Ciro Briones <cirobriones99@gmail.com>
+Date:   Wed Jan 21 11:03:12 2026 -0500
+
+    Configuración de Firebase agregada para dashboard
+
+[1mdiff --git a/src/core/config/firebase.js b/src/core/config/firebase.js[m
+[1mnew file mode 100644[m
+[1mindex 0000000..23fc0bb[m
+[1m--- /dev/null[m
+[1m+++ b/src/core/config/firebase.js[m
+[36m@@ -0,0 +1,105 @@[m
+[32m+[m[32m// src/core/config/firebase.js - VERSIÓN SIMPLIFICADA Y SEGURA[m
+[32m+[m[32mconst admin = require('firebase-admin');[m
+[32m+[m
+[32m+[m[32m// Variables globales[m
+[32m+[m[32mlet firestore = null;[m
+[32m+[m[32mlet auth = null;[m
+[32m+[m[32mlet isInitialized = false;[m
+[32m+[m
+[32m+[m[32m/**[m
+[32m+[m[32m * Inicializar Firebase de forma SEGURA (sin errores críticos)[m
+[32m+[m[32m */[m
+[32m+[m[32mconst initializeFirebase = () => {[m
+[32m+[m[32m  if (isInitialized) {[m
+[32m+[m[32m    return { firestore, auth, isConnected: true };[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  console.log('🔄 Intentando conectar a Firebase...');[m
+[32m+[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    // OPCIÓN 1: Variable de entorno en Render.com[m
+[32m+[m[32m    if (process.env.FIREBASE_SERVICE_ACCOUNT) {[m
+[32m+[m[32m      console.log('📦 Detectada variable FIREBASE_SERVICE_ACCOUNT');[m
+[32m+[m[41m      [m
+[32m+[m[32m      try {[m
+[32m+[m[32m        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);[m
+[32m+[m[41m        [m
+[32m+[m[32m        if (!admin.apps.length) {[m
+[32m+[m[32m          admin.initializeApp({[m
+[32m+[m[32m            credential: admin.credential.cert(serviceAccount),[m
+[32m+[m[32m            databaseURL: "https://mi-tienda-online-10630.firebaseio.com"[m
+[32m+[m[32m          });[m
+[32m+[m[41m          [m
+[32m+[m[32m          console.log('✅ Firebase inicializado con credenciales de entorno');[m
+[32m+[m[32m        }[m
+[32m+[m[32m      } catch (parseError) {[m
+[32m+[m[32m        console.warn('⚠️ Error parseando credenciales:', parseError.message);[m
+[32m+[m[32m      }[m
+[32m+[m[32m    }[m
+[32m+[m[41m    [m
+[32m+[m[32m    // OPCIÓN 2: Archivo local (solo desarrollo)[m
+[32m+[m[32m    if (!admin.apps.length && process.env.NODE_ENV === 'development') {[m
+[32m+[m[32m      try {[m
+[32m+[m[32m        // Intentar cargar archivo local[m
+[32m+[m[32m        const serviceAccount = require('../../../firebase-service-account.json');[m
+[32m+[m[32m        admin.initializeApp({[m
+[32m+[m[32m          credential: admin.credential.cert(serviceAccount),[m
+[32m+[m[32m          databaseURL: "https://mi-tienda-online-10630.firebaseio.com"[m
+[32m+[m[32m        });[m
+[32m+[m[32m        console.log('✅ Firebase inicializado con archivo local');[m
+[32m+[m[32m      } catch (fileError) {[m
+[32m+[m[32m        console.warn('⚠️ No se encontró archivo de credenciales local');[m
+[32m+[m[32m      }[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    // Si se pudo inicializar[m
+[32m+[m[32m    if (admin.apps.length > 0) {[m
+[32m+[m[32m      firestore = admin.firestore();[m
+[32m+[m[32m      auth = admin.auth();[m
+[32m+[m[32m      isInitialized = true;[m
+[32m+[m[41m      [m
+[32m+[m[32m      console.log('✅ Firebase configurado correctamente');[m
+[32m+[m[32m      console.log('📊 Proyecto: mi-tienda-online-10630');[m
+[32m+[m[32m      console.log('📍 Ubicación: nam5 (us-central1)');[m
+[32m+[m[41m      [m
+[32m+[m[32m    } else {[m
+[32m+[m[32m      console.warn('⚠️ Firebase NO inicializado - Modo sin conexión a BD');[m
+[32m+[m[32m      console.warn('💡 Configura FIREBASE_SERVICE_ACCOUNT en Render.com');[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    console.error('❌ Error en Firebase (no crítico):', error.message);[m
+[32m+[m[32m    // NO lanzar error - el backend puede funcionar sin Firebase[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  return {[m[41m [m
+[32m+[m[32m    firestore,[m[41m [m
+[32m+[m[32m    auth,[m[41m [m
+[32m+[m[32m    isConnected: isInitialized,[m
+[32m+[m[32m    projectId: 'mi-tienda-online-10630'[m
+[32m+[m[32m  };[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m[32m// Inicializar e exportar[m
+[32m+[m[32mconst firebase = initializeFirebase();[m
+[32m+[m
+[32m+[m[32mmodule.exports = {[m
+[32m+[m[32m  firestore: firebase.firestore,[m
+[32m+[m[32m  auth: firebase.auth,[m
+[32m+[m[32m  isConnected: () => firebase.isConnected,[m
+[32m+[m[41m  [m
+[32m+[m[32m  // Información de diagnóstico[m
+[32m+[m[32m  getStatus: () => ({[m
+[32m+[m[32m    connected: firebase.isConnected,[m
+[32m+[m[32m    initialized: isInitialized,[m
+[32m+[m[32m    hasApps: admin.apps.length > 0,[m
+[32m+[m[32m    projectId: firebase.projectId,[m
+[32m+[m[32m    environment: process.env.NODE_ENV || 'unknown'[m
+[32m+[m[32m  }),[m
+[32m+[m[41m  [m
+[32m+[m[32m  // Método para reconectar si es necesario[m
+[32m+[m[32m  reconnect: () => {[m
+[32m+[m[32m    isInitialized = false;[m
+[32m+[m[32m    return initializeFirebase();[m
+[32m+[m[32m  }[m
+[32m+[m[32m};[m
+\ No newline at end of file[m

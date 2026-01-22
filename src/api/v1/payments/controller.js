@@ -1,12 +1,10 @@
 /**
  * ============================================================
- * PAYMENT CONTROLLER - VERSIÓN FIREBASE COMPLETA
+ * PAYMENT CONTROLLER - VERSIÓN FIREBASE COMPLETA CON IDs SECUENCIALES
  * ============================================================
- * - Usa datos completos de Firebase para el email
- * - Incluye: productos, cliente, envío, comprobante
- * - Genera email profesional con todos los detalles
- * - Compatible con estructura Golden Infinity
- * - INCLUYE todos los métodos necesarios
+ * - IDs SECUENCIALES POR MES: ORD-202601-0001, ORD-202601-0002...
+ * - Febrero: ORD-202602-0001, ORD-202602-0002...
+ * - Marzo: ORD-202603-0001... (se reinicia cada mes)
  * ============================================================
  */
 
@@ -92,7 +90,70 @@ class PaymentController {
     this.getStats = this.getStats.bind(this);
     this.verifyPayment = this.verifyPayment.bind(this);
     
-    logger.info('🚀 PaymentController (Firebase) inicializado');
+    logger.info('🚀 PaymentController (Firebase - IDs SECUENCIALES) inicializado');
+  }
+
+  /* ============================================================
+   * GENERAR ID SECUENCIAL POR MES
+   * ============================================================
+   */
+  async _generarOrderIdSecuencial() {
+    try {
+      const { firestore } = require('../../../core/config/firebase');
+      
+      const hoy = new Date();
+      const año = hoy.getFullYear();
+      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+      const prefijo = `ORD-${año}${mes}`;
+      
+      logger.info(`🔢 Generando ID secuencial para ${prefijo}...`);
+      
+      // Buscar TODAS las órdenes del mes actual
+      const inicioMes = new Date(año, hoy.getMonth(), 1);
+      const finMes = new Date(año, hoy.getMonth() + 1, 0);
+      
+      const snapshot = await firestore
+        .collection('ordenes')
+        .where('fechaCreacion', '>=', inicioMes)
+        .where('fechaCreacion', '<=', finMes)
+        .orderBy('fechaCreacion', 'desc')
+        .limit(1)
+        .get();
+      
+      let siguienteNumero = 1;
+      
+      if (!snapshot.empty) {
+        const ultimaOrden = snapshot.docs[0].data();
+        const ultimoNumero = ultimaOrden.numero || ultimaOrden.id;
+        
+        if (ultimoNumero && ultimoNumero.startsWith(prefijo)) {
+          const partes = ultimoNumero.split('-');
+          if (partes.length === 3) {
+            const ultimoNum = parseInt(partes[2]);
+            if (!isNaN(ultimoNum)) {
+              siguienteNumero = ultimoNum + 1;
+            }
+          }
+          logger.info(`📊 Último número: ${ultimoNumero}, Siguiente: ${siguienteNumero}`);
+        }
+      } else {
+        logger.info(`📊 Primer orden del mes ${prefijo}`);
+      }
+      
+      const orderId = `${prefijo}-${String(siguienteNumero).padStart(4, '0')}`;
+      logger.info(`✅ ID SECUENCIAL GENERADO: ${orderId}`);
+      return orderId;
+      
+    } catch (error) {
+      logger.error('❌ Error generando ID secuencial:', error);
+      
+      // Fallback
+      const hoy = new Date();
+      const año = hoy.getFullYear();
+      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+      const timestamp = Date.now().toString().slice(-6);
+      return `ORD-${año}${mes}-${timestamp}`;
+    }
   }
 
   /* ============================================================
@@ -125,6 +186,34 @@ class PaymentController {
         id: ordenId 
       } = req.body;
 
+      // ========== CORREGIR O GENERAR ID SECUENCIAL ==========
+      let ordenIdCorregido = ordenId;
+      
+      // CASO 1: ID es automático (ORD-1769...)
+      if (ordenId && ordenId.includes('ORD-1769')) {
+        logger.warn('🚨 ID AUTOMÁTICO DETECTADO, CORRIGIENDO:', ordenId);
+        
+        // Intentar usar metadata.orderId si es secuencial
+        if (metadata?.orderId && metadata.orderId.match(/^ORD-\d{6}-\d{4}$/)) {
+          ordenIdCorregido = metadata.orderId;
+          logger.info('✅ ID corregido del metadata:', ordenIdCorregido);
+        } else {
+          // Generar nuevo ID SECUENCIAL
+          ordenIdCorregido = await this._generarOrderIdSecuencial();
+          logger.info('✅ NUEVO ID SECUENCIAL:', ordenIdCorregido);
+        }
+      }
+      // CASO 2: No hay ID o es incorrecto
+      else if (!ordenId || !ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
+        ordenIdCorregido = await this._generarOrderIdSecuencial();
+        logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
+      }
+      // CASO 3: ID ya es correcto
+      else {
+        logger.info('✅ ID ya es correcto:', ordenId);
+      }
+      // ========== FIN CORRECCIÓN ==========
+
       // Validar datos mínimos
       if (!token) throw this._error('MISSING_TOKEN', 'Token de pago requerido', 400);
       if (!amount || Number(amount) <= 0) throw this._error('INVALID_AMOUNT', 'Monto inválido', 400);
@@ -139,7 +228,8 @@ class PaymentController {
       }
 
       logger.debug(`📋 Datos Firebase recibidos ${paymentId}`, {
-        ordenId: ordenId || metadata?.orderId,
+        ordenIdOriginal: ordenId,
+        ordenIdCorregido: ordenIdCorregido,
         cliente: cliente.nombre,
         productosCount: Array.isArray(productos) ? productos.length : 0,
         total: resumen?.total
@@ -155,7 +245,8 @@ class PaymentController {
         customerEmail,
         cliente,
         metadata,
-        req
+        req,
+        ordenIdCorregido
       );
 
       /* =======================
@@ -189,7 +280,7 @@ class PaymentController {
           productos,
           resumen,
           metadata,
-          ordenId: ordenId || metadata?.orderId
+          ordenId: ordenIdCorregido
         }
       );
 
@@ -218,14 +309,14 @@ class PaymentController {
           cliente,
           productos,
           resumen,
-          ordenId: ordenId || metadata?.orderId
+          ordenId: ordenIdCorregido
         },
         totalDuration
       );
 
       logger.info(`🎉 Pago completado ${paymentId}`, {
         paymentId,
-        ordenId: ordenId || metadata?.orderId,
+        ordenId: ordenIdCorregido,
         cliente: cliente.nombre,
         emailSent: emailResult.success,
         total: resumen.total,
@@ -255,7 +346,7 @@ class PaymentController {
           productos,
           resumen,
           metadata,
-          ordenId: ordenId || metadata?.orderId
+          ordenId: ordenIdCorregido
         },
         emailResult
       ).catch(err => {
@@ -277,10 +368,10 @@ class PaymentController {
   }
 
   /* ============================================================
-   * PREPARAR DATOS PARA CULQI - CORREGIDO
+   * PREPARAR DATOS PARA CULQI - CORREGIDO CON ID SECUENCIAL
    * ============================================================
    */
-  _prepareCulqiData(token, amount, email, cliente, metadata, req) {
+  _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
     const nombreCompleto = `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim();
     
     return {
@@ -288,7 +379,7 @@ class PaymentController {
       amount: Number(amount),
       currency_code: 'PEN',
       email: email.toLowerCase().trim(),
-      description: `Goldinfiniti - Orden ${metadata?.orderId || 'N/A'}`,
+      description: `Goldinfiniti - Orden ${orderId}`,
       antifraud_details: {
         customer_ip: req?.ip || '127.0.0.1',
         customer_device: req?.get('User-Agent') || 'Web Browser',
@@ -296,7 +387,7 @@ class PaymentController {
         last_name: cliente.apellido || ''
       },
       metadata: {
-        order_id: metadata?.orderId,
+        order_id: orderId,
         cliente_id: cliente.id,
         cliente_nombre: nombreCompleto,
         cliente_telefono: cliente.telefono || '',
@@ -350,7 +441,7 @@ class PaymentController {
       customer_name: `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim(),
       customer_phone: cliente.telefono || '',
       
-      // Información de la orden (Firebase)
+      // ✅✅✅ INFORMACIÓN DE LA ORDEN CON ID SECUENCIAL
       order_id: ordenId,
       firebase_doc_id: metadata?.firebaseDocId,
       fecha_creacion: metadata?.timestamp || new Date().toISOString(),
