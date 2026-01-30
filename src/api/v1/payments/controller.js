@@ -203,15 +203,16 @@ class PaymentController {
           logger.info('✅ NUEVO ID SECUENCIAL:', ordenIdCorregido);
         }
       }
-      // CASO 2: No hay ID o es incorrecto
-      else if (!ordenId || !ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
-        ordenIdCorregido = await this._generarOrderIdSecuencial();
-        logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
-      }
-      // CASO 3: ID ya es correcto
-      else {
-        logger.info('✅ ID ya es correcto:', ordenId);
-      }
+      // CASO 2: ID ya es válido (ORD-202601-XXXX) → USARLO TAL CUAL
+else if (ordenId && ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
+  logger.info('✅ ID ya es válido, usando:', ordenId);
+  ordenIdCorregido = ordenId; // ← ¡NO generar nuevo!
+}
+// CASO 3: No hay ID o es incorrecto → Generar nuevo
+else {
+  ordenIdCorregido = await this._generarOrderIdSecuencial();
+  logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
+}
       // ========== FIN CORRECCIÓN ==========
 
       // Validar datos mínimos
