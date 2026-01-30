@@ -99,8 +99,8 @@ class PaymentController {
    */
   async _generarOrderIdSecuencial() {
     try {
-      const { firestore } = require('../../../core/config/firebase');
-      
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
       const hoy = new Date();
       const año = hoy.getFullYear();
       const mes = String(hoy.getMonth() + 1).padStart(2, '0');
@@ -1025,7 +1025,9 @@ class PaymentController {
       };
       
       try {
-        const { firestore } = require('../../../core/config/firebase');
+        const firebase = require('../../../core/config/firebase');
+        const firestore = firebase.firestore;
+
         if (firestore) {
           const now = new Date();
           const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1257,7 +1259,9 @@ class PaymentController {
       let firebaseConnected = false;
       
       try {
-        const { firestore } = require('../../../core/config/firebase');
+        const firebase = require('../../../core/config/firebase');
+        const firestore = firebase.firestore;
+
         if (firestore) {
           firebaseConnected = true;
           
