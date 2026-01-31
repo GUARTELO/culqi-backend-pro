@@ -851,7 +851,6 @@ async function _generateOrderPDF(firebaseData) {
         info: {
           Title: `Comprobante ${order_id} - Goldinfiniti`,
           Author: 'Goldinfiniti E-commerce',
-          Subject: 'Comprobante de compra',
           Keywords: 'comprobante, factura, orden, ecommerce'
         }
       });
@@ -933,14 +932,6 @@ async function _generateOrderPDF(firebaseData) {
          .font('Helvetica')
          .text('E-COMMERCE PREMIUM', 0, 42, { align: 'center' });
       
-      // Línea decorativa
-      doc.strokeColor('#FFD700')
-         .lineWidth(1)
-         .moveTo(80, 55)
-         .lineTo(doc.page.width - 80, 55)
-         .stroke();
-      
-    
       
       // Posición inicial después del header
       let yPos = 90;
