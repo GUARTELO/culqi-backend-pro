@@ -770,9 +770,6 @@ www.goldinfiniti.com
 // ========================
 // 6. GENERACIÓN DE PDF - VERSIÓN ULTRA-FINA 1 PÁGINA (FIX DEFINITIVO)
 // ========================
-// ========================
-// 6. GENERACIÓN DE PDF ADJUNTO PREMIUM (CON PAGINACIÓN CORREGIDA)
-// ========================
 /**
  * Genera PDF profesional estilo ecommerce premium con paginación correcta
  * @param {Object} firebaseData - Datos de Firebase
@@ -943,18 +940,14 @@ async function _generateOrderPDF(firebaseData) {
          .lineTo(doc.page.width - 80, 55)
          .stroke();
       
-      // Título del comprobante (FUERA del header negro)
-      doc.fillColor('#000000')
-         .fontSize(16) // Reducido de 18
-         .font('Helvetica-Bold')
-         .text('COMPROBANTE DE COMPRA', 0, 70, { align: 'center' });
+    
       
       // Posición inicial después del header
       let yPos = 90;
       doc.y = yPos;
       
       // ==================== INFORMACIÓN DE ORDEN ====================
-      doc.fillColor('#000000').fontSize(13).font('Helvetica-Bold'); // Reducido de 16
+      doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold'); // Reducido de 16
       doc.text('INFORMACIÓN DE LA ORDEN', 40, doc.y);
       
       doc.strokeColor('#FFD700').lineWidth(0.5) // Reducido de 1
@@ -1002,7 +995,7 @@ async function _generateOrderPDF(firebaseData) {
         doc.y = agregarNuevaPagina(false); // Nueva página sin header completo
       }
       
-      doc.fillColor('#000000').fontSize(13).font('Helvetica-Bold');
+      doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
       doc.text('INFORMACIÓN DEL CLIENTE', 40, doc.y);
       
       doc.strokeColor('#FFD700').lineWidth(0.5)
@@ -1046,7 +1039,7 @@ async function _generateOrderPDF(firebaseData) {
         }
         
         // Encabezado de tabla
-        doc.fillColor('#000000').fontSize(13).font('Helvetica-Bold');
+        doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
         if (paginaActual === 1) {
           doc.text('DETALLE DE PRODUCTOS', 40, doc.y);
         } else {
