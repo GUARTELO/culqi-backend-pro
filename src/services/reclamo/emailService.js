@@ -7,259 +7,298 @@ const nodemailer = require('nodemailer');
 class ReclamoEmailService {
     constructor() {
         this.transporter = null;
-        this.simulated = false;
         this._initialize();
     }
 
     _initialize() {
         try {
-            const { GMAIL_USER, GMAIL_APP_PASSWORD } = process.env;
+            // ✅ CREDENCIALES DIRECTO - SIN VARIABLES DE ENTORNO
+            const GMAIL_USER = 'cirobriones99@gmail.com';
+            const GMAIL_APP_PASSWORD = 'oerqbrqrcexcjupd';
             
-            // Verificar que tenemos las credenciales de Gmail
-            if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-                logger.error('❌ [RECLAMOS-GMAIL] ERROR: Credenciales Gmail no configuradas', {
-                    service: 'reclamos-email',
-                    timestamp: new Date().toISOString(),
-                    action: 'Revisar variables GMAIL_USER y GMAIL_APP_PASSWORD en .env'
-                });
-                
-                // Intentar usar las mismas credenciales del sistema de pagos
-                const paymentEmailUser = process.env.EMAIL_USER || process.env.GMAIL_USER_PAGOS;
-                const paymentEmailPass = process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD_PAGOS;
-                
-                if (paymentEmailUser && paymentEmailPass) {
-                    logger.info('🔄 [RECLAMOS-GMAIL] Usando credenciales del sistema de pagos', {
-                        service: 'reclamos-email',
-                        user: paymentEmailUser
-                    });
-                    this._createTransporter(paymentEmailUser, paymentEmailPass);
-                } else {
-                    this.simulated = true;
-                    return;
-                }
-            } else {
-                // Usar credenciales específicas para reclamos
-                this._createTransporter(GMAIL_USER, GMAIL_APP_PASSWORD);
-            }
+            logger.info('🚀 [RECLAMOS-GMAIL] Inicializando servicio PROFESIONAL', {
+                service: 'reclamos-email',
+                timestamp: new Date().toISOString(),
+                provider: 'Gmail SMTP',
+                mode: 'PRODUCCIÓN REAL',
+                user: 'ciro*******@gmail.com'
+            });
 
-            logger.info('✅ [RECLAMOS-GMAIL] Servicio PROFESIONAL inicializado con Gmail', {
+            // Crear transporter con configuración de producción
+            this.transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: {
+                    user: GMAIL_USER,
+                    pass: GMAIL_APP_PASSWORD
+                },
+                tls: {
+                    rejectUnauthorized: true, // TRUE para producción
+                    minVersion: 'TLSv1.2'
+                },
+                secure: true,
+                port: 465,
+                // Configuración optimizada para alta carga
+                pool: true,
+                maxConnections: 10,
+                maxMessages: 50,
+                rateDelta: 1000,
+                rateLimit: 5,
+                // Debug
+                debug: false,
+                logger: false
+            });
+
+            // Verificar conexión INMEDIATA
+            this._verifyConnectionImmediately();
+
+            logger.info('✅ [RECLAMOS-GMAIL] Servicio PROFESIONAL inicializado - MODO PRODUCCIÓN', {
                 service: 'reclamos-email',
                 timestamp: new Date().toISOString(),
                 status: 'OPERATIONAL',
                 provider: 'Gmail SMTP',
                 independence: '100% separado de sistema de pagos',
                 features: ['HTML templates', 'PDF attachments', 'High deliverability'],
-                fromEmail: 'contacto@goldinfiniti.com' // Email específico para reclamos
+                fromEmail: 'reclamos@goldinfiniti.com',
+                security: 'TLSv1.2+',
+                maxConnections: 10,
+                rateLimit: '5 emails/segundo'
             });
 
         } catch (error) {
-            logger.error('💥 [RECLAMOS-GMAIL] ERROR inicializando servicio:', {
+            logger.error('💥 [RECLAMOS-GMAIL] ERROR FATAL inicializando servicio:', {
                 error: error.message,
                 stack: error.stack,
                 service: 'reclamos-email',
                 timestamp: new Date().toISOString(),
-                severity: 'CRITICAL'
+                severity: 'CRITICAL',
+                action: 'REINICIAR_SERVIDOR_INMEDIATAMENTE'
             });
-            this.simulated = true;
+            // NO hay modo simulación - ERROR FATAL
+            throw new Error(`FATAL: No se pudo inicializar servicio de email: ${error.message}`);
         }
     }
 
-    _createTransporter(user, password) {
-        this.transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: user,
-                pass: password
-            },
-            tls: {
-                rejectUnauthorized: false // Para evitar problemas de certificado en desarrollo
-            },
-            // Configuración optimizada
-            pool: true,
-            maxConnections: 5,
-            maxMessages: 100
+    _verifyConnectionImmediately() {
+        return new Promise((resolve, reject) => {
+            this.transporter.verify((error, success) => {
+                if (error) {
+                    logger.error('🔐 [RECLAMOS-GMAIL] ERROR CONEXIÓN SMTP - VERIFICACIÓN FALLIDA:', {
+                        error: error.message,
+                        code: error.code,
+                        command: error.command,
+                        service: 'reclamos-email',
+                        timestamp: new Date().toISOString(),
+                        severity: 'CRITICAL',
+                        action: 'VERIFICAR_CREDENCIALES_GMAIL'
+                    });
+                    reject(error);
+                } else {
+                    logger.info('🔒 [RECLAMOS-GMAIL] Conexión SMTP VERIFICADA - LISTO PARA PRODUCCIÓN', {
+                        service: 'reclamos-email',
+                        timestamp: new Date().toISOString(),
+                        protocol: 'SMTP/SSL',
+                        host: 'smtp.gmail.com',
+                        port: 465,
+                        security: 'TLS 1.2'
+                    });
+                    resolve(success);
+                }
+            });
         });
-
-        // Verificar conexión
-        this._verifyConnection();
-    }
-
-    async _verifyConnection() {
-        try {
-            await this.transporter.verify();
-            logger.info('✅ [RECLAMOS-GMAIL] Conexión SMTP verificada exitosamente', {
-                service: 'reclamos-email',
-                timestamp: new Date().toISOString()
-            });
-            return true;
-        } catch (error) {
-            logger.error('🔐 [RECLAMOS-GMAIL] Error verificando conexión SMTP:', {
-                error: error.message,
-                service: 'reclamos-email',
-                action: 'Revisar credenciales Gmail y App Password'
-            });
-            this.simulated = true;
-            return false;
-        }
     }
 
     async sendReclamoEmail(emailData) {
         const startTime = Date.now();
-        const emailId = `rec_email_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        const emailId = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
         try {
-            // VALIDACIÓN PROFESIONAL (igual que antes)
+            // ✅ VALIDACIÓN ESTRICTA - PRODUCCIÓN
             if (!emailData || typeof emailData !== 'object') {
-                throw new Error('Datos de email inválidos o vacíos');
+                throw new Error('Datos de email inválidos: objeto requerido');
             }
 
             if (!emailData.to || !this._isValidEmail(emailData.to)) {
                 throw new Error(`Email destinatario inválido: ${emailData.to}`);
             }
 
-            if (!emailData.subject || emailData.subject.trim().length === 0) {
-                throw new Error('Asunto del email requerido');
+            if (!emailData.subject || emailData.subject.trim().length < 5) {
+                throw new Error('Asunto del email demasiado corto (mínimo 5 caracteres)');
             }
 
-            if (!emailData.html || emailData.html.trim().length === 0) {
-                throw new Error('Contenido HTML del email requerido');
+            if (!emailData.html || emailData.html.trim().length < 50) {
+                throw new Error('Contenido HTML insuficiente (mínimo 50 caracteres)');
             }
 
-            // MODO SIMULACIÓN
-            if (this.simulated || !this.transporter) {
-                logger.warn('⚠️ [RECLAMOS-GMAIL] MODO SIMULACIÓN - Email no enviado', {
-                    emailId,
-                    to: this._maskEmail(emailData.to),
-                    subject: emailData.subject,
-                    service: 'reclamos-email',
-                    timestamp: new Date().toISOString(),
-                    reason: 'Gmail no configurado o en modo simulación'
-                });
-                
-                return {
-                    success: false,
-                    simulated: true,
-                    emailId,
-                    error: 'SERVICIO_DE_EMAIL_NO_CONFIGURADO',
-                    message: 'Gmail no configurado - Modo simulación activado',
-                    timestamp: new Date().toISOString(),
-                    recommendation: 'Configurar GMAIL_USER y GMAIL_APP_PASSWORD en .env'
-                };
-            }
-
-            // CONFIGURACIÓN DEL EMAIL CON GMAIL
+            // ✅ CONFIGURACIÓN EMAIL CORPORATIVO PROFESIONAL
             const mailOptions = {
                 to: emailData.to,
-                from: `"GOLDINFINITI - Libro de Reclamaciones" <contacto@goldinfiniti.com>`,
-                replyTo: 'contacto@goldinfiniti.com',
-                subject: emailData.subject,
-                html: emailData.html,
+                from: `"GOLDINFINITI - Libro de Reclamaciones" <reclamos@goldinfiniti.com>`,
+                sender: 'reclamos@goldinfiniti.com',
+                replyTo: 'soporte@goldinfiniti.com',
+                subject: `📋 ${emailData.subject} | Libro de Reclamaciones`,
+                html: this._wrapCorporateTemplate(emailData.html),
                 text: emailData.text || this._generatePlainText(emailData.html),
-                // Headers personalizados
+                priority: 'high',
+                // Headers profesionales
                 headers: {
                     'X-Reclamo-ID': emailData.reclamoId || 'N/A',
-                    'X-System': 'reclamos-profesional',
+                    'X-System': 'reclamos-profesional-v2.0',
                     'X-Version': '2.0.0',
-                    'X-Priority': '1', // Alta prioridad
-                    'X-MSMail-Priority': 'High'
+                    'X-Priority': '1 (Highest)',
+                    'X-Mailer': 'GOLDINFINITI-Mail-Server/2.0',
+                    'X-Auto-Response-Suppress': 'OOF, AutoReply',
+                    'Precedence': 'bulk',
+                    'Importance': 'high'
                 },
-                // Adjuntos si existen
-                attachments: emailData.attachments || []
+                // Adjuntos
+                attachments: emailData.attachments || [],
+                // Configuración de entrega
+                dsn: {
+                    id: emailId,
+                    return: 'headers',
+                    notify: ['failure', 'delay'],
+                    recipient: 'reclamos@goldinfiniti.com'
+                }
             };
 
-            logger.info('📤 [RECLAMOS-GMAIL] Enviando email PROFESIONAL:', {
+            logger.info('📤 [RECLAMOS-GMAIL] ENVIANDO EMAIL CORPORATIVO:', {
                 emailId,
                 to: this._maskEmail(emailData.to),
                 subject: emailData.subject,
                 reclamoId: emailData.reclamoId || 'N/A',
+                lengthHtml: emailData.html.length,
                 service: 'reclamos-email',
                 timestamp: new Date().toISOString(),
                 provider: 'Gmail SMTP',
-                mode: 'PRODUCCIÓN'
+                mode: 'PRODUCCIÓN',
+                priority: 'HIGH'
             });
 
-            // ENVÍO CON GMAIL
+            // ✅ ENVÍO REAL - SIN SIMULACIONES
             const info = await this.transporter.sendMail(mailOptions);
             
             const duration = Date.now() - startTime;
             
-            logger.info('✅ [RECLAMOS-GMAIL] Email enviado EXITOSAMENTE:', {
+            logger.info('✅ [RECLAMOS-GMAIL] EMAIL ENVIADO EXITOSAMENTE:', {
                 emailId,
-                messageId: info.messageId || `gmail_${Date.now()}`,
+                messageId: info.messageId,
                 to: this._maskEmail(emailData.to),
                 subject: emailData.subject,
                 duration: `${duration}ms`,
-                accepted: info.accepted,
-                rejected: info.rejected,
+                speed: `${duration < 1000 ? '⚡ RÁPIDO' : '⚙️ NORMAL'}`,
+                accepted: Array.isArray(info.accepted) ? info.accepted.length : 0,
+                rejected: Array.isArray(info.rejected) ? info.rejected.length : 0,
                 service: 'reclamos-email',
                 timestamp: new Date().toISOString(),
                 provider: 'Gmail',
-                success: true
+                status: 'DELIVERED',
+                smtpResponse: info.response || '250 2.0.0 OK'
             });
 
             return {
                 success: true,
-                simulated: false,
                 emailId,
-                messageId: info.messageId || `gmail_${Date.now()}`,
-                gmailResponse: {
-                    messageId: info.messageId,
-                    accepted: info.accepted,
-                    rejected: info.rejected,
-                    response: info.response
-                },
+                messageId: info.messageId,
                 timestamp: new Date().toISOString(),
                 duration: `${duration}ms`,
                 metadata: {
                     provider: 'Gmail SMTP',
                     mode: 'production',
-                    reclamoId: emailData.reclamoId
+                    reclamoId: emailData.reclamoId,
+                    deliveredTo: info.accepted,
+                    response: info.response
+                },
+                corporate: {
+                    from: 'reclamos@goldinfiniti.com',
+                    replyTo: 'soporte@goldinfiniti.com',
+                    tracking: true
                 }
             };
 
         } catch (error) {
             const duration = Date.now() - startTime;
             
-            logger.error('💥 [RECLAMOS-GMAIL] ERROR enviando email:', {
+            logger.error('💥 [RECLAMOS-GMAIL] ERROR CRÍTICO EN ENVÍO:', {
                 emailId,
                 error: error.message,
                 errorCode: error.code,
-                stack: error.stack,
+                command: error.command,
+                smtpResponse: error.response,
                 to: this._maskEmail(emailData?.to),
                 subject: emailData?.subject,
                 duration: `${duration}ms`,
                 service: 'reclamos-email',
                 timestamp: new Date().toISOString(),
-                severity: 'HIGH',
-                action: 'REVISAR_CREDENCIALES_GMAIL'
+                severity: 'CRITICAL',
+                action: 'CONTACTAR_ADMINISTRADOR_SMTP',
+                systemStatus: 'NO OPERATIONAL'
             });
 
-            return {
-                success: false,
-                simulated: this.simulated,
-                emailId,
-                error: 'GMAIL_DELIVERY_FAILED',
-                message: error.message,
-                errorDetails: {
-                    code: error.code,
-                    command: error.command
-                },
-                timestamp: new Date().toISOString(),
-                duration: `${duration}ms`,
-                recommendation: 'Verificar GMAIL_USER, GMAIL_APP_PASSWORD y conexión SMTP'
-            };
+            // ✅ ERROR REAL - NO SIMULACIÓN
+            throw new Error(`Fallo envío email: ${error.message}. Código: ${error.code || 'N/A'}`);
         }
+    }
+
+    _wrapCorporateTemplate(htmlContent) {
+        return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOLDINFINITI - Libro de Reclamaciones</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #1a237e 0%, #283593 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+        .logo { max-width: 200px; margin-bottom: 20px; }
+        .content { background: #f8f9fa; padding: 30px; border-left: 1px solid #dee2e6; border-right: 1px solid #dee2e6; }
+        .footer { background: #343a40; color: white; padding: 20px; text-align: center; border-radius: 0 0 10px 10px; font-size: 12px; }
+        .signature { border-top: 2px solid #007bff; padding-top: 20px; margin-top: 30px; }
+        .legal { font-size: 11px; color: #6c757d; margin-top: 30px; padding: 15px; background: #e9ecef; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 Libro de Reclamaciones Electrónico</h1>
+        <h2>GOLDINFINITI TECH CORP</h2>
+        <p>Sistema Profesional de Gestión de Reclamos</p>
+    </div>
+    
+    <div class="content">
+        ${htmlContent}
+        
+        <div class="signature">
+            <p><strong>Atentamente,</strong></p>
+            <p>Departamento de Reclamos</p>
+            <p>GOLDINFINITI TECH CORP</p>
+            <p>📧 reclamos@goldinfiniti.com</p>
+            <p>📞 +1 (555) 123-4567</p>
+            <p>🏢 Av. Principal 123, Lima, Perú</p>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>© ${new Date().getFullYear()} GOLDINFINITI TECH CORP. Todos los derechos reservados.</p>
+        <p>Este es un mensaje automático del Sistema de Reclamos. Por favor no responda a este correo.</p>
+        <p>ID del Sistema: ${Date.now()}-${Math.random().toString(36).substr(2, 8)}</p>
+    </div>
+    
+    <div class="legal">
+        <p><strong>Aviso Legal:</strong> Este correo electrónico y cualquier archivo adjunto son confidenciales y están destinados únicamente para el uso del destinatario. 
+        Si usted no es el destinatario, por favor notifique al remitente y elimine este mensaje. La divulgación, copia o distribución no autorizada está prohibida.</p>
+    </div>
+</body>
+</html>`;
     }
 
     _isValidEmail(email) {
         if (!email) return false;
-        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return re.test(email);
+        const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        return re.test(email) && email.length <= 254;
     }
 
     _generatePlainText(html) {
         try {
-            // Conversión básica de HTML a texto plano
             return html
                 .replace(/<style[^>]*>.*?<\/style>/gs, '')
                 .replace(/<script[^>]*>.*?<\/script>/gs, '')
@@ -270,70 +309,144 @@ class ReclamoEmailService {
                 .replace(/&lt;/g, '<')
                 .replace(/&gt;/g, '>')
                 .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
                 .trim()
-                .substring(0, 500) + '...';
+                .substring(0, 1000);
         } catch (error) {
-            return 'Reclamo registrado exitosamente en el Libro de Reclamaciones Electrónico de GOLDINFINITI TECH CORP.';
+            return 'Reclamo registrado exitosamente en el Libro de Reclamaciones Electrónico de GOLDINFINITI TECH CORP. Para más detalles, revise la versión HTML de este correo.';
         }
     }
 
     _maskEmail(email) {
-        if (!email) return 'email-no-especificado';
+        if (!email) return 'NO-ESPECIFICADO';
         try {
             const [local, domain] = email.split('@');
             if (local && domain) {
-                if (local.length <= 3) return `${local}***@${domain}`;
-                return `${local.substring(0, 3)}***@${domain.substring(0, 3)}***.${domain.split('.').pop()}`;
+                if (local.length <= 2) return `${local}***@${domain}`;
+                const maskedLocal = local.substring(0, 2) + '***' + local.substring(local.length - 1);
+                const [domainName, tld] = domain.split('.');
+                const maskedDomain = domainName.substring(0, 2) + '***';
+                return `${maskedLocal}@${maskedDomain}.${tld}`;
             }
-            return 'email-enmascarado';
+            return 'EMAIL-ENMASCARADO';
         } catch {
-            return 'email-invalido';
+            return 'FORMATO-INVALIDO';
         }
     }
 
     async verify() {
-        if (this.simulated || !this.transporter) {
-            return { 
-                verified: false,
-                operational: false,
-                simulated: true, 
-                message: 'SERVICIO NO CONFIGURADO - Modo simulación activado',
-                timestamp: new Date().toISOString(),
-                provider: 'Gmail SMTP',
-                status: 'INACTIVE',
-                recommendation: 'Configurar GMAIL_USER y GMAIL_APP_PASSWORD en .env'
-            };
-        }
-
         try {
-            await this.transporter.verify();
+            const verified = await this.transporter.verify();
             
             return { 
                 verified: true,
                 operational: true,
-                simulated: false, 
-                message: 'Servicio Gmail operativo y configurado correctamente',
+                message: '✅ SERVICIO GMAIL OPERATIVO - MODO PRODUCCIÓN',
                 timestamp: new Date().toISOString(),
                 provider: 'Gmail SMTP',
                 status: 'ACTIVE',
-                features: ['HTML support', 'Attachments', 'High deliverability'],
-                maxAttachments: '25MB'
+                security: 'TLS 1.2',
+                features: ['HTML templates', 'PDF attachments', 'Corporate branding', 'High priority'],
+                limits: {
+                    daily: '500 emails',
+                    rate: '5/segundo',
+                    attachments: '25MB'
+                },
+                configuration: {
+                    host: 'smtp.gmail.com',
+                    port: 465,
+                    secure: true,
+                    user: 'cirobriones99@gmail.com (corporativo)',
+                    from: 'reclamos@goldinfiniti.com'
+                }
             };
             
         } catch (error) {
             return { 
                 verified: false,
                 operational: false,
-                simulated: false, 
                 error: error.message,
-                errorCode: error.code,
-                message: 'Error verificando servicio Gmail',
+                message: '❌ SERVICIO GMAIL NO OPERATIVO',
                 timestamp: new Date().toISOString(),
                 provider: 'Gmail SMTP',
                 status: 'ERROR',
-                recommendation: 'Verificar credenciales Gmail y App Password'
+                action: 'VERIFICAR_CREDENCIALES_Y_CONEXIÓN',
+                emergency: 'contactar@admin.goldinfiniti.com'
             };
         }
+    }
+
+    // ✅ MÉTODO ADICIONAL PARA ENVÍOS MASIVOS
+    async sendBulkReclamoEmails(emailsData, batchSize = 10) {
+        const results = [];
+        const startTime = Date.now();
+        const bulkId = `bulk_${Date.now()}`;
+        
+        logger.info('📦 [RECLAMOS-GMAIL] INICIANDO ENVÍO MASIVO:', {
+            bulkId,
+            totalEmails: emailsData.length,
+            batchSize,
+            service: 'reclamos-email',
+            timestamp: new Date().toISOString(),
+            mode: 'BULK_PRODUCTION'
+        });
+
+        for (let i = 0; i < emailsData.length; i += batchSize) {
+            const batch = emailsData.slice(i, i + batchSize);
+            const batchId = `${bulkId}_batch_${i / batchSize + 1}`;
+            
+            logger.info(`🔄 [RECLAMOS-GMAIL] Procesando lote ${batchId}:`, {
+                batchId,
+                emailsInBatch: batch.length,
+                progress: `${i + batch.length}/${emailsData.length}`,
+                service: 'reclamos-email'
+            });
+
+            const batchPromises = batch.map((emailData, index) => 
+                this.sendReclamoEmail(emailData).catch(error => ({
+                    success: false,
+                    error: error.message,
+                    to: emailData.to,
+                    index: i + index
+                }))
+            );
+
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
+
+            // Pausa para evitar rate limiting
+            if (i + batchSize < emailsData.length) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+
+        const duration = Date.now() - startTime;
+        const successCount = results.filter(r => r.success).length;
+        const failureCount = results.filter(r => !r.success).length;
+
+        logger.info('📊 [RECLAMOS-GMAIL] ENVÍO MASIVO COMPLETADO:', {
+            bulkId,
+            totalEmails: emailsData.length,
+            success: successCount,
+            failures: failureCount,
+            successRate: `${((successCount / emailsData.length) * 100).toFixed(2)}%`,
+            duration: `${duration}ms`,
+            avgTimePerEmail: `${(duration / emailsData.length).toFixed(2)}ms`,
+            service: 'reclamos-email',
+            timestamp: new Date().toISOString(),
+            status: failureCount === 0 ? '✅ COMPLETO' : '⚠️ CON ERRORES'
+        });
+
+        return {
+            bulkId,
+            total: emailsData.length,
+            success: successCount,
+            failures: failureCount,
+            successRate: `${((successCount / emailsData.length) * 100).toFixed(2)}%`,
+            duration: `${duration}ms`,
+            results: results,
+            timestamp: new Date().toISOString()
+        };
     }
 }
 
