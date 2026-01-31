@@ -25,6 +25,9 @@ const requestLogger = require('./api/middleware/requestLogger');
 const paymentRoutes = require('./api/v1/payments/routes');
 const healthRoutes = require('./api/v1/health/routes');
 
+// ✅ IMPORTANTE: Este archivo ya existe y funciona
+const reclamosRoutes = require('./api/v1/reclamos/routes');
+
 // 1. Crear la aplicación Express
 const app = express();
 
@@ -187,9 +190,9 @@ app.use('/health', healthRoutes);
 // B. PAYMENTS API - El sistema circulatorio de pagos
 app.use('/api/v1/payments', paymentRoutes);
 
-// C. RECLAMOS API - Sistema INDEPENDIENTE para libro de reclamaciones
-//const reclamosRoutes = require('./api/v1/reclamos/routes');  // ← usa "reclamos"
-//app.use('/api/v1/reclamos', reclamosRoutes);  // ← ruta "/api/v1/reclamos"
+// ✅ C. RECLAMOS API - SISTEMA ACTIVADO (2 líneas DESCOMENTADAS)
+app.use('/api/v1/reclamos', reclamosRoutes);
+
 // D. RUTA RAÍZ - Información del API
 app.get('/', (req, res) => {
   res.json({
@@ -209,8 +212,8 @@ app.get('/', (req, res) => {
         methods: '/api/v1/payments/methods',
         webhook: '/api/v1/payments/webhook'
       },
-      // ✅ SOLO AGREGA ESTA LÍNEA:
-     // reclamos: '/api/v1/reclamos',
+      // ✅ RECLAMOS ACTIVADO
+      reclamos: '/api/v1/reclamos',
       docs: '/api-docs',
     },
     limits: {
@@ -219,6 +222,7 @@ app.get('/', (req, res) => {
     },
   });
 });
+
 // ============================================
 // 4. MANEJO DE ERRORES (SISTEMA DE REPARACIÓN)
 // ============================================
@@ -244,7 +248,12 @@ app.use('*', (req, res) => {
         'GET    /api/v1/payments/stats',
         'GET    /api/v1/payments/methods',
         'POST   /api/v1/payments/webhook',
-        'GET    /api/v1/payments/verify/:paymentId'
+        'GET    /api/v1/payments/verify/:paymentId',
+        // ✅ AÑADIDO RECLAMOS A LA LISTA DE ENDPOINTS DISPONIBLES
+        'POST   /api/v1/reclamos',
+        'GET    /api/v1/reclamos/health',
+        'GET    /api/v1/reclamos/stats',
+        'GET    /api/v1/reclamos/verify-email'
       ]
     },
     timestamp: new Date().toISOString(),
@@ -271,6 +280,11 @@ if (process.env.NODE_ENV === 'development') {
     console.log('   - GET    /api/v1/payments/methods');
     console.log('   - POST   /api/v1/payments/webhook');
     console.log('   - GET    /api/v1/payments/verify/:paymentId');
+    // ✅ AÑADIDO RECLAMOS AL LOG
+    console.log('   - POST   /api/v1/reclamos');
+    console.log('   - GET    /api/v1/reclamos/health');
+    console.log('   - GET    /api/v1/reclamos/stats');
+    console.log('   - GET    /api/v1/reclamos/verify-email');
     console.log('='.repeat(60) + '\n');
   });
 }

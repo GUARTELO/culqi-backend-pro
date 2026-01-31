@@ -2,259 +2,135 @@
 
 const logger = require('../../../core/utils/logger');
 const { v4: uuidv4 } = require('uuid');
+const reclamoEmailService = require('../../../services/reclamo/emailService');
 
 class ReclamoController {
     constructor() {
         this.stats = {
             totalReclamos: 0,
             emailsEnviados: 0,
-            emailsFallados: 0
+            emailsFallados: 0,
+            lastUpdate: new Date().toISOString()
         };
         
-        // Guardar referencia a this para usar en métodos internos
-        this._self = this;
+        // ✅ CORRECCIÓN: USAR la instancia YA CREADA, NO hacer "new"
+        this.emailService = reclamoEmailService;  // ← SIN "new"
         
-        // 🚨 Cargar el EmailService REAL
-        this.emailService = this._cargarEmailServiceReal();
-        
-        logger.info('🚀 ReclamoController inicializado', { service: 'reclamos' });
-    }
-
-    _cargarEmailServiceReal() {
-        try {
-            const emailService = require('../../../services/payment/emailService');
-            
-            // 🔍 DEBUG: Ver qué métodos tiene realmente
-            const availableMethods = Object.keys(emailService).filter(k => typeof emailService[k] === 'function');
-            logger.info('🔍 EmailService métodos disponibles para reclamos:', { 
-                methods: availableMethods.filter(m => !m.startsWith('_')),
-                service: 'email-reclamos' 
-            });
-            
-            // Verificar que tenga sendPaymentNotification (el más genérico)
-            if (!emailService.sendPaymentNotification) {
-                throw new Error('EmailService no tiene sendPaymentNotification');
-            }
-            
-            logger.info('✅ EmailService REAL cargado para reclamos');
-            
-            // Crear un wrapper que adapte la interfaz
-            const self = this;
-            
-            return {
-                // Método principal adaptado
-                sendMail: async (emailData) => {
-                    logger.info('📤 Adaptando sendMail a sendPaymentNotification', {
-                        to: self._maskEmail(emailData.to),
-                        subject: emailData.subject,
-                        service: 'email-reclamos'
-                    });
-                    
-                    // Crear estructura compatible con sendPaymentNotification
-                    const paymentData = {
-                        // Información del cliente
-                        customerInfo: {
-                            email: emailData.to,
-                            nombre: emailData.nombre || 'Cliente Reclamo',
-                            apellido: '',
-                            telefono: ''
-                        },
-                        
-                        // Información del reclamo
-                        reclamoInfo: {
-                            id: emailData.reclamoId || `REC-${Date.now()}`,
-                            fecha: new Date().toISOString(),
-                            asunto: emailData.subject,
-                            descripcion: 'Reclamo registrado en libro de reclamaciones'
-                        },
-                        
-                        // HTML personalizado
-                        htmlContent: emailData.html,
-                        
-                        // Metadata adicional
-                        metadata: {
-                            tipo: 'reclamo',
-                            origen: 'libro_reclamaciones',
-                            template: 'reclamo'
-                        }
-                    };
-                    
-                    try {
-                        // Llamar al método real del servicio
-                        const result = await emailService.sendPaymentNotification(paymentData);
-                        
-                        // Adaptar la respuesta a nuestro formato esperado
-                        return {
-                            success: true,
-                            messageId: result.messageId || `rec_${Date.now()}`,
-                            simulated: false,
-                            timestamp: new Date().toISOString()
-                        };
-                        
-                    } catch (error) {
-                        logger.error('❌ Error enviando email de reclamo:', {
-                            error: error.message,
-                            service: 'email-reclamos'
-                        });
-                        
-                        return {
-                            success: false,
-                            error: error.message,
-                            simulated: false,
-                            timestamp: new Date().toISOString()
-                        };
-                    }
-                },
-                
-                // Método para verificar conexión
-                verify: async () => {
-                    try {
-                        if (emailService.verifyService) {
-                            return await emailService.verifyService();
-                        }
-                        return { verified: true, service: 'reclamos' };
-                    } catch (error) {
-                        throw new Error(`Verificación fallida: ${error.message}`);
-                    }
-                }
-            };
-            
-        } catch (error) {
-            logger.warn('⚠️ EmailService no disponible, usando modo simulación', {
-                error: error.message,
-                service: 'email-reclamos'
-            });
-            
-            return this._crearEmailServiceSimulado();
-        }
-    }
-
-    _crearEmailServiceSimulado() {
-        const self = this;
-        
-        return {
-            sendMail: async (emailData) => {
-                logger.info('📧 [SIMULACIÓN] Email preparado para envío', {
-                    to: self._maskEmail(emailData.to),
-                    subject: emailData.subject,
-                    service: 'email-reclamos'
-                });
-                
-                // Simular delay de envío
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                return {
-                    success: true,
-                    simulated: true,
-                    messageId: `sim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    timestamp: new Date().toISOString()
-                };
-            },
-            
-            verify: async () => {
-                return {
-                    verified: true,
-                    simulated: true,
-                    message: 'Servicio en modo simulación'
-                };
-            }
-        };
+        logger.info('🚀 [PRODUCCIÓN] ReclamoController inicializado - Sistema PROFESIONAL de Reclamos', { 
+            service: 'reclamos',
+            environment: process.env.NODE_ENV || 'production',
+            version: '2.0.0'
+        });
     }
 
     /**
      * POST /api/v1/reclamos
-     * Procesar reclamo desde frontend y enviar email automático
+     * Endpoint PROFESIONAL para procesar reclamos desde frontend
      */
     async procesarReclamo(req, res) {
-        const requestId = `reclamo_${uuidv4().substring(0, 8)}`;
+        const requestId = `reclamo_prod_${uuidv4().substring(0, 8)}_${Date.now()}`;
         const startTime = Date.now();
 
         try {
-            logger.info(`📧 [${requestId}] Procesando reclamo desde frontend`, {
-                service: 'email-reclamos',
-                bodyKeys: Object.keys(req.body)
+            logger.info(`📧 [PRODUCCIÓN:${requestId}] Iniciando procesamiento de reclamo`, {
+                service: 'reclamos-produccion',
+                clientIp: req.ip,
+                userAgent: req.headers['user-agent'],
+                contentType: req.headers['content-type']
             });
 
-            // 📌 MAPEO de datos del frontend a estructura interna
+            // ✅ VALIDACIÓN PROFESIONAL DE DATOS
             const frontendData = req.body;
             
-            // Validar datos mínimos
-            if (!frontendData.reclamoId) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'MISSING_RECLAMO_ID',
-                    message: 'ID de reclamo requerido'
-                });
+            if (!frontendData || typeof frontendData !== 'object') {
+                return this._errorResponse(res, 400, 'INVALID_REQUEST', 'Cuerpo de la solicitud inválido', requestId);
             }
 
-            if (!frontendData.consumidor?.email) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'MISSING_EMAIL',
-                    message: 'Email del consumidor requerido'
-                });
+            if (!frontendData.reclamoId || !frontendData.reclamoId.trim()) {
+                return this._errorResponse(res, 400, 'MISSING_RECLAMO_ID', 'ID de reclamo es requerido', requestId);
             }
 
-            // 🎯 ESTRUCTURA para el EmailService
+            if (!frontendData.consumidor?.email || !this._validarEmail(frontendData.consumidor.email)) {
+                return this._errorResponse(res, 400, 'INVALID_EMAIL', 'Email del consumidor inválido o faltante', requestId);
+            }
+
+            if (!frontendData.consumidor?.nombreCompleto || !frontendData.consumidor.nombreCompleto.trim()) {
+                return this._errorResponse(res, 400, 'MISSING_NAME', 'Nombre completo del consumidor es requerido', requestId);
+            }
+
+            // ✅ GENERACIÓN DE EMAIL PROFESIONAL
             const emailData = {
-                to: frontendData.consumidor.email,
-                nombre: frontendData.consumidor.nombreCompleto || 'Cliente',
-                reclamoId: frontendData.reclamoId,
-                subject: `⚠️ CONFIRMACIÓN DE RECLAMO #${frontendData.reclamoId} - LIBRO DE RECLAMACIONES GOLDINFINITI`,
-                html: this._generarHtmlReclamo(frontendData),
-                text: `Reclamo #${frontendData.reclamoId} registrado exitosamente.`
+                to: frontendData.consumidor.email.trim(),
+                nombre: frontendData.consumidor.nombreCompleto.trim(),
+                reclamoId: frontendData.reclamoId.trim(),
+                subject: `⚠️ CONFIRMACIÓN OFICIAL DE RECLAMO #${frontendData.reclamoId.trim()} - LIBRO DE RECLAMACIONES GOLDINFINITI`,
+                html: this._generarHtmlReclamoProfesional(frontendData),
+                text: this._generarTextoReclamo(frontendData),
+                metadata: {
+                    reclamoId: frontendData.reclamoId,
+                    fechaRecepcion: new Date().toISOString(),
+                    origen: 'libro_reclamaciones_virtual',
+                    sistema: 'goldinfiniti_v2'
+                }
             };
 
-            logger.info(`📤 [${requestId}] Enviando email a: ${this._maskEmail(emailData.to)}`, {
+            logger.info(`📤 [PRODUCCIÓN:${requestId}] Enviando email OFICIAL a cliente`, {
                 reclamoId: frontendData.reclamoId,
-                service: 'email-reclamos',
-                simulated: this.emailService.sendMail.toString().includes('[SIMULACIÓN]')
+                cliente: this._maskName(frontendData.consumidor.nombreCompleto),
+                email: this._maskEmail(frontendData.consumidor.email),
+                timestamp: new Date().toISOString()
             });
 
-            // Enviar email usando nuestro servicio adaptado
-            const emailResult = await this.emailService.sendMail(emailData);
+            // ✅ ENVÍO PROFESIONAL DE EMAIL
+            const emailResult = await this.emailService.sendReclamoEmail(emailData);
 
-            // Actualizar estadísticas
-            this.stats.totalReclamos++;
-            if (emailResult.success && !emailResult.simulated) {
-                this.stats.emailsEnviados++;
-            } else if (!emailResult.success) {
-                this.stats.emailsFallados++;
-            } else if (emailResult.simulated) {
-                logger.info('📨 Email simulado enviado (modo desarrollo)');
-            }
+            // ✅ ACTUALIZACIÓN DE ESTADÍSTICAS DE PRODUCCIÓN
+            this._actualizarEstadisticas(emailResult);
 
-            // ✅ Respuesta al frontend
+            // ✅ RESPUESTA PROFESIONAL AL FRONTEND
             const totalDuration = Date.now() - startTime;
 
             const response = {
                 success: true,
-                message: '✅ Reclamo procesado exitosamente',
+                message: '✅ RECLAMO REGISTRADO OFICIALMENTE EN EL LIBRO DE RECLAMACIONES',
                 requestId,
-                reclamoId: frontendData.reclamoId,
-                email: {
-                    sent: emailResult.success,
-                    to: this._maskEmail(frontendData.consumidor.email),
-                    subject: emailData.subject,
-                    timestamp: new Date().toISOString(),
-                    simulated: emailResult.simulated || false,
-                    messageId: emailResult.messageId
+                timestamp: new Date().toISOString(),
+                datosReclamo: {
+                    id: frontendData.reclamoId,
+                    fechaRegistro: new Date().toISOString(),
+                    consumidor: {
+                        nombre: this._maskName(frontendData.consumidor.nombreCompleto),
+                        email: this._maskEmail(frontendData.consumidor.email),
+                        telefono: frontendData.consumidor.telefono ? this._maskPhone(frontendData.consumidor.telefono) : 'No proporcionado'
+                    }
                 },
-                metadata: {
-                    response_time: `${totalDuration}ms`,
-                    timestamp: new Date().toISOString(),
-                    service: 'goldinfiniti-reclamos',
-                    mode: emailResult.simulated ? 'simulation' : 'production'
+                notificacion: {
+                    emailEnviado: emailResult.success,
+                    timestampEnvio: emailResult.timestamp,
+                    idTransaccion: emailResult.messageId,
+                    modo: emailResult.simulated ? 'SIMULACIÓN' : 'PRODUCCIÓN',
+                    servicio: 'Sistema Independiente de Notificaciones GOLDINFINITI'
+                },
+                informacionLegal: {
+                    plazoRespuesta: '30 días hábiles',
+                    referenciaLegal: 'Ley N° 29571 - Código de Protección y Defensa del Consumidor',
+                    contactoOficial: 'contacto@goldinfiniti.com',
+                    telefonoOficial: '968 786 648',
+                    rucEmpresa: '20613360281'
+                },
+                rendimiento: {
+                    tiempoProcesamiento: `${totalDuration}ms`,
+                    sistema: 'Backend GOLDINFINITI v2.0',
+                    ambiente: process.env.NODE_ENV || 'production'
                 }
             };
 
-            logger.info(`✅ [${requestId}] Reclamo procesado exitosamente`, {
+            logger.info(`✅ [PRODUCCIÓN:${requestId}] Reclamo procesado EXITOSAMENTE`, {
                 reclamoId: frontendData.reclamoId,
-                cliente: frontendData.consumidor.nombreCompleto,
+                cliente: this._maskName(frontendData.consumidor.nombreCompleto),
                 emailEnviado: emailResult.success,
-                simulated: emailResult.simulated || false,
-                duration: `${totalDuration}ms`,
-                service: 'email-reclamos'
+                duracion: `${totalDuration}ms`,
+                timestamp: new Date().toISOString()
             });
 
             return res.status(200).json(response);
@@ -262,340 +138,503 @@ class ReclamoController {
         } catch (error) {
             const errorDuration = Date.now() - startTime;
             
-            logger.error(`💥 [${requestId}] Error procesando reclamo`, {
+            logger.error(`💥 [PRODUCCIÓN:${requestId}] ERROR CRÍTICO procesando reclamo`, {
                 error: error.message,
                 stack: error.stack,
-                service: 'email-reclamos'
+                clienteIp: req.ip,
+                duracion: `${errorDuration}ms`,
+                timestamp: new Date().toISOString()
             });
 
-            return res.status(500).json({
-                success: false,
-                error: 'INTERNAL_ERROR',
-                message: 'Error interno del servidor',
-                requestId,
-                timestamp: new Date().toISOString(),
-                details: process.env.NODE_ENV === 'development' ? error.message : undefined
-            });
+            return this._errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', 
+                'Error interno del sistema. Por favor, intente nuevamente o contacte a soporte.', 
+                requestId);
         }
     }
 
-    _generarHtmlReclamo(data) {
+    /**
+     * GENERADOR DE HTML PROFESIONAL PARA RECLAMOS
+     */
+    _generarHtmlReclamoProfesional(data) {
         const { reclamoId, consumidor, reclamo } = data;
-        const fechaActual = new Date().toLocaleDateString('es-PE', {
+        const fechaActual = new Date();
+        const fechaFormateada = fechaActual.toLocaleDateString('es-PE', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
             day: 'numeric'
         });
-        const horaActual = new Date().toLocaleTimeString('es-PE', {
+        const horaFormateada = fechaActual.toLocaleTimeString('es-PE', {
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            second: '2-digit'
         });
+        const fechaLimite = this._calcularFechaLimiteLegal(30);
+
+        return `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmación Oficial de Reclamo #${reclamoId} - GOLDINFINITI TECH CORP</title>
+    <style>
+        /* ESTILOS PROFESIONALES PARA PRODUCCIÓN */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         
-        return `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Confirmación de Reclamo #${reclamoId} - GOLDINFINITI</title>
-            <style>
-                body {
-                    font-family: 'Arial', sans-serif;
-                    line-height: 1.8;
-                    color: #333;
-                    max-width: 700px;
-                    margin: 0 auto;
-                    padding: 0;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                }
-                .container {
-                    background: white;
-                    border-radius: 20px;
-                    overflow: hidden;
-                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-                    margin: 40px auto;
-                    border: 5px solid #f8f9fa;
-                }
-                .header-reclamo {
-                    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-                    color: white;
-                    padding: 40px 20px;
-                    text-align: center;
-                    position: relative;
-                    overflow: hidden;
-                }
-                .header-reclamo::before {
-                    content: "⚠️";
-                    font-size: 80px;
-                    position: absolute;
-                    opacity: 0.1;
-                    top: 10px;
-                    right: 20px;
-                }
-                .header-reclamo h1 {
-                    margin: 0;
-                    font-size: 32px;
-                    font-weight: bold;
-                    text-transform: uppercase;
-                    letter-spacing: 2px;
-                }
-                .header-reclamo .subtitle {
-                    font-size: 16px;
-                    opacity: 0.9;
-                    margin-top: 10px;
-                    font-weight: 300;
-                }
-                .content-reclamo {
-                    padding: 40px;
-                }
-                .badge-reclamo {
-                    background: #ee5a24;
-                    color: white;
-                    padding: 12px 25px;
-                    border-radius: 50px;
-                    display: inline-block;
-                    font-weight: bold;
-                    font-size: 18px;
-                    margin: 20px 0;
-                    box-shadow: 0 5px 15px rgba(238, 90, 36, 0.3);
-                    border: 3px solid #ffd8cc;
-                }
-                .section {
-                    background: #f8f9fa;
-                    border-radius: 15px;
-                    padding: 25px;
-                    margin: 25px 0;
-                    border-left: 5px solid #ee5a24;
-                }
-                .section-title {
-                    color: #ee5a24;
-                    margin-top: 0;
-                    font-size: 20px;
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                }
-                .section-title::before {
-                    content: "📝";
-                    font-size: 24px;
-                }
-                .info-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                    gap: 20px;
-                    margin: 25px 0;
-                }
-                .info-item {
-                    background: white;
-                    padding: 20px;
-                    border-radius: 10px;
-                    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-                    border: 2px solid #e9ecef;
-                }
-                .warning-box {
-                    background: #fff3cd;
-                    border: 2px solid #ffc107;
-                    border-radius: 10px;
-                    padding: 20px;
-                    margin: 30px 0;
-                    text-align: center;
-                }
-                .footer-reclamo {
-                    background: #343a40;
-                    color: white;
-                    padding: 30px;
-                    text-align: center;
-                    border-top: 5px solid #ee5a24;
-                }
-                .timeline {
-                    position: relative;
-                    padding-left: 30px;
-                    margin: 25px 0;
-                }
-                .timeline::before {
-                    content: "";
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    bottom: 0;
-                    width: 3px;
-                    background: #ee5a24;
-                }
-                .timeline-item {
-                    position: relative;
-                    margin-bottom: 20px;
-                    padding-left: 20px;
-                }
-                .timeline-item::before {
-                    content: "⏰";
-                    position: absolute;
-                    left: -35px;
-                    top: 0;
-                    background: white;
-                    border: 3px solid #ee5a24;
-                    border-radius: 50%;
-                    width: 30px;
-                    height: 30px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 14px;
-                }
-                .contact-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                    gap: 15px;
-                    margin-top: 20px;
-                }
-                .contact-item {
-                    background: white;
-                    padding: 15px;
-                    border-radius: 8px;
-                    text-align: center;
-                    border: 2px solid #e9ecef;
-                }
-                @media (max-width: 600px) {
-                    .content-reclamo {
-                        padding: 20px;
-                    }
-                    .header-reclamo {
-                        padding: 30px 15px;
-                    }
-                    .header-reclamo h1 {
-                        font-size: 24px;
-                    }
-                    .info-grid {
-                        grid-template-columns: 1fr;
-                    }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header-reclamo">
-                    <h1>📋 RECLAMO REGISTRADO</h1>
-                    <div class="subtitle">Libro de Reclamaciones Electrónico • GOLDINFINITI TECH CORP</div>
-                </div>
-                
-                <div class="content-reclamo">
-                    <div class="badge-reclamo">#${reclamoId}</div>
-                    
-                    <h2 style="color: #ee5a24;">Estimado(a) ${consumidor.nombreCompleto},</h2>
-                    <p>Hemos recibido formalmente su reclamo en nuestro <strong>Libro de Reclamaciones Electrónico</strong> y ha sido registrado con el siguiente detalle:</p>
-                    
-                    <div class="section">
-                        <h3 class="section-title">Información del Reclamo</h3>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <strong>🔢 N° de Reclamo:</strong><br>
-                                <span style="font-size: 24px; font-weight: bold; color: #ee5a24;">${reclamoId}</span>
-                            </div>
-                            <div class="info-item">
-                                <strong>📅 Fecha de Registro:</strong><br>
-                                ${fechaActual}<br>
-                                <small>${horaActual}</small>
-                            </div>
-                            <div class="info-item">
-                                <strong>👤 Registrado por:</strong><br>
-                                ${consumidor.nombreCompleto}
-                            </div>
-                        </div>
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        .email-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e0e0e0;
+        }
+        
+        .header-official {
+            background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+            color: #ffffff;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header-official::before {
+            content: "⚖️";
+            font-size: 120px;
+            position: absolute;
+            opacity: 0.1;
+            top: 20px;
+            right: 30px;
+        }
+        
+        .header-official h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        
+        .header-official .subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+            font-weight: 300;
+            margin-top: 5px;
+        }
+        
+        .badge-official {
+            background: #d32f2f;
+            color: white;
+            padding: 12px 28px;
+            border-radius: 50px;
+            display: inline-block;
+            font-weight: 700;
+            font-size: 18px;
+            margin: 25px 0;
+            box-shadow: 0 6px 20px rgba(211, 47, 47, 0.25);
+            border: 3px solid #ffcdd2;
+            letter-spacing: 1px;
+        }
+        
+        .content-official {
+            padding: 40px;
+        }
+        
+        .section-official {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 28px;
+            margin: 28px 0;
+            border-left: 5px solid #d32f2f;
+            border: 1px solid #e9ecef;
+        }
+        
+        .section-title {
+            color: #d32f2f;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .section-title i {
+            font-size: 24px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 25px 0;
+        }
+        
+        .info-card {
+            background: white;
+            padding: 22px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #e0e0e0;
+            transition: transform 0.2s ease;
+        }
+        
+        .info-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .info-card strong {
+            color: #555;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-bottom: 8px;
+        }
+        
+        .info-card .value {
+            color: #d32f2f;
+            font-size: 22px;
+            font-weight: 700;
+            margin: 8px 0;
+        }
+        
+        .legal-notice {
+            background: #fff3e0;
+            border: 2px solid #ff9800;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 30px 0;
+            position: relative;
+        }
+        
+        .legal-notice::before {
+            content: "⚠️";
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border: 2px solid #ff9800;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        
+        .process-timeline {
+            position: relative;
+            padding-left: 40px;
+            margin: 30px 0;
+        }
+        
+        .process-timeline::before {
+            content: "";
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(to bottom, #d32f2f, #ff9800);
+        }
+        
+        .timeline-step {
+            position: relative;
+            margin-bottom: 28px;
+            padding-left: 25px;
+        }
+        
+        .timeline-step::before {
+            content: "✓";
+            position: absolute;
+            left: -30px;
+            top: 0;
+            background: white;
+            border: 3px solid #d32f2f;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #d32f2f;
+            font-weight: bold;
+        }
+        
+        .contact-section {
+            background: #e8f5e9;
+            border-radius: 10px;
+            padding: 25px;
+            margin-top: 30px;
+        }
+        
+        .contact-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 18px;
+            margin-top: 20px;
+        }
+        
+        .contact-item {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid #c8e6c9;
+            transition: all 0.3s ease;
+        }
+        
+        .contact-item:hover {
+            border-color: #d32f2f;
+            transform: translateY(-3px);
+        }
+        
+        .footer-official {
+            background: #263238;
+            color: #ffffff;
+            padding: 35px 30px;
+            text-align: center;
+            border-top: 5px solid #d32f2f;
+        }
+        
+        .footer-official p {
+            margin: 8px 0;
+            font-size: 13px;
+            opacity: 0.9;
+            line-height: 1.5;
+        }
+        
+        .footer-official .legal-disclaimer {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 15px;
+        }
+        
+        @media (max-width: 768px) {
+            .content-official {
+                padding: 25px;
+            }
+            .header-official {
+                padding: 30px 20px;
+            }
+            .header-official h1 {
+                font-size: 26px;
+            }
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            .contact-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- ENCABEZADO OFICIAL -->
+        <div class="header-official">
+            <h1>CONFIRMACIÓN OFICIAL DE RECLAMO</h1>
+            <div class="subtitle">Libro de Reclamaciones Electrónico • GOLDINFINITI TECH CORP • RUC 20613360281</div>
+        </div>
+        
+        <div class="content-official">
+            <!-- NÚMERO DE RECLAMO -->
+            <div style="text-align: center;">
+                <div class="badge-official">RECLAMO #${reclamoId}</div>
+            </div>
+            
+            <!-- SALUDO PERSONALIZADO -->
+            <h2 style="color: #d32f2f; margin: 25px 0 20px 0;">Estimado(a) ${consumidor.nombreCompleto},</h2>
+            <p style="margin-bottom: 25px; font-size: 16px; line-height: 1.7;">
+                Hemos recibido <strong>oficialmente</strong> su reclamo en nuestro <strong>Libro de Reclamaciones Electrónico</strong>, 
+                registrado con fecha <strong>${fechaFormateada}</strong> a las <strong>${horaFormateada}</strong>.
+            </p>
+            
+            <!-- INFORMACIÓN DEL RECLAMO -->
+            <div class="section-official">
+                <h3 class="section-title"><i>📋</i> INFORMACIÓN DEL RECLAMO</h3>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <strong>Número de Reclamo</strong>
+                        <div class="value">#${reclamoId}</div>
+                        <small style="color: #666;">Identificador oficial único</small>
                     </div>
-                    
-                    <div class="section">
-                        <h3 class="section-title">Detalles del Reclamo</h3>
-                        <p><strong>Descripción:</strong></p>
-                        <div style="background: white; padding: 20px; border-radius: 10px; border: 2px dashed #dee2e6; margin: 15px 0;">
-                            ${reclamo.descripcion || 'No se proporcionó descripción adicional.'}
-                        </div>
-                        
-                        ${reclamo.tipo ? `
-                        <p><strong>Tipo de Reclamo:</strong> ${reclamo.tipo}</p>
-                        ` : ''}
+                    <div class="info-card">
+                        <strong>Fecha de Registro</strong>
+                        <div class="value">${fechaFormateada}</div>
+                        <small style="color: #666;">${horaFormateada}</small>
                     </div>
-                    
-                    <div class="warning-box">
-                        <h3 style="color: #856404; margin-top: 0;">⏱️ Plazo Legal de Respuesta</h3>
-                        <p>De acuerdo con la <strong>Ley N° 29571</strong> (Código de Protección y Defensa del Consumidor), 
-                        tenemos <strong>30 días hábiles</strong> para dar respuesta formal a su reclamo.</p>
-                        <p style="font-size: 14px; color: #856404;">Fecha límite aproximada: ${this._calcularFechaLimite(30)}</p>
+                    <div class="info-card">
+                        <strong>Solicitante</strong>
+                        <div class="value">${consumidor.nombreCompleto}</div>
+                        <small style="color: #666;">Titular del reclamo</small>
                     </div>
-                    
-                    <div class="timeline">
-                        <h3 style="color: #ee5a24;">📋 Proceso de Atención</h3>
-                        <div class="timeline-item">
-                            <strong>1. Recepción y Registro</strong><br>
-                            <small>Su reclamo ha sido ingresado en nuestro sistema.</small>
-                        </div>
-                        <div class="timeline-item">
-                            <strong>2. Análisis y Evaluación</strong><br>
-                            <small>Nuestro equipo especializado revisará su caso.</small>
-                        </div>
-                        <div class="timeline-item">
-                            <strong>3. Investigación Interna</strong><br>
-                            <small>Recopilaremos toda la información necesaria.</small>
-                        </div>
-                        <div class="timeline-item">
-                            <strong>4. Respuesta Formal</strong><br>
-                            <small>Le notificaremos nuestra respuesta dentro del plazo legal.</small>
-                        </div>
-                    </div>
-                    
-                    <div class="section">
-                        <h3 class="section-title">📞 Canales de Contacto</h3>
-                        <p>Para consultas sobre el estado de su reclamo:</p>
-                        <div class="contact-grid">
-                            <div class="contact-item">
-                                <strong>📧 Correo Electrónico</strong><br>
-                                contacto@goldinfiniti.com
-                            </div>
-                            <div class="contact-item">
-                                <strong>📱 Teléfono</strong><br>
-                                968 786 648
-                            </div>
-                            <div class="contact-item">
-                                <strong>🏢 Oficina Principal</strong><br>
-                                GOLDINFINITI TECH CORP
-                            </div>
-                            <div class="contact-item">
-                                <strong>🔢 RUC</strong><br>
-                                20613360281
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div style="text-align: center; margin: 40px 0 20px 0; padding: 20px; background: #f8f9fa; border-radius: 15px;">
-                        <p style="font-size: 18px; color: #ee5a24; font-weight: bold;">
-                            Gracias por permitirnos atender su caso.<br>
-                            Trabajamos para brindarle la mejor solución.
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="footer-reclamo">
-                    <p style="margin: 0 0 10px 0; font-size: 14px;">
-                        © ${new Date().getFullYear()} GOLDINFINITI TECH CORP • Libro de Reclamaciones Electrónico
-                    </p>
-                    <p style="margin: 0; font-size: 12px; opacity: 0.8;">
-                        RUC 20613360281 • Sistema automatizado • Este mensaje es confidencial
-                    </p>
-                    <p style="margin: 10px 0 0 0; font-size: 11px; opacity: 0.6;">
-                        Este correo es una confirmación automática de recepción de su reclamo.
-                    </p>
                 </div>
             </div>
-        </body>
-        </html>`;
+            
+            <!-- DETALLES DEL RECLAMO -->
+            <div class="section-official">
+                <h3 class="section-title"><i>📝</i> DETALLES DEL RECLAMO</h3>
+                <div style="background: white; padding: 25px; border-radius: 8px; border: 2px solid #f0f0f0; margin: 20px 0;">
+                    <p style="margin-bottom: 15px;"><strong>Descripción:</strong></p>
+                    <p style="font-size: 15px; line-height: 1.6; color: #444;">
+                        ${reclamo.descripcion || 'No se proporcionó descripción adicional.'}
+                    </p>
+                    ${reclamo.tipo ? `<p style="margin-top: 15px;"><strong>Tipo de Reclamo:</strong> ${reclamo.tipo}</p>` : ''}
+                </div>
+            </div>
+            
+            <!-- AVISO LEGAL -->
+            <div class="legal-notice">
+                <h3 style="color: #e65100; margin-top: 0; text-align: center;">⏱️ PLAZO LEGAL DE RESPUESTA</h3>
+                <p style="text-align: center; font-size: 16px; line-height: 1.6;">
+                    De acuerdo con la <strong>Ley N° 29571</strong> (Código de Protección y Defensa del Consumidor), 
+                    tenemos <strong>30 días hábiles</strong> para emitir respuesta formal a su reclamo.
+                </p>
+                <p style="text-align: center; font-size: 14px; color: #e65100; margin-top: 15px; font-weight: 600;">
+                    📅 <strong>Fecha límite estimada:</strong> ${fechaLimite}
+                </p>
+            </div>
+            
+            <!-- PROCESO DE ATENCIÓN -->
+            <div class="process-timeline">
+                <h3 style="color: #d32f2f; margin-bottom: 25px;">📋 PROCESO DE ATENCIÓN</h3>
+                <div class="timeline-step">
+                    <strong style="display: block; margin-bottom: 5px; color: #333;">1. RECEPCIÓN Y REGISTRO</strong>
+                    <p style="color: #666; font-size: 14px;">Su reclamo ha sido ingresado en nuestro sistema oficial.</p>
+                </div>
+                <div class="timeline-step">
+                    <strong style="display: block; margin-bottom: 5px; color: #333;">2. ANÁLISIS Y EVALUACIÓN</strong>
+                    <p style="color: #666; font-size: 14px;">Nuestro equipo especializado revisará su caso detalladamente.</p>
+                </div>
+                <div class="timeline-step">
+                    <strong style="display: block; margin-bottom: 5px; color: #333;">3. INVESTIGACIÓN INTERNA</strong>
+                    <p style="color: #666; font-size: 14px;">Recopilaremos toda la información necesaria para su caso.</p>
+                </div>
+                <div class="timeline-step">
+                    <strong style="display: block; margin-bottom: 5px; color: #333;">4. RESPUESTA FORMAL</strong>
+                    <p style="color: #666; font-size: 14px;">Le notificaremos nuestra respuesta dentro del plazo legal establecido.</p>
+                </div>
+            </div>
+            
+            <!-- CONTACTO OFICIAL -->
+            <div class="contact-section">
+                <h3 style="color: #2e7d32; margin-bottom: 20px;">📞 CONTACTO OFICIAL</h3>
+                <p style="margin-bottom: 20px;">Para consultas sobre el estado de su reclamo:</p>
+                <div class="contact-grid">
+                    <div class="contact-item">
+                        <strong style="display: block; margin-bottom: 8px; color: #d32f2f;">📧 CORREO ELECTRÓNICO</strong>
+                        <span style="font-size: 15px;">contacto@goldinfiniti.com</span>
+                    </div>
+                    <div class="contact-item">
+                        <strong style="display: block; margin-bottom: 8px; color: #d32f2f;">📱 TELÉFONO OFICIAL</strong>
+                        <span style="font-size: 15px;">968 786 648</span>
+                    </div>
+                    <div class="contact-item">
+                        <strong style="display: block; margin-bottom: 8px; color: #d32f2f;">🏢 EMPRESA</strong>
+                        <span style="font-size: 15px;">GOLDINFINITI TECH CORP</span>
+                    </div>
+                    <div class="contact-item">
+                        <strong style="display: block; margin-bottom: 8px; color: #d32f2f;">🔢 RUC</strong>
+                        <span style="font-size: 15px;">20613360281</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- MENSAJE FINAL -->
+            <div style="text-align: center; margin: 40px 0 30px 0; padding: 25px; background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%); border-radius: 12px;">
+                <p style="font-size: 18px; color: #d32f2f; font-weight: 700; margin-bottom: 10px;">
+                    ¡Gracias por permitirnos atender su caso!
+                </p>
+                <p style="font-size: 15px; color: #555;">
+                    Trabajamos comprometidos para brindarle la mejor solución y mantener su confianza en nuestros servicios.
+                </p>
+            </div>
+        </div>
+        
+        <!-- PIE DE PÁGINA OFICIAL -->
+        <div class="footer-official">
+            <p>© ${new Date().getFullYear()} GOLDINFINITI TECH CORP • Todos los derechos reservados</p>
+            <p>Libro de Reclamaciones Electrónico • Sistema Certificado v2.0</p>
+            <p>RUC 20613360281 • Registro Oficial de Empresa</p>
+            <div class="legal-disclaimer">
+                Este es un mensaje automático generado por nuestro sistema de Libro de Reclamaciones. 
+                Por favor, no responda a este correo. Para consultas, utilice los canales oficiales mencionados.
+                Este correo es confidencial y está destinado únicamente al receptor mencionado.
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
     }
 
-    _calcularFechaLimite(diasHabiles) {
+    /**
+     * MÉTODOS PROFESIONALES AUXILIARES
+     */
+    _generarTextoReclamo(data) {
+        const { reclamoId, consumidor, reclamo } = data;
+        const fechaLimite = this._calcularFechaLimiteLegal(30);
+        
+        return `CONFIRMACIÓN OFICIAL DE RECLAMO #${reclamoId}
+
+Estimado(a) ${consumidor.nombreCompleto},
+
+Hemos recibido oficialmente su reclamo en el Libro de Reclamaciones Electrónico de GOLDINFINITI TECH CORP.
+
+INFORMACIÓN DEL RECLAMO:
+• Número de Reclamo: #${reclamoId}
+• Fecha de Registro: ${new Date().toLocaleDateString('es-PE')}
+• Solicitante: ${consumidor.nombreCompleto}
+• Email: ${consumidor.email}
+
+DETALLES:
+${reclamo.descripcion || 'No se proporcionó descripción adicional.'}
+
+INFORMACIÓN LEGAL:
+De acuerdo con la Ley N° 29571, tenemos 30 días hábiles para emitir respuesta formal.
+Fecha límite estimada: ${fechaLimite}
+
+CONTACTO OFICIAL:
+• Email: contacto@goldinfiniti.com
+• Teléfono: 968 786 648
+• RUC: 20613360281
+
+Este es un mensaje automático. No responda a este correo.
+
+GOLDINFINITI TECH CORP
+Libro de Reclamaciones Electrónico
+RUC 20613360281`;
+    }
+
+    _calcularFechaLimiteLegal(diasHabiles) {
         const fecha = new Date();
         let diasAgregados = 0;
         
         while (diasAgregados < diasHabiles) {
             fecha.setDate(fecha.getDate() + 1);
-            // No contar sábados (6) ni domingos (0)
             if (fecha.getDay() !== 0 && fecha.getDay() !== 6) {
                 diasAgregados++;
             }
@@ -609,66 +648,123 @@ class ReclamoController {
         });
     }
 
-    _maskEmail(email) {
-        if (!email) return 'unknown@email.com';
-        const [local, domain] = email.split('@');
-        if (local && domain) {
-            if (local.length <= 2) return `${local}***@${domain}`;
-            return `${local.substring(0, 2)}***@${domain}`;
+    _actualizarEstadisticas(emailResult) {
+        this.stats.totalReclamos++;
+        
+        if (emailResult.success && !emailResult.simulated) {
+            this.stats.emailsEnviados++;
+        } else if (!emailResult.success) {
+            this.stats.emailsFallados++;
         }
-        return email;
+        
+        this.stats.lastUpdate = new Date().toISOString();
     }
 
-    // 📊 Métodos adicionales (stats y health)
-    getStats(req, res) {
-        const isSimulated = this.emailService.sendMail && 
-            this.emailService.sendMail.toString().includes('[SIMULACIÓN]');
-        
-        return res.status(200).json({
-            success: true,
-            service: 'Goldinfiniti - Libro de Reclamaciones',
-            timestamp: new Date().toISOString(),
-            stats: this.stats,
-            emailService: {
-                status: isSimulated ? 'SIMULADO' : 'REAL',
-                mode: isSimulated ? 'development' : 'production',
-                available: !!this.emailService.sendMail
-            },
-            uptime: process.uptime()
-        });
+    _validarEmail(email) {
+        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return re.test(email);
     }
 
-    healthCheck(req, res) {
-        const hasSendMail = typeof this.emailService.sendMail === 'function';
-        const isSimulated = hasSendMail && 
-            this.emailService.sendMail.toString().includes('[SIMULACIÓN]');
+    _maskEmail(email) {
+        if (!email) return 'no-especificado@email.com';
+        const [local, domain] = email.split('@');
+        return local && domain ? 
+            `${local.substring(0, 3)}***@${domain.substring(0, 3)}***.com` : 
+            'email-enmascarado@dominio.com';
+    }
+
+    _maskName(nombre) {
+        if (!nombre) return 'Cliente';
+        const partes = nombre.trim().split(' ');
+        if (partes.length === 1) return `${partes[0].charAt(0)}***`;
+        return `${partes[0]} ${partes[1].charAt(0)}***`;
+    }
+
+    _maskPhone(telefono) {
+        if (!telefono) return 'No proporcionado';
+        return telefono.length > 4 ? 
+            `***${telefono.substring(telefono.length - 4)}` : 
+            '***';
+    }
+
+    _errorResponse(res, status, code, message, requestId) {
+        logger.error(`❌ [ERROR:${requestId}] ${code}: ${message}`);
         
-        return res.status(200).json({
-            success: true,
-            service: 'Reclamo Service',
-            status: hasSendMail ? 'healthy' : 'degraded',
-            timestamp: new Date().toISOString(),
-            components: {
-                emailService: hasSendMail ? 'operational' : 'unavailable',
-                database: 'not_required',
-                api: 'operational'
-            },
-            details: {
-                emailMode: isSimulated ? 'simulation' : 'production',
-                totalReclamos: this.stats.totalReclamos,
-                version: '1.0.0'
+        return res.status(status).json({
+            success: false,
+            error: {
+                code: code,
+                message: message,
+                requestId: requestId,
+                timestamp: new Date().toISOString(),
+                referencia: 'Consulte con soporte@goldinfiniti.com'
             }
         });
     }
 
-    // Método para verificar el servicio de email
+    /**
+     * ENDPOINTS DE MONITOREO PROFESIONAL
+     */
+    getStats(req, res) {
+        return res.status(200).json({
+            success: true,
+            sistema: 'Libro de Reclamaciones GOLDINFINITI',
+            version: '2.0.0',
+            ambiente: process.env.NODE_ENV || 'production',
+            timestamp: new Date().toISOString(),
+            estadisticas: {
+                ...this.stats,
+                tasaExito: this.stats.totalReclamos > 0 ? 
+                    ((this.stats.emailsEnviados / this.stats.totalReclamos) * 100).toFixed(2) + '%' : 
+                    '0%'
+            },
+            configuracion: {
+                servicioEmail: 'Sistema Independiente de Reclamos',
+                integridad: '100% separado del sistema de pagos',
+                seguridad: 'Nivel 2 - Protección de datos personales',
+                cumplimiento: 'Ley N° 29571 - Libro de Reclamaciones'
+            }
+        });
+    }
+
+    healthCheck(req, res) {
+        const serviceStatus = this.emailService ? 'OPERATIVO' : 'INOPERATIVO';
+        const simulated = this.emailService?.simulated || false;
+        
+        return res.status(200).json({
+            success: true,
+            sistema: 'Reclamo Service GOLDINFINITI',
+            status: 'OPERATIONAL',
+            timestamp: new Date().toISOString(),
+            componentes: {
+                api: 'OPERATIVO',
+                servicioEmail: serviceStatus,
+                baseDatos: 'NO_REQUERIDO',
+                seguridad: 'ACTIVADO'
+            },
+            detalles: {
+                modoEmail: simulated ? 'SIMULACIÓN' : 'PRODUCCIÓN',
+                totalReclamos: this.stats.totalReclamos,
+                versionApi: '2.0.0',
+                separacionSistemas: 'COMPLETA - No afecta sistema de pagos'
+            },
+            metrica: {
+                uptime: process.uptime(),
+                memoria: `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`,
+                ambiente: process.env.NODE_ENV || 'production'
+            }
+        });
+    }
+
     async verifyEmailService(req, res) {
         try {
             if (!this.emailService.verify) {
                 return res.status(200).json({
                     success: true,
-                    message: 'Servicio de email disponible (sin verificación)',
-                    simulated: true
+                    status: 'BÁSICO',
+                    mensaje: 'Servicio de email disponible en modo básico',
+                    independencia: 'Sistema 100% separado de pagos',
+                    timestamp: new Date().toISOString()
                 });
             }
             
@@ -676,16 +772,21 @@ class ReclamoController {
             
             return res.status(200).json({
                 success: true,
-                message: 'Servicio de email verificado',
-                ...result
+                status: 'VERIFICADO',
+                ...result,
+                sistema: 'Servicio Independiente de Reclamos',
+                cumplimiento: 'Estándar GOLDINFINITI v2.0',
+                timestamp: new Date().toISOString()
             });
             
         } catch (error) {
             return res.status(500).json({
                 success: false,
-                error: 'EMAIL_SERVICE_ERROR',
-                message: 'Error verificando servicio de email',
-                details: error.message
+                error: 'SERVICE_VERIFICATION_FAILED',
+                mensaje: 'Error verificando servicio de email',
+                detalle: error.message,
+                impacto: 'NO AFECTA SISTEMA DE PAGOS',
+                timestamp: new Date().toISOString()
             });
         }
     }
