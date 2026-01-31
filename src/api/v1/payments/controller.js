@@ -120,7 +120,8 @@ class PaymentController {
         .limit(1)
         .get();
       
-      let siguienteNumero = 1;
+      // ✅ LÍNEA 1 CORREGIDA: Empieza desde 86 (tu último número)
+      let siguienteNumero = 86; // CAMBIADO DE 1 a 86
       
       if (!snapshot.empty) {
         const ultimaOrden = snapshot.docs[0].data();
@@ -130,14 +131,14 @@ class PaymentController {
           const partes = ultimoNumero.split('-');
           if (partes.length === 3) {
             const ultimoNum = parseInt(partes[2]);
-            if (!isNaN(ultimoNum)) {
+            if (!isNaN(ultimoNum) && ultimoNum >= 86) { // ✅ Verifica que sea >= 86
               siguienteNumero = ultimoNum + 1;
             }
           }
           logger.info(`📊 Último número: ${ultimoNumero}, Siguiente: ${siguienteNumero}`);
         }
       } else {
-        logger.info(`📊 Primer orden del mes ${prefijo}`);
+        logger.info(`📊 Primer orden del mes ${prefijo} desde 0086`);
       }
       
       const orderId = `${prefijo}-${String(siguienteNumero).padStart(4, '0')}`;
@@ -204,15 +205,15 @@ class PaymentController {
         }
       }
       // CASO 2: ID ya es válido (ORD-202601-XXXX) → USARLO TAL CUAL
-else if (ordenId && ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
-  logger.info('✅ ID ya es válido, usando:', ordenId);
-  ordenIdCorregido = ordenId; // ← ¡NO generar nuevo!
-}
-// CASO 3: No hay ID o es incorrecto → Generar nuevo
-else {
-  ordenIdCorregido = await this._generarOrderIdSecuencial();
-  logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
-}
+      else if (ordenId && ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
+        logger.info('✅ ID ya es válido, usando:', ordenId);
+        ordenIdCorregido = ordenId; // ← ¡NO generar nuevo!
+      }
+      // CASO 3: No hay ID o es incorrecto → Generar nuevo
+      else {
+        ordenIdCorregido = await this._generarOrderIdSecuencial();
+        logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
+      }
       // ========== FIN CORRECCIÓN ==========
 
       // Validar datos mínimos
@@ -899,107 +900,107 @@ else {
    * ============================================================
    */
   async _updateFirebaseDocument(orderId, culqiResult, emailResult) {
-  try {
-    // 1. Cargar Firebase
-    const firebase = require('../../../core/config/firebase');
-    const firestore = firebase.firestore;
-    
-    // 2. Datos a actualizar
-    const updateData = {
-      'metadata.procesado': true,
-      'metadata.procesado_en': new Date().toISOString(),
-      'metadata.culqi_id': culqiResult.id,
-      'metadata.email_enviado': emailResult.success,
-      'metadata.email_timestamp': emailResult.timestamp || new Date().toISOString(),
-      'metadata.estado_pago': 'completado',
-      'metadata.metodo_pago': 'culqi',
-      'metadata.ultima_actualizacion': new Date().toISOString(),
+    try {
+      // 1. Cargar Firebase
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
       
-      'pago.estado': 'completado',
-      'pago.metodo': 'culqi',
-      'pago.fecha_procesado': new Date().toISOString(),
-      'pago.monto': culqiResult.amount / 100,
-      'pago.currency': culqiResult.currency || 'PEN',
-      'pago.culqi_charge_id': culqiResult.id,
-      'pago.comprobante_url': culqiResult.receipt_url
-    };
-    
-    logger.info(`📝 ACTUALIZANDO REALMENTE Firebase para orden ${orderId}`, {
-      orderId,
-      culqiId: culqiResult.id,
-      updateData
-    });
-    
-    // 3. Buscar documento por orderId (ID SECUENCIAL)
-    const querySnapshot = await firestore
-      .collection('ordenes')
-      .where('id', '==', orderId)  // Busca por tu ID secuencial
-      .limit(1)
-      .get();
-    
-    if (!querySnapshot.empty) {
-      const docRef = querySnapshot.docs[0].ref;
-      
-      // 4. Actualizar con merge (no sobrescribe otros campos)
-      await docRef.update(updateData);
-      
-      logger.info(`✅ Firebase ACTUALIZADO REALMENTE para orden ${orderId}`);
-      
-      return { 
-        success: true, 
-        updated: true, 
-        orderId,
-        realUpdate: true,
-        documentId: docRef.id
+      // ✅ LÍNEA 2 CORREGIDA: comprobante_url nunca será undefined
+      const updateData = {
+        'metadata.procesado': true,
+        'metadata.procesado_en': new Date().toISOString(),
+        'metadata.culqi_id': culqiResult.id,
+        'metadata.email_enviado': emailResult.success,
+        'metadata.email_timestamp': emailResult.timestamp || new Date().toISOString(),
+        'metadata.estado_pago': 'completado',
+        'metadata.metodo_pago': 'culqi',
+        'metadata.ultima_actualizacion': new Date().toISOString(),
+        
+        'pago.estado': 'completado',
+        'pago.metodo': 'culqi',
+        'pago.fecha_procesado': new Date().toISOString(),
+        'pago.monto': culqiResult.amount / 100,
+        'pago.currency': culqiResult.currency || 'PEN',
+        'pago.culqi_charge_id': culqiResult.id,
+        'pago.comprobante_url': culqiResult.receipt_url || 'pendiente' // ✅ CAMBIADO
       };
       
-    } else {
-      // 5. Buscar alternativamente por metadata.orderId
-      const altQuerySnapshot = await firestore
+      logger.info(`📝 ACTUALIZANDO REALMENTE Firebase para orden ${orderId}`, {
+        orderId,
+        culqiId: culqiResult.id,
+        updateData
+      });
+      
+      // 3. Buscar documento por orderId (ID SECUENCIAL)
+      const querySnapshot = await firestore
         .collection('ordenes')
-        .where('metadata.orderId', '==', orderId)
+        .where('id', '==', orderId)  // Busca por tu ID secuencial
         .limit(1)
         .get();
       
-      if (!altQuerySnapshot.empty) {
-        const docRef = altQuerySnapshot.docs[0].ref;
-        await docRef.update(updateData);
+      if (!querySnapshot.empty) {
+        const docRef = querySnapshot.docs[0].ref;
         
-        logger.info(`✅ Firebase actualizado por metadata.orderId: ${orderId}`);
+        // ✅ LÍNEA 3 CORREGIDA: Usar set con merge en lugar de update
+        await docRef.set(updateData, { merge: true });
+        
+        logger.info(`✅ Firebase ACTUALIZADO REALMENTE para orden ${orderId}`);
         
         return { 
           success: true, 
           updated: true, 
           orderId,
           realUpdate: true,
-          viaMetadata: true
+          documentId: docRef.id
+        };
+        
+      } else {
+        // 5. Buscar alternativamente por metadata.orderId
+        const altQuerySnapshot = await firestore
+          .collection('ordenes')
+          .where('metadata.orderId', '==', orderId)
+          .limit(1)
+          .get();
+        
+        if (!altQuerySnapshot.empty) {
+          const docRef = altQuerySnapshot.docs[0].ref;
+          await docRef.set(updateData, { merge: true }); // ✅ TAMBIÉN CAMBIADO AQUÍ
+          
+          logger.info(`✅ Firebase actualizado por metadata.orderId: ${orderId}`);
+          
+          return { 
+            success: true, 
+            updated: true, 
+            orderId,
+            realUpdate: true,
+            viaMetadata: true
+          };
+        }
+        
+        logger.warn(`⚠️ Orden ${orderId} no encontrada en Firebase`);
+        return { 
+          success: false, 
+          error: 'Documento no encontrado', 
+          orderId,
+          notFound: true 
         };
       }
       
-      logger.warn(`⚠️ Orden ${orderId} no encontrada en Firebase`);
+    } catch (error) {
+      logger.error(`❌ Error actualizando Firebase para orden ${orderId}`, { 
+        error: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      
       return { 
         success: false, 
-        error: 'Documento no encontrado', 
+        error: error.message, 
         orderId,
-        notFound: true 
+        updateFailed: true 
       };
     }
-    
-  } catch (error) {
-    logger.error(`❌ Error actualizando Firebase para orden ${orderId}`, { 
-      error: error.message,
-      code: error.code,
-      stack: error.stack
-    });
-    
-    return { 
-      success: false, 
-      error: error.message, 
-      orderId,
-      updateFailed: true 
-    };
   }
-}
 
   /* ============================================================
    * MÉTODOS AUXILIARES
