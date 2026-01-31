@@ -200,7 +200,7 @@ class ReclamoController {
                 to: frontendData.consumidor.email,
                 nombre: frontendData.consumidor.nombreCompleto || 'Cliente',
                 reclamoId: frontendData.reclamoId,
-                subject: `📋 Reclamo #${frontendData.reclamoId} - GOLDINFINITI`,
+                subject: `⚠️ CONFIRMACIÓN DE RECLAMO #${frontendData.reclamoId} - LIBRO DE RECLAMACIONES GOLDINFINITI`,
                 html: this._generarHtmlReclamo(frontendData),
                 text: `Reclamo #${frontendData.reclamoId} registrado exitosamente.`
             };
@@ -287,6 +287,10 @@ class ReclamoController {
             month: 'long',
             day: 'numeric'
         });
+        const horaActual = new Date().toLocaleTimeString('es-PE', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
         
         return `
         <!DOCTYPE html>
@@ -294,163 +298,315 @@ class ReclamoController {
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Reclamo #${reclamoId} - GOLDINFINITI</title>
+            <title>Confirmación de Reclamo #${reclamoId} - GOLDINFINITI</title>
             <style>
                 body {
-                    font-family: 'Segoe UI', Arial, sans-serif;
-                    line-height: 1.6;
+                    font-family: 'Arial', sans-serif;
+                    line-height: 1.8;
                     color: #333;
-                    max-width: 600px;
+                    max-width: 700px;
                     margin: 0 auto;
                     padding: 0;
-                    background-color: #f5f5f5;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 }
                 .container {
                     background: white;
-                    border-radius: 10px;
+                    border-radius: 20px;
                     overflow: hidden;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                    margin: 20px auto;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    margin: 40px auto;
+                    border: 5px solid #f8f9fa;
                 }
-                .header {
-                    background: linear-gradient(135deg, #1a237e 0%, #311b92 100%);
+                .header-reclamo {
+                    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
                     color: white;
-                    padding: 30px 20px;
+                    padding: 40px 20px;
                     text-align: center;
+                    position: relative;
+                    overflow: hidden;
                 }
-                .header h1 {
+                .header-reclamo::before {
+                    content: "⚠️";
+                    font-size: 80px;
+                    position: absolute;
+                    opacity: 0.1;
+                    top: 10px;
+                    right: 20px;
+                }
+                .header-reclamo h1 {
                     margin: 0;
-                    font-size: 24px;
+                    font-size: 32px;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    letter-spacing: 2px;
                 }
-                .header p {
-                    margin: 10px 0 0;
+                .header-reclamo .subtitle {
+                    font-size: 16px;
                     opacity: 0.9;
-                    font-size: 14px;
+                    margin-top: 10px;
+                    font-weight: 300;
                 }
-                .content {
-                    padding: 30px;
+                .content-reclamo {
+                    padding: 40px;
                 }
-                .reclamo-number {
-                    background: #4caf50;
+                .badge-reclamo {
+                    background: #ee5a24;
                     color: white;
-                    padding: 12px 24px;
-                    border-radius: 25px;
+                    padding: 12px 25px;
+                    border-radius: 50px;
                     display: inline-block;
                     font-weight: bold;
                     font-size: 18px;
                     margin: 20px 0;
+                    box-shadow: 0 5px 15px rgba(238, 90, 36, 0.3);
+                    border: 3px solid #ffd8cc;
                 }
-                .info-box {
+                .section {
                     background: #f8f9fa;
-                    border-left: 4px solid #2196f3;
-                    padding: 20px;
+                    border-radius: 15px;
+                    padding: 25px;
                     margin: 25px 0;
-                    border-radius: 0 8px 8px 0;
+                    border-left: 5px solid #ee5a24;
                 }
-                .info-box h3 {
+                .section-title {
+                    color: #ee5a24;
                     margin-top: 0;
-                    color: #1a237e;
+                    font-size: 20px;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
                 }
-                .customer-info {
-                    background: #e8f5e9;
+                .section-title::before {
+                    content: "📝";
+                    font-size: 24px;
+                }
+                .info-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 20px;
+                    margin: 25px 0;
+                }
+                .info-item {
+                    background: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+                    border: 2px solid #e9ecef;
+                }
+                .warning-box {
+                    background: #fff3cd;
+                    border: 2px solid #ffc107;
+                    border-radius: 10px;
+                    padding: 20px;
+                    margin: 30px 0;
+                    text-align: center;
+                }
+                .footer-reclamo {
+                    background: #343a40;
+                    color: white;
+                    padding: 30px;
+                    text-align: center;
+                    border-top: 5px solid #ee5a24;
+                }
+                .timeline {
+                    position: relative;
+                    padding-left: 30px;
+                    margin: 25px 0;
+                }
+                .timeline::before {
+                    content: "";
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    bottom: 0;
+                    width: 3px;
+                    background: #ee5a24;
+                }
+                .timeline-item {
+                    position: relative;
+                    margin-bottom: 20px;
+                    padding-left: 20px;
+                }
+                .timeline-item::before {
+                    content: "⏰";
+                    position: absolute;
+                    left: -35px;
+                    top: 0;
+                    background: white;
+                    border: 3px solid #ee5a24;
+                    border-radius: 50%;
+                    width: 30px;
+                    height: 30px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 14px;
+                }
+                .contact-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 15px;
+                    margin-top: 20px;
+                }
+                .contact-item {
+                    background: white;
                     padding: 15px;
                     border-radius: 8px;
-                    margin: 20px 0;
-                }
-                .footer {
-                    background: #f1f1f1;
-                    padding: 20px;
                     text-align: center;
-                    font-size: 12px;
-                    color: #666;
-                    border-top: 1px solid #ddd;
-                }
-                .logo {
-                    text-align: center;
-                    margin: 20px 0;
-                    font-size: 24px;
-                    font-weight: bold;
-                    color: #1a237e;
-                }
-                .button {
-                    display: inline-block;
-                    background: #1a237e;
-                    color: white;
-                    padding: 12px 24px;
-                    text-decoration: none;
-                    border-radius: 5px;
-                    margin: 10px 0;
+                    border: 2px solid #e9ecef;
                 }
                 @media (max-width: 600px) {
-                    .content {
+                    .content-reclamo {
                         padding: 20px;
                     }
-                    .header {
-                        padding: 20px 15px;
+                    .header-reclamo {
+                        padding: 30px 15px;
+                    }
+                    .header-reclamo h1 {
+                        font-size: 24px;
+                    }
+                    .info-grid {
+                        grid-template-columns: 1fr;
                     }
                 }
             </style>
         </head>
         <body>
             <div class="container">
-                <div class="header">
-                    <h1>✅ Reclamo Registrado</h1>
-                    <p>Libro de Reclamaciones - GOLDINFINITI TECH CORP</p>
+                <div class="header-reclamo">
+                    <h1>📋 RECLAMO REGISTRADO</h1>
+                    <div class="subtitle">Libro de Reclamaciones Electrónico • GOLDINFINITI TECH CORP</div>
                 </div>
                 
-                <div class="content">
-                    <div class="logo">GOLDINFINITI</div>
+                <div class="content-reclamo">
+                    <div class="badge-reclamo">#${reclamoId}</div>
                     
-                    <div class="reclamo-number">RECLAMO #${reclamoId}</div>
+                    <h2 style="color: #ee5a24;">Estimado(a) ${consumidor.nombreCompleto},</h2>
+                    <p>Hemos recibido formalmente su reclamo en nuestro <strong>Libro de Reclamaciones Electrónico</strong> y ha sido registrado con el siguiente detalle:</p>
                     
-                    <h2>Estimado(a) ${consumidor.nombreCompleto},</h2>
-                    
-                    <p>Hemos recibido su reclamo exitosamente y ha sido registrado en nuestro sistema con la siguiente información:</p>
-                    
-                    <div class="customer-info">
-                        <p><strong>👤 Cliente:</strong> ${consumidor.nombreCompleto}</p>
-                        <p><strong>📧 Email:</strong> ${consumidor.email}</p>
-                        ${consumidor.telefono ? `<p><strong>📞 Teléfono:</strong> ${consumidor.telefono}</p>` : ''}
+                    <div class="section">
+                        <h3 class="section-title">Información del Reclamo</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <strong>🔢 N° de Reclamo:</strong><br>
+                                <span style="font-size: 24px; font-weight: bold; color: #ee5a24;">${reclamoId}</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>📅 Fecha de Registro:</strong><br>
+                                ${fechaActual}<br>
+                                <small>${horaActual}</small>
+                            </div>
+                            <div class="info-item">
+                                <strong>👤 Registrado por:</strong><br>
+                                ${consumidor.nombreCompleto}
+                            </div>
+                        </div>
                     </div>
                     
-                    <div class="info-box">
-                        <h3>📋 Detalles del Reclamo:</h3>
-                        <p><strong>ID de Reclamo:</strong> ${reclamoId}</p>
-                        <p><strong>Fecha de Registro:</strong> ${fechaActual}</p>
+                    <div class="section">
+                        <h3 class="section-title">Detalles del Reclamo</h3>
                         <p><strong>Descripción:</strong></p>
-                        <p>${reclamo.descripcion || 'No especificada'}</p>
+                        <div style="background: white; padding: 20px; border-radius: 10px; border: 2px dashed #dee2e6; margin: 15px 0;">
+                            ${reclamo.descripcion || 'No se proporcionó descripción adicional.'}
+                        </div>
+                        
+                        ${reclamo.tipo ? `
+                        <p><strong>Tipo de Reclamo:</strong> ${reclamo.tipo}</p>
+                        ` : ''}
                     </div>
                     
-                    <div class="info-box">
-                        <h3>⏱️ Proceso de Atención:</h3>
-                        <p>De acuerdo con la <strong>Ley N° 29571 (Código de Protección y Defensa del Consumidor)</strong>, 
+                    <div class="warning-box">
+                        <h3 style="color: #856404; margin-top: 0;">⏱️ Plazo Legal de Respuesta</h3>
+                        <p>De acuerdo con la <strong>Ley N° 29571</strong> (Código de Protección y Defensa del Consumidor), 
                         tenemos <strong>30 días hábiles</strong> para dar respuesta formal a su reclamo.</p>
-                        <p>Le mantendremos informado sobre el avance de su caso.</p>
+                        <p style="font-size: 14px; color: #856404;">Fecha límite aproximada: ${this._calcularFechaLimite(30)}</p>
                     </div>
                     
-                    <div class="info-box">
-                        <h3>📞 Canales de Contacto:</h3>
-                        <p>Para consultas adicionales sobre su reclamo:</p>
-                        <p>📧 <strong>Email:</strong> contacto@goldinfiniti.com</p>
-                        <p>📱 <strong>Teléfono:</strong> 968 786 648</p>
-                        <p>🏢 <strong>Dirección:</strong> GOLDINFINITI TECH CORP</p>
-                        <p>🔢 <strong>RUC:</strong> 20613360281</p>
+                    <div class="timeline">
+                        <h3 style="color: #ee5a24;">📋 Proceso de Atención</h3>
+                        <div class="timeline-item">
+                            <strong>1. Recepción y Registro</strong><br>
+                            <small>Su reclamo ha sido ingresado en nuestro sistema.</small>
+                        </div>
+                        <div class="timeline-item">
+                            <strong>2. Análisis y Evaluación</strong><br>
+                            <small>Nuestro equipo especializado revisará su caso.</small>
+                        </div>
+                        <div class="timeline-item">
+                            <strong>3. Investigación Interna</strong><br>
+                            <small>Recopilaremos toda la información necesaria.</small>
+                        </div>
+                        <div class="timeline-item">
+                            <strong>4. Respuesta Formal</strong><br>
+                            <small>Le notificaremos nuestra respuesta dentro del plazo legal.</small>
+                        </div>
                     </div>
                     
-                    <p style="text-align: center; margin-top: 30px;">
-                        <strong>Gracias por confiar en GOLDINFINITI.</strong><br>
-                        Trabajamos para brindarle la mejor solución.
-                    </p>
+                    <div class="section">
+                        <h3 class="section-title">📞 Canales de Contacto</h3>
+                        <p>Para consultas sobre el estado de su reclamo:</p>
+                        <div class="contact-grid">
+                            <div class="contact-item">
+                                <strong>📧 Correo Electrónico</strong><br>
+                                contacto@goldinfiniti.com
+                            </div>
+                            <div class="contact-item">
+                                <strong>📱 Teléfono</strong><br>
+                                968 786 648
+                            </div>
+                            <div class="contact-item">
+                                <strong>🏢 Oficina Principal</strong><br>
+                                GOLDINFINITI TECH CORP
+                            </div>
+                            <div class="contact-item">
+                                <strong>🔢 RUC</strong><br>
+                                20613360281
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 40px 0 20px 0; padding: 20px; background: #f8f9fa; border-radius: 15px;">
+                        <p style="font-size: 18px; color: #ee5a24; font-weight: bold;">
+                            Gracias por permitirnos atender su caso.<br>
+                            Trabajamos para brindarle la mejor solución.
+                        </p>
+                    </div>
                 </div>
                 
-                <div class="footer">
-                    <p>© ${new Date().getFullYear()} GOLDINFINITI TECH CORP - Todos los derechos reservados</p>
-                    <p>Sistema de Libro de Reclamaciones Virtual - Este es un mensaje automático, por favor no responder.</p>
-                    <p>RUC: 20613360281</p>
+                <div class="footer-reclamo">
+                    <p style="margin: 0 0 10px 0; font-size: 14px;">
+                        © ${new Date().getFullYear()} GOLDINFINITI TECH CORP • Libro de Reclamaciones Electrónico
+                    </p>
+                    <p style="margin: 0; font-size: 12px; opacity: 0.8;">
+                        RUC 20613360281 • Sistema automatizado • Este mensaje es confidencial
+                    </p>
+                    <p style="margin: 10px 0 0 0; font-size: 11px; opacity: 0.6;">
+                        Este correo es una confirmación automática de recepción de su reclamo.
+                    </p>
                 </div>
             </div>
         </body>
         </html>`;
+    }
+
+    _calcularFechaLimite(diasHabiles) {
+        const fecha = new Date();
+        let diasAgregados = 0;
+        
+        while (diasAgregados < diasHabiles) {
+            fecha.setDate(fecha.getDate() + 1);
+            // No contar sábados (6) ni domingos (0)
+            if (fecha.getDay() !== 0 && fecha.getDay() !== 6) {
+                diasAgregados++;
+            }
+        }
+        
+        return fecha.toLocaleDateString('es-PE', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
     }
 
     _maskEmail(email) {
