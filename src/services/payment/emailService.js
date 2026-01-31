@@ -768,10 +768,7 @@ www.goldinfiniti.com
 }
 
 // ========================
-// 6. GENERACIÓN DE PDF - VERSIÓN ULTRA-FINA 1 PÁGINA
-// ========================
-// ========================
-// 6. GENERACIÓN DE PDF - VERSIÓN ULTRA-FINA 1 PÁGINA (FIX PROFESIONAL)
+// 6. GENERACIÓN DE PDF - VERSIÓN ULTRA-FINA 1 PÁGINA (FIX DEFINITIVO)
 // ========================
 async function _generateOrderPDF(firebaseData) {
   return new Promise((resolve, reject) => {
@@ -791,17 +788,25 @@ async function _generateOrderPDF(firebaseData) {
       if (fecha_creacion?.seconds) fechaOrden = new Date(fecha_creacion.seconds * 1000);
       else if (fecha_creacion?._seconds) fechaOrden = new Date(fecha_creacion._seconds * 1000);
       else if (typeof fecha_creacion === 'string') fechaOrden = new Date(fecha_creacion);
-      else if (typeof fecha_creacion === 'number') fechaOrden = new Date(fecha_creacion < 10000000000 ? fecha_creacion * 1000 : fecha_creacion);
+      else if (typeof fecha_creacion === 'number')
+        fechaOrden = new Date(fecha_creacion < 10000000000 ? fecha_creacion * 1000 : fecha_creacion);
       else fechaOrden = new Date();
 
       if (fechaOrden.getFullYear() === 1970) fechaOrden = new Date();
 
       const fechaFormateada = new Intl.DateTimeFormat('es-PE', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Lima'
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'America/Lima'
       }).format(fechaOrden);
 
       const horaFormateada = new Intl.DateTimeFormat('es-PE', {
-        hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Lima'
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'America/Lima'
       }).format(fechaOrden);
 
       // ================= PDF =================
@@ -830,7 +835,6 @@ async function _generateOrderPDF(firebaseData) {
       const pageHeight = doc.page.height;
       const maxY = pageHeight - 70;
       let currentY = 40;
-
       const canFit = h => currentY + h <= maxY;
 
       // ================= HEADER =================
@@ -885,24 +889,55 @@ async function _generateOrderPDF(firebaseData) {
 
       currentY += 15;
 
-      const colWidths = [230, 50, 80, 80];
-      const colX = [40, 270, 320, 400];
+      // 👉 DEFINICIÓN CORRECTA DE COLUMNAS (FIX REAL)
+      const tableX = 40;
 
-      doc.fontSize(7).fillColor('#666');
+      const colWidths = {
+        desc: 230,
+        qty: 50,
+        price: 80,
+        total: 80
+      };
 
-      doc.text('DESCRIPCIÓN', colX[0] + 5, currentY, { width: colWidths[0] - 10 });
-      doc.text('CANT.', colX[1] + 5, currentY, { width: colWidths[1] - 10, align: 'center' });
-      doc.text('PRECIO', colX[2] + 5, currentY, { width: colWidths[2] - 10, align: 'right' });
-      doc.text('TOTAL', colX[3] + 5, currentY, { width: colWidths[3] - 10, align: 'right' });
+      const colX = {
+        desc: tableX,
+        qty: tableX + colWidths.desc,
+        price: tableX + colWidths.desc + colWidths.qty,
+        total: tableX + colWidths.desc + colWidths.qty + colWidths.price
+      };
 
-      doc.moveTo(40, currentY + 9)
-        .lineTo(colX[3] + colWidths[3], currentY + 9)
+      // HEADERS
+      doc.fontSize(7).font('Helvetica-Bold').fillColor('#666');
+
+      doc.text('DESCRIPCIÓN', colX.desc + 5, currentY, {
+        width: colWidths.desc - 10,
+        align: 'left'
+      });
+
+      doc.text('CANT.', colX.qty + 5, currentY, {
+        width: colWidths.qty - 10,
+        align: 'center'
+      });
+
+      doc.text('PRECIO', colX.price + 5, currentY, {
+        width: colWidths.price - 10,
+        align: 'right'
+      });
+
+      doc.text('TOTAL', colX.total + 5, currentY, {
+        width: colWidths.total - 10,
+        align: 'right'
+      });
+
+      doc.moveTo(tableX, currentY + 9)
+        .lineTo(colX.total + colWidths.total, currentY + 9)
         .lineWidth(0.3)
         .strokeColor('#e0e0e0')
         .stroke();
 
       currentY += 15;
 
+      // FILAS
       productos.forEach((p, i) => {
         if (!canFit(14)) return;
 
@@ -912,12 +947,25 @@ async function _generateOrderPDF(firebaseData) {
         const total = p.subtotal || cantidad * precio;
 
         doc.fontSize(8).font('Helvetica').fillColor('#000');
-        doc.text(nombre, colX[0] + 5, currentY, { width: colWidths[0] - 10 });
-        doc.text(String(cantidad), colX[1] + 5, currentY, { width: colWidths[1] - 10, align: 'center' });
-        doc.text(`S/ ${precio.toFixed(2)}`, colX[2] + 5, currentY, { width: colWidths[2] - 10, align: 'right' });
 
-        doc.font('Helvetica-Bold')
-          .text(`S/ ${total.toFixed(2)}`, colX[3] + 5, currentY, { width: colWidths[3] - 10, align: 'right' });
+        doc.text(nombre, colX.desc + 5, currentY, {
+          width: colWidths.desc - 10
+        });
+
+        doc.text(String(cantidad), colX.qty + 5, currentY, {
+          width: colWidths.qty - 10,
+          align: 'center'
+        });
+
+        doc.text(`S/ ${precio.toFixed(2)}`, colX.price + 5, currentY, {
+          width: colWidths.price - 10,
+          align: 'right'
+        });
+
+        doc.font('Helvetica-Bold').text(`S/ ${total.toFixed(2)}`, colX.total + 5, currentY, {
+          width: colWidths.total - 10,
+          align: 'right'
+        });
 
         currentY += 12;
       });
@@ -954,7 +1002,7 @@ async function _generateOrderPDF(firebaseData) {
         doc.text(`TOTAL: S/ ${resumen.total.toFixed(2)}`, boxX + 10, y);
       }
 
-      // ================= FOOTER FIJO =================
+      // ================= FOOTER =================
       const footerY = doc.page.height - 35;
       doc.fontSize(6).fillColor('#9ca3af');
 
@@ -979,6 +1027,7 @@ async function _generateOrderPDF(firebaseData) {
     }
   });
 }
+
 // ========================
 // 7. FUNCIÓN DE NOTIFICACIÓN INTERNA (MANTENER IGUAL)
 // ========================
