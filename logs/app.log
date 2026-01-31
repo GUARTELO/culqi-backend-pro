@@ -1354,3 +1354,11 @@
 [2026-01-30 09:52:36] INFO: ✅ Estadísticas obtenidas exitosamente {"service":"culqi-backend","today_orders":0,"today_amount":0,"response_time":"1ms"}
 [2026-01-30 09:56:12] INFO: 📊 Obteniendo estadísticas REALES para dashboard... {"service":"culqi-backend"}
 [2026-01-30 09:56:12] INFO: ✅ Estadísticas obtenidas exitosamente {"service":"culqi-backend","today_orders":0,"today_amount":0,"response_time":"1ms"}
+[2026-01-31 07:21:17] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-01-31 07:21:17] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-01-31 07:21:17] INFO: 🚀 PaymentController (Firebase - IDs SECUENCIALES) inicializado {"service":"culqi-backend"}
+[2026-01-31 07:21:17] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-01-31 12:22:33] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-01-31 12:22:38] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-01-31 12:22:38] INFO: 🚀 PaymentController (Firebase - IDs SECUENCIALES) inicializado {"service":"culqi-backend"}
+[2026-01-31 12:22:38] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
