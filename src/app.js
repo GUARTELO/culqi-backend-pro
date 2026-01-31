@@ -188,8 +188,8 @@ app.use('/health', healthRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 
 // C. RECLAMOS API - Sistema INDEPENDIENTE para libro de reclamaciones
-const reclamosRoutes = require('./api/v1/reclamos/routes');  // ← usa "reclamos"
-app.use('/api/v1/reclamos', reclamosRoutes);  // ← ruta "/api/v1/reclamos"
+//const reclamosRoutes = require('./api/v1/reclamos/routes');  // ← usa "reclamos"
+//app.use('/api/v1/reclamos', reclamosRoutes);  // ← ruta "/api/v1/reclamos"
 // D. RUTA RAÍZ - Información del API
 app.get('/', (req, res) => {
   res.json({
@@ -210,7 +210,7 @@ app.get('/', (req, res) => {
         webhook: '/api/v1/payments/webhook'
       },
       // ✅ SOLO AGREGA ESTA LÍNEA:
-      reclamos: '/api/v1/reclamos',
+     // reclamos: '/api/v1/reclamos',
       docs: '/api-docs',
     },
     limits: {
