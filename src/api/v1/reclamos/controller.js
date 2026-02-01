@@ -1,72 +1,48 @@
 const reclamoEmailService = require('../../../services/reclamo/emailService');
 const logger = require('../../../core/utils/logger');
 
-// 🔥 USAR FIREBASE DIRECTAMENTE, NO EL MÓDULO firebase.js
-const admin = require('firebase-admin');
+// 🔥 USAR EXACTAMENTE EL MISMO MÉTODO QUE PAGOS
+const firebase = require('../../../core/config/firebase');
 
-// INICIALIZAR FIREBASE DIRECTAMENTE (IGUAL QUE firebase.js PERO PROPIO)
-const initializeFirebaseDirect = () => {
-  console.log('🔄 ReclamoController: Inicializando Firebase directamente...');
+// ESPERAR A QUE FIREBASE ESTÉ LISTO (IGUAL QUE PAGOS)
+const obtenerFirestore = () => {
+  console.log('🔄 ReclamoController: Obteniendo Firestore desde módulo firebase.js...');
   
-  try {
-    // 1. SI YA ESTÁ INICIALIZADO, USAR ESA INSTANCIA
-    if (admin.apps.length > 0) {
-      console.log('✅ Firebase ya inicializado, usando instancia existente');
-      return admin.firestore();
-    }
-    
-    // 2. CARGAR CREDENCIALES DESDE FIREBASE_SERVICE_ACCOUNT
+  // Si el módulo ya exporta firestore, usarlo
+  if (firebase.firestore && typeof firebase.firestore === 'function') {
+    console.log('✅ Firestore obtenido como función');
+    return firebase.firestore;
+  }
+  
+  // Si exporta el objeto directamente
+  if (firebase.firestore && typeof firebase.firestore.collection === 'function') {
+    console.log('✅ Firestore obtenido como objeto');
+    return firebase.firestore;
+  }
+  
+  // FALLBACK: Crear instancia manual (solo si es necesario)
+  console.warn('⚠️ Firestore no disponible en módulo, creando manual...');
+  const admin = require('firebase-admin');
+  
+  if (!admin.apps.length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      console.log('📦 Usando FIREBASE_SERVICE_ACCOUNT de Render');
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-      
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
       });
-      
-      console.log('✅ Firebase inicializado con credenciales de entorno');
-      console.log(`📊 Project ID: ${serviceAccount.project_id}`);
-      
-      return admin.firestore();
-    }
-    
-    // 3. FALLBACK: ARCHIVO LOCAL
-    const path = require('path');
-    const serviceAccountPath = path.join(__dirname, '../../../../config/firebase-service-account.json');
-    console.log('📁 Usando archivo local:', serviceAccountPath);
-    
-    const serviceAccount = require(serviceAccountPath);
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
-    });
-    
-    console.log('✅ Firebase inicializado con archivo local');
-    return admin.firestore();
-    
-  } catch (error) {
-    console.error('❌ ERROR inicializando Firebase:', error.message);
-    
-    // FALLBACK ULTIMATUM: Usar cualquier app disponible
-    try {
-      return admin.app().firestore();
-    } catch {
-      console.log('🛡️ Creando Firestore mock...');
-      return {
-        collection: () => ({ 
-          doc: () => ({ 
-            get: () => Promise.resolve({ exists: false }) 
-          }) 
-        })
-      };
     }
   }
+  
+  return admin.firestore();
 };
 
-// INICIALIZAR AHORA
-const db = initializeFirebaseDirect();
-console.log('🎯 ReclamoController: Firestore listo');
+// OBTENER FIRESTORE (IGUAL QUE PAGOS)
+const db = obtenerFirestore();
+
+// VERIFICAR QUE SEA VÁLIDO
+console.log('🔍 ReclamoController: Firestore obtenido:', 
+  db && typeof db.collection === 'function' ? 'VÁLIDO' : 'INVÁLIDO');
 
 const COLECCION_RECLAMOS = 'libro_reclamaciones_indecopi';
 
@@ -244,28 +220,33 @@ class ReclamoController {
     /**
      * 🔥 VERIFICA SI EL RECLAMO EXISTE EN FIREBASE
      */
-        async _verificarExistenciaFirebase(reclamoId) {
+           async _verificarExistenciaFirebase(reclamoId) {
         try {
-            console.log('🔍 ReclamoController: Buscando reclamo en Firebase:', reclamoId);
+            console.log('🔍 ReclamoController: Buscando reclamo:', reclamoId);
             
-            // SOLO BUSCAR POR ID DIRECTO - VERSIÓN SIMPLIFICADA
+            // VERIFICAR QUE DB SEA VÁLIDO
+            if (!db || typeof db.collection !== 'function') {
+                console.error('❌ ERROR: Firestore no está disponible');
+                console.error('   db es:', typeof db);
+                console.error('   db.collection:', typeof db?.collection);
+                return { existe: false, error: 'Firebase no configurado' };
+            }
+            
+            // BUSCAR SIMPLEMENTE
             const docRef = db.collection(COLECCION_RECLAMOS).doc(reclamoId);
             const docSnap = await docRef.get();
             
             if (docSnap.exists) {
-                console.log('✅ Reclamo encontrado por ID directo:', reclamoId);
+                console.log('✅ Reclamo encontrado:', reclamoId);
                 return { existe: true, tipo: 'id_directo' };
             }
             
-            console.log('⚠️ Reclamo NO encontrado por ID directo:', reclamoId);
-            return { 
-                existe: false, 
-                error: 'No encontrado en Firebase' 
-            };
+            console.log('⚠️ Reclamo no encontrado:', reclamoId);
+            return { existe: false, error: 'No encontrado' };
             
         } catch (error) {
-            console.error('❌ Error en _verificarExistenciaFirebase:', error.message);
-            console.error('Detalles del error:', error);
+            console.error('❌ ERROR en Firebase:', error.message);
+            console.error('   Stack:', error.stack);
             return { existe: false, error: error.message };
         }
     }
