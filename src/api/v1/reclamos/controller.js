@@ -316,50 +316,57 @@ class ReclamoController {
      * 🔥 ENDPOINT DE HEALTH CHECK
      */
         async healthCheck(req, res) {
-        try {
-            // VERIFICACIÓN SIMPLE DE FIREBASE
-            let firebaseCheck = 'DISCONNECTED';
-            
-            if (db && !db._isMock) {
-                try {
-                    // Intentar operación simple
-                    await db.collection(COLECCION_RECLAMOS).limit(1).get();
-                    firebaseCheck = 'CONNECTED';
-                } catch (error) {
-                    firebaseCheck = 'ERROR: ' + error.message;
-                }
-            } else if (db._isMock) {
-                firebaseCheck = 'MOCK (sin conexión real)';
+    try {
+        // VERIFICACIÓN SIMPLE DE FIREBASE
+        let firebaseCheck = 'DISCONNECTED';
+
+        if (db && !db._isMock) {
+            try {
+                // Operación liviana y no intrusiva
+                await db.listCollections();
+                firebaseCheck = 'CONNECTED';
+            } catch {
+                // Firebase inicializado pero no listo aún (cold start, lazy-init, etc.)
+                firebaseCheck = 'DEGRADED';
             }
-            
-            res.status(200).json({
-                success: true,
-                service: 'libro_reclamaciones_api',
-                status: 'OPERATIONAL',
-                timestamp: new Date().toISOString(),
-                checks: {
-                    firebase: firebaseCheck,
-                    sendgrid: process.env.SENDGRID_API_KEY ? 'CONFIGURADO' : 'NO_CONFIGURADO',
-                    environment: process.env.NODE_ENV || 'production',
-                    uptime: process.uptime()
-                },
-                version: '1.0.0',
-                endpoints: {
-                    crearReclamo: 'POST /api/v1/reclamos',
-                    health: 'GET /api/v1/reclamos/health'
-                }
-            });
-        } catch (error) {
-            res.status(200).json({
-                success: false,
-                service: 'libro_reclamaciones_api',
-                status: 'DEGRADED',
-                error: error.message,
-                timestamp: new Date().toISOString(),
-                firebase_status: db?._isMock ? 'MOCK' : 'UNKNOWN'
-            });
+        } else if (db?._isMock) {
+            firebaseCheck = 'MOCK';
         }
+
+        res.status(200).json({
+            success: true,
+            service: 'libro_reclamaciones_api',
+            status: 'OPERATIONAL',
+            timestamp: new Date().toISOString(),
+            checks: {
+                firebase: firebaseCheck,
+                sendgrid: process.env.SENDGRID_API_KEY ? 'CONFIGURADO' : 'NO_CONFIGURADO',
+                environment: process.env.NODE_ENV || 'production',
+                uptime: process.uptime()
+            },
+            version: '1.0.0',
+            endpoints: {
+                crearReclamo: 'POST /api/v1/reclamos',
+                health: 'GET /api/v1/reclamos/health'
+            }
+        });
+
+    } catch (error) {
+        // Error real del endpoint (no de Firebase)
+        res.status(200).json({
+            success: false,
+            service: 'libro_reclamaciones_api',
+            status: 'DEGRADED',
+            timestamp: new Date().toISOString(),
+            checks: {
+                firebase: db?._isMock ? 'MOCK' : 'UNKNOWN',
+                sendgrid: process.env.SENDGRID_API_KEY ? 'CONFIGURADO' : 'NO_CONFIGURADO',
+                environment: process.env.NODE_ENV || 'production'
+            }
+        });
     }
+}
+
 }
 
 module.exports = new ReclamoController();
