@@ -1,18 +1,19 @@
 /**
  * ============================================================
- * EMAIL SERVICE - VERSIÓN ULTRA-PREMIUM SHOPIFY
+ * EMAIL SERVICE - VERSIÓN FIREBASE COMPLETA
  * ============================================================
- * - DISEÑO ULTRA-MINIMALISTA TIPO SHOPIFY
- * - ULTRA-RESPONSIVE HASTA 360px
- * - PDF DE 1 HOJA PROFESIONAL TIPO RETAIL
- * - MANTIENE 100% FUNCIONALIDAD ORIGINAL
+ * - Recibe datos completos de Firebase
+ * - Genera emails profesionales con toda la información
+ * - Incluye: cliente, productos, envío, comprobante
+ * - Genera PDF adjunto con detalles
+ * - Formato Golden Infinity profesional
  * ============================================================
  */
 
 'use strict';
 
 // ========================
-// 1. IMPORTS Y CONFIGURACIÓN (EXACTO IGUAL)
+// 1. IMPORTS Y CONFIGURACIÓN
 // ========================
 const logger = {
   info: (msg, data = {}) => console.log(`📧 ${msg}`, data),
@@ -23,7 +24,7 @@ const logger = {
 
 let nodemailer, PDFDocument;
 
-// Carga robusta de dependencias (EXACTO IGUAL)
+// Carga robusta de dependencias
 try {
   nodemailer = require('nodemailer');
   logger.info('Nodemailer cargado correctamente');
@@ -41,14 +42,17 @@ try {
 }
 
 // ========================
-// 2. CONFIGURACIÓN DEL TRANSPORTER (EXACTO IGUAL - SIN CAMBIOS)
+// 2. CONFIGURACIÓN DEL TRANSPORTER - ✅ ÚNICO CAMBIO NECESARIO
 // ========================
 const createTransporter = () => {
+  // ✅ VERIFICAR SENDGRID PRIMERO (CAMBIO MÍNIMO)
   const sendgridApiKey = process.env.SENDGRID_API_KEY;
   
   if (sendgridApiKey) {
     console.log('✅ [EMAIL DEBUG] Usando SendGrid como transporte principal');
+    console.log('🔑 SendGrid API Key encontrada (longitud:', sendgridApiKey.length, 'caracteres)');
     
+    // ✅ TRANSPORTER FALSO QUE USA SENDGRID POR DETRÁS (CAMBIO MÍNIMO)
     return {
       sendMail: async function(mailOptions) {
         try {
@@ -57,6 +61,7 @@ const createTransporter = () => {
           const sgMail = require('@sendgrid/mail');
           sgMail.setApiKey(sendgridApiKey);
           
+          // ✅ CONVERTIR FORMATO NODEMAILER A SENDGRID (CAMBIO MÍNIMO)
           const msg = {
             to: mailOptions.to,
             from: mailOptions.from || 'contacto@goldinfiniti.com',
@@ -65,9 +70,10 @@ const createTransporter = () => {
             text: mailOptions.text,
             cc: mailOptions.cc,
             bcc: mailOptions.bcc,
+            // ✅ CORREGIR ADJUNTOS PARA SENDGRID (CAMBIO MÍNIMO)
             attachments: mailOptions.attachments ? mailOptions.attachments.map(att => ({
               filename: att.filename,
-              content: att.content.toString('base64'),
+              content: att.content.toString('base64'), // ✅ CONVERTIR A BASE64
               type: att.contentType || att.type,
               disposition: 'attachment'
             })) : []
@@ -103,18 +109,23 @@ const createTransporter = () => {
     
   }
   
+  // ✅ SI NO HAY SENDGRID, USAR GMAIL COMO ANTES (TODO IGUAL)
   console.log('🔍 [EMAIL DEBUG] Verificando variables de entorno:');
   console.log('   GMAIL_USER:', process.env.GMAIL_USER || 'NO ENCONTRADO');
+  console.log('   GMAIL_APP_PASSWORD existe?:', !!process.env.GMAIL_APP_PASSWORD);
+  console.log('   Longitud password:', process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.length : 0);
   
   const gmailUser = process.env.GMAIL_USER || 'contacto@goldinfiniti.com';
   const gmailPass = process.env.GMAIL_APP_PASSWORD;
   
+  // SI NO HAY PASSWORD, LANZA ERROR REAL - NO SIMULACIÓN
   if (!gmailPass) {
     const errorMsg = '❌ ERROR CRÍTICO: GMAIL_APP_PASSWORD no configurada en .env';
     logger.error(errorMsg);
     throw new Error(errorMsg);
   }
   
+  // ✅ CONFIGURACIÓN MEJORADA PARA GMAIL (TODO IGUAL)
   try {
     console.log('✅ [EMAIL DEBUG] Creando transporter REAL con Gmail');
     
@@ -133,6 +144,7 @@ const createTransporter = () => {
       maxMessages: 100
     });
     
+    // VERIFICAR CONEXIÓN INMEDIATAMENTE
     transporter.verify(function(error, success) {
       if (error) {
         console.error('❌ [EMAIL DEBUG] Error verificando SMTP:', error.message);
@@ -165,11 +177,12 @@ const createTransporter = () => {
   }
 };
 
-// 6. CREAR TRANSPORTER CON VERIFICACIÓN (EXACTO IGUAL)
+// 6. CREAR TRANSPORTER CON VERIFICACIÓN (TODO IGUAL)
 let transporter;
 try {
   transporter = createTransporter();
   
+  // Verificación síncrona adicional
   setTimeout(() => {
     transporter.verify((error) => {
       if (!error) {
@@ -184,6 +197,7 @@ try {
 } catch (error) {
   console.error('🔥 ERROR INICIALIZANDO EMAIL SERVICE:', error.message);
   
+  // Transporter de emergencia que SÍ envía (Ethereal) - TODO IGUAL
   transporter = nodemailer.createTransport({
     host: 'smtp.ethereal.email',
     port: 587,
@@ -197,7 +211,7 @@ try {
   console.log('🔗 Puedes ver emails en: https://ethereal.email');
 }
 
-// 7. FUNCIÓN DE ENVÍO CON REINTENTOS (EXACTO IGUAL)
+// 7. FUNCIÓN DE ENVÍO CON REINTENTOS (TODO IGUAL)
 async function sendEmailWithRetry(mailOptions, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -230,9 +244,32 @@ async function sendEmailWithRetry(mailOptions, retries = 3) {
   }
 }
 
+// 8. EXPORTAR FUNCIÓN MEJORADA (TODO IGUAL)
+module.exports = {
+  transporter,
+  createTransporter,
+  sendEmailWithRetry,
+  
+  checkEmailConfig: () => ({
+    gmailUser: process.env.GMAIL_USER,
+    hasGmailPassword: !!process.env.GMAIL_APP_PASSWORD,
+    hasSendGrid: !!process.env.SENDGRID_API_KEY,
+    passwordLength: process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.length : 0,
+    sendgridKeyLength: process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY.length : 0,
+    timestamp: new Date().toISOString(),
+    status: process.env.SENDGRID_API_KEY ? 'SENGRID_CONFIGURADO' : 
+            process.env.GMAIL_APP_PASSWORD ? 'GMAIL_CONFIGURADO' : 'NO_CONFIGURADO'
+  })
+};
+
 // ========================
-// 3. FUNCIÓN PRINCIPAL - ENVIAR CONFIRMACIÓN (EXACTO IGUAL)
+// 3. FUNCIÓN PRINCIPAL - ENVIAR CONFIRMACIÓN CON DATOS FIREBASE
 // ========================
+/**
+ * Envía email de confirmación con TODOS los datos de Firebase
+ * @param {Object} paymentData - Datos completos del pago incluyendo Firebase
+ * @returns {Promise<Object>} Resultado del envío
+ */
 async function sendPaymentConfirmation(paymentData) {
   const startTime = Date.now();
   const orderId = paymentData.order_id || paymentData.metadata?.orderId || 'N/A';
@@ -240,22 +277,28 @@ async function sendPaymentConfirmation(paymentData) {
   try {
     logger.info(`Iniciando envío de confirmación para orden ${orderId}`);
     
+    // Validar datos mínimos
     if (!paymentData.customer_email) {
       throw new Error('Email del cliente no proporcionado');
     }
     
-    const firebaseData = _extractFirebaseData(paymentData);
-    const emailContent = _generateGoldenInfinityEmail(firebaseData);
+    // Extraer datos de Firebase
+    const firebaseData = this._extractFirebaseData(paymentData);
     
+    // Generar contenido del email
+    const emailContent = this._generateGoldenInfinityEmail(firebaseData);
+    
+    // Generar PDF adjunto si es posible
     let pdfAttachment = null;
     if (PDFDocument) {
       try {
-        pdfAttachment = await _generateOrderPDF(firebaseData);
+        pdfAttachment = await this._generateOrderPDF(firebaseData);
       } catch (pdfError) {
         logger.warn('Error generando PDF, continuando sin adjunto', { error: pdfError.message });
       }
     }
     
+    // Preparar opciones del correo
     const mailOptions = {
       from: '"GOLDINFINITI" <contacto@goldinfiniti.com>',
       to: paymentData.customer_email,
@@ -266,6 +309,7 @@ async function sendPaymentConfirmation(paymentData) {
       attachments: pdfAttachment ? [pdfAttachment] : []
     };
     
+    // Enviar correo
     logger.info(`Enviando email a ${paymentData.customer_email}`, {
       orderId,
       productosCount: firebaseData.productos.length,
@@ -278,7 +322,7 @@ async function sendPaymentConfirmation(paymentData) {
     logger.info(`✅ Email enviado exitosamente para orden ${orderId}`, {
       messageId: info.messageId,
       duration: `${duration}ms`,
-      customer: _maskEmail(paymentData.customer_email)
+      customer: this._maskEmail(paymentData.customer_email)
     });
     
     return {
@@ -294,7 +338,7 @@ async function sendPaymentConfirmation(paymentData) {
   } catch (error) {
     logger.error(`Error enviando confirmación para orden ${orderId}`, {
       error: error.message,
-      customer: _maskEmail(paymentData.customer_email)
+      customer: this._maskEmail(paymentData.customer_email)
     });
     
     return {
@@ -308,9 +352,15 @@ async function sendPaymentConfirmation(paymentData) {
 }
 
 // ========================
-// 4. EXTRACCIÓN DE DATOS DE FIREBASE (EXACTO IGUAL)
+// 4. EXTRACCIÓN DE DATOS DE FIREBASE
 // ========================
+/**
+ * Extrae y estructura datos de Firebase
+ * @param {Object} paymentData - Datos del pago
+ * @returns {Object} Datos estructurados para email
+ */
 function _extractFirebaseData(paymentData) {
+  // Datos del cliente
   const cliente = paymentData.cliente || {
     nombre: paymentData.customer_name || 'Cliente',
     apellido: '',
@@ -318,10 +368,12 @@ function _extractFirebaseData(paymentData) {
     telefono: paymentData.customer_phone || ''
   };
   
+  // Productos
   const productos = paymentData.productos || 
                    paymentData.metadata?.items || 
                    [];
   
+  // Resumen
   const resumen = paymentData.resumen || {
     subtotal: paymentData.amount ? paymentData.amount / 100 : 0,
     envio: paymentData.envio?.costo || 0,
@@ -329,18 +381,21 @@ function _extractFirebaseData(paymentData) {
     cantidadItems: productos.length
   };
   
+  // Envío
   const envio = paymentData.envio || {
     tipo: 'Estándar',
     costo: resumen.envio || 0,
     estado: 'Pendiente'
   };
   
+  // Comprobante
   const comprobante = paymentData.comprobante || {
     tipo: paymentData.metadata?.tipo_comprobante || 'boleta',
     serie: '',
     numero: ''
   };
   
+  // Metadata
   const metadata = paymentData.metadata || {};
   
   return {
@@ -357,8 +412,13 @@ function _extractFirebaseData(paymentData) {
 }
 
 // ========================
-// 5. GENERACIÓN DE EMAIL HTML - VERSIÓN ULTRA-PREMIUM
+// 5. GENERACIÓN DE EMAIL HTML PROFESIONAL
 // ========================
+/**
+ * Genera contenido HTML del email
+ * @param {Object} firebaseData - Datos de Firebase
+ * @returns {Object} HTML y texto plano
+ */
 function _generateGoldenInfinityEmail(firebaseData) {
   const {
     order_id,
@@ -371,6 +431,7 @@ function _generateGoldenInfinityEmail(firebaseData) {
     comprobante
   } = firebaseData;
   
+  // ✅ IGUAL AL CONTROLLER pero con SEGUNDOS agregados
   const fecha = new Date().toLocaleString('es-PE', {
     weekday: 'long',
     year: 'numeric',
@@ -383,7 +444,9 @@ function _generateGoldenInfinityEmail(firebaseData) {
     timeZone: 'America/Lima'
   });
 
-  // Tabla de productos ultra-minimalista
+  console.log('📅 Fecha en email:', fecha);
+
+  // Tabla de productos
   let productosHtml = '';
   if (productos.length > 0) {
     productos.forEach((producto, index) => {
@@ -391,314 +454,215 @@ function _generateGoldenInfinityEmail(firebaseData) {
       const cantidad = producto.cantidad || producto.quantity || 1;
       const precio = producto.precio || producto.precioOriginal || 0;
       const subtotal = producto.subtotal || (cantidad * precio);
+      const color = producto.color ? `<br><small>Color: ${producto.color}</small>` : '';
+      const talla = producto.talla || producto.size ? `<br><small>Talla: ${producto.talla || producto.size}</small>` : '';
       
       productosHtml += `
-        <tr class="product-item">
-          <td class="product-details">
-            <div class="product-name">${nombre}</div>
-            ${producto.color ? `<div class="product-attr">Color: ${producto.color}</div>` : ''}
-            ${producto.talla ? `<div class="product-attr">Talla: ${producto.talla}</div>` : ''}
-            ${producto.sku ? `<div class="product-attr">SKU: ${producto.sku}</div>` : ''}
+        <tr style="border-bottom: 1px solid #e0e0e0;">
+          <td style="padding: 12px; vertical-align: top;">
+            <strong>${nombre}</strong>
+            ${color}
+            ${talla}
+            ${producto.sku ? `<br><small>SKU: ${producto.sku}</small>` : ''}
           </td>
-          <td class="product-qty">${cantidad}</td>
-          <td class="product-price">S/ ${precio.toFixed(2)}</td>
-          <td class="product-total">S/ ${subtotal.toFixed(2)}</td>
+          <td style="padding: 12px; text-align: center; vertical-align: top;">${cantidad}</td>
+          <td style="padding: 12px; text-align: right; vertical-align: top;">S/ ${precio.toFixed(2)}</td>
+          <td style="padding: 12px; text-align: right; vertical-align: top; font-weight: bold;">S/ ${subtotal.toFixed(2)}</td>
         </tr>
       `;
     });
   }
   
   const html = `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Confirmación de Compra - Goldinfiniti</title>
-    <style>
-        /* ===== RESET ULTRA-MINIMALISTA ===== */
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Confirmación de Compra - GOLDINFINITI</title>
+      <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
-               line-height: 1.6; color: #1a1a1a; background: #fafafa; -webkit-font-smoothing: antialiased; }
-        img { max-width: 100%; height: auto; }
-        table { border-collapse: collapse; width: 100%; }
-        
-        /* ===== CONTENEDOR PRINCIPAL ===== */
-        .email-wrapper { max-width: 600px; margin: 0 auto; background: #ffffff; }
-        
-        /* ===== HEADER SHOPIFY-STYLE ===== */
-        .email-header { background: #000000; padding: 40px 24px; text-align: center; }
-        .brand-name { font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px; margin-bottom: 4px; }
-        .brand-tagline { font-size: 13px; color: #cccccc; letter-spacing: 0.5px; text-transform: uppercase; }
-        
-        /* ===== CONTENIDO PRINCIPAL ===== */
-        .email-content { padding: 40px 24px; }
-        
-        /* ===== SECCIÓN DE ESTADO ===== */
-        .status-section { text-align: center; margin-bottom: 32px; }
-        .status-badge { display: inline-block; background: #10b981; color: white; padding: 6px 16px; 
-                       border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 0.3px; }
-        .main-title { font-size: 24px; font-weight: 700; color: #1a1a1a; margin: 16px 0 8px; }
-        .subtitle { color: #6b7280; font-size: 15px; }
-        
-        /* ===== RESUMEN DE ORDEN ===== */
-        .order-summary { background: #f9fafb; border-radius: 12px; padding: 24px; margin: 24px 0; }
-        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-        .summary-item { margin-bottom: 12px; }
-        .summary-label { font-size: 13px; color: #6b7280; margin-bottom: 4px; }
-        .summary-value { font-size: 14px; font-weight: 500; color: #1a1a1a; }
-        
-        /* ===== TABLA DE PRODUCTOS ===== */
-        .products-section { margin: 32px 0; }
-        .section-title { font-size: 18px; font-weight: 600; color: #1a1a1a; margin-bottom: 20px; }
-        .products-table { font-size: 14px; }
-        .products-table th { text-align: left; padding: 12px 0; border-bottom: 2px solid #e5e7eb; 
-                           color: #6b7280; font-weight: 600; font-size: 13px; }
-        .products-table td { padding: 16px 0; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
-        .product-details { width: 45%; }
-        .product-name { font-weight: 500; margin-bottom: 4px; }
-        .product-attr { font-size: 12px; color: #6b7280; margin-top: 2px; }
-        .product-qty { width: 15%; text-align: center; color: #6b7280; }
-        .product-price { width: 20%; text-align: right; color: #6b7280; }
-        .product-total { width: 20%; text-align: right; font-weight: 600; }
-        
-        /* ===== TOTALES ===== */
-        .totals-section { background: #f9fafb; border-radius: 12px; padding: 24px; margin-top: 24px; }
-        .total-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
-        .total-label { color: #6b7280; }
-        .grand-total { border-top: 2px solid #e5e7eb; margin-top: 12px; padding-top: 16px; 
-                      font-size: 18px; font-weight: 700; color: #1a1a1a; }
-        
-        /* ===== INFORMACIÓN ADICIONAL ===== */
-        .info-section { margin: 24px 0; }
-        .info-card { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; 
-                    border-radius: 8px; margin-bottom: 16px; }
-        .info-card-title { font-weight: 600; color: #1e40af; margin-bottom: 8px; font-size: 14px; }
-        .info-card-content { font-size: 13px; color: #374151; }
-        
-        /* ===== PASOS DEL PROCESO ===== */
-        .steps-section { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 32px 0; }
-        .step { text-align: center; padding: 20px 12px; background: #f9fafb; border-radius: 8px; }
-        .step-icon { font-size: 24px; margin-bottom: 8px; display: block; }
-        .step-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-        .step-desc { font-size: 12px; color: #6b7280; }
-        
-        /* ===== FOOTER PROFESIONAL ===== */
-        .email-footer { background: #111827; color: #9ca3af; padding: 32px 24px; text-align: center; }
-        .footer-brand { font-size: 18px; font-weight: 700; color: #ffffff; margin-bottom: 8px; }
-        .footer-info { font-size: 12px; margin-bottom: 16px; line-height: 1.5; }
-        .footer-links { margin: 20px 0; }
-        .footer-link { color: #60a5fa; text-decoration: none; font-size: 12px; margin: 0 8px; }
-        .footer-legal { font-size: 11px; color: #6b7280; margin-top: 20px; padding-top: 20px; 
-                       border-top: 1px solid #374151; line-height: 1.6; }
-        
-        /* ===== RESPONSIVE EXTREMO (360px+) ===== */
-        @media (max-width: 640px) {
-            .email-content { padding: 24px 16px; }
-            .summary-grid { grid-template-columns: 1fr; }
-            .products-table { font-size: 13px; }
-            .products-table th, .products-table td { padding: 12px 4px; }
-            .product-details { width: 40%; }
-            .steps-section { grid-template-columns: 1fr; gap: 8px; }
-            .step { padding: 16px 8px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f8f9fa; }
+        .container { max-width: 700px; margin: 0 auto; background: white; }
+        .header { background: linear-gradient(135deg, #000000 0%, #333333 100%); color: #FFD700; padding: 30px 20px; text-align: center; }
+        .content { padding: 30px; }
+        .footer { background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd; }
+        .section { margin-bottom: 30px; }
+        .section-title { color: #000; font-size: 18px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #FFD700; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f8f8f8; padding: 12px; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #FFD700; }
+        td { padding: 12px; }
+        .total-box { background: #f8f8f8; padding: 20px; border-radius: 8px; border-left: 4px solid #FFD700; margin-top: 20px; }
+        .total-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .grand-total { font-size: 24px; font-weight: bold; color: #000; margin-top: 10px; padding-top: 10px; border-top: 2px solid #ddd; }
+        .info-box { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .highlight { color: #FFD700; font-weight: bold; }
+        .logo { font-size: 32px; font-weight: bold; letter-spacing: 2px; }
+        .subtitle { font-size: 14px; opacity: 0.9; margin-top: 5px; }
+        .customer-info { background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .status-badge { display: inline-block; padding: 5px 15px; background: #28a745; color: white; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        @media (max-width: 600px) {
+          .content { padding: 20px; }
+          .header { padding: 20px 15px; }
+          table { font-size: 14px; }
+          td, th { padding: 8px; }
         }
-        
-        @media (max-width: 480px) {
-            .email-header { padding: 32px 16px; }
-            .email-content { padding: 20px 12px; }
-            .product-details { width: 35%; }
-            .products-table { font-size: 12px; }
-            .footer-links { display: flex; flex-direction: column; gap: 8px; }
-            .footer-link { margin: 4px 0; }
-        }
-        
-        @media (max-width: 360px) {
-            .email-content { padding: 16px 10px; }
-            .products-table { font-size: 11px; }
-            .product-details { width: 30%; }
-            .section-title { font-size: 16px; }
-            .main-title { font-size: 20px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="email-wrapper">
-        
+      </style>
+    </head>
+    <body>
+      <div class="container">
         <!-- Header -->
-        <div class="email-header">
-            <div class="brand-name">GOLDINFINITI</div>
-            <div class="brand-tagline">E-commerce Premium</div>
+        <div class="header">
+          <div class="logo"></div>
+          <div class="subtitle"></div>
+          <h1 style="margin-top: 20px; font-size: 28px;">¡COMPRA CONFIRMADA!</h1>
+          <p style="margin-top: 10px; font-size: 16px;"> ${cliente.nombre}</p>
         </div>
         
-        <!-- Contenido Principal -->
-        <div class="email-content">
-            
-            <!-- Estado del Pedido -->
-            <div class="status-section">
-                <span class="status-badge">PAGO CONFIRMADO</span>
-                <h1 class="main-title">¡Gracias por tu compra, ${cliente.nombre}!</h1>
-                <p class="subtitle">Tu orden ha sido procesada exitosamente</p>
-            </div>
-            
-            <!-- Resumen de Orden -->
-            <div class="order-summary">
-                <div class="summary-grid">
-                    <div class="summary-item">
-                        <div class="summary-label">Número de Orden</div>
-                        <div class="summary-value">${order_id}</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Fecha y Hora</div>
-                        <div class="summary-value">${fecha}</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Cliente</div>
-                        <div class="summary-value">${cliente.nombre} ${cliente.apellido}</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Email</div>
-                        <div class="summary-value">${cliente.email}</div>
-                    </div>
+        <!-- Contenido -->
+        <div class="content">
+          <!-- Información de la orden -->
+          <div class="section">
+            <div class="customer-info">
+              <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                <div>
+                  <p><strong>📋 Número de Orden:</strong><br>${order_id}</p>
+                  <p><strong>📅 Fecha:</strong><br>${fecha}</p>
                 </div>
-                ${culqi_id ? `
-                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
-                    <div class="summary-label">ID de Transacción</div>
-                    <div class="summary-value" style="font-family: 'Monaco', 'Consolas', monospace; font-size: 12px;">${culqi_id}</div>
+                <div>
+                  <p><strong>👤 Cliente:</strong><br>${cliente.nombre} ${cliente.apellido}</p>
+                  <p><strong>📧 Email:</strong><br>${cliente.email}</p>
                 </div>
-                ` : ''}
+              </div>
+              ${culqi_id ? `<p style="margin-top: 10px;"><strong>🔗 ID Transacción:</strong><br><code>${culqi_id}</code></p>` : ''}
+              <div style="margin-top: 10px;">
+                <span class="status-badge">✅ PAGO APROBADO</span>
+              </div>
             </div>
-            
-            <!-- Productos -->
-            <div class="products-section">
-                <h2 class="section-title">Detalles de la Compra</h2>
-                ${productos.length > 0 ? `
-                <table class="products-table">
-                    <thead>
-                        <tr>
-                            <th class="product-details">Producto</th>
-                            <th class="product-qty">Cant.</th>
-                            <th class="product-price">Precio Unit.</th>
-                            <th class="product-total">Subtotal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${productosHtml}
-                    </tbody>
-                </table>
-                ` : '<p style="color: #6b7280; font-size: 14px; text-align: center;">No se encontraron detalles de productos.</p>'}
-            </div>
-            
-            <!-- Totales -->
-            <div class="totals-section">
-                <div class="section-title">Resumen de Pago</div>
+          </div>
+          
+          <!-- Productos -->
+          <div class="section">
+            <h2 class="section-title">🛍️ Productos Comprados</h2>
+            ${productos.length > 0 ? `
+              <table>
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th style="text-align: center;">Cantidad</th>
+                    <th style="text-align: right;">Precio Unit.</th>
+                    <th style="text-align: right;">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${productosHtml}
+                </tbody>
+              </table>
+            ` : '<p>No se encontraron detalles de productos.</p>'}
+          </div>
+          
+          <!-- Resumen de costos -->
+          <div class="section">
+            <h2 class="section-title">💰 Resumen de Pago</h2>
+            <div class="total-box">
+              <div class="total-row">
+                <span>Subtotal (${resumen.cantidadItems || productos.length} items):</span>
+                <span><strong>S/ ${resumen.subtotal.toFixed(2)}</strong></span>
+              </div>
+              ${envio.costo > 0 ? `
                 <div class="total-row">
-                    <span class="total-label">Subtotal (${resumen.cantidadItems || productos.length} items)</span>
-                    <span>S/ ${resumen.subtotal.toFixed(2)}</span>
+                  <span>Costo de envío (${envio.tipo}):</span>
+                  <span><strong>S/ ${envio.costo.toFixed(2)}</strong></span>
                 </div>
-                ${envio.costo > 0 ? `
-                <div class="total-row">
-                    <span class="total-label">Envío (${envio.tipo})</span>
-                    <span>S/ ${envio.costo.toFixed(2)}</span>
-                </div>
-                ` : ''}
-                <div class="total-row grand-total">
-                    <span>TOTAL</span>
-                    <span style="color: #10b981;">S/ ${resumen.total.toFixed(2)}</span>
-                </div>
+              ` : ''}
+              <div class="total-row grand-total">
+                <span>TOTAL PAGADO:</span>
+                <span style="color: #27ae60;">S/ ${resumen.total.toFixed(2)}</span>
+              </div>
             </div>
-            
-            <!-- Información de Envío -->
-            ${envio.tipo ? `
-            <div class="info-section">
-                <div class="info-card">
-                    <div class="info-card-title">Información de Envío</div>
-                    <div class="info-card-content">
-                        <p><strong>Tipo:</strong> ${envio.tipo}</p>
-                        <p><strong>Estado:</strong> ${envio.estado || 'En preparación'}</p>
-                        ${envio.direccion ? `<p><strong>Dirección:</strong> ${envio.direccion}</p>` : ''}
-                        <p style="margin-top: 8px; font-style: italic;">
-                            Recibirás actualizaciones cuando tu pedido sea despachado.
-                        </p>
-                    </div>
-                </div>
+          </div>
+          
+          <!-- Información de envío -->
+          ${envio.tipo ? `
+            <div class="section">
+              <h2 class="section-title">🚚 Información de Envío</h2>
+              <div style="background: #f0f8ff; padding: 15px; border-radius: 5px; border-left: 3px solid #007bff;">
+                <p><strong>Tipo:</strong> ${envio.tipo}</p>
+                <p><strong>Costo:</strong> S/ ${envio.costo.toFixed(2)}</p>
+                <p><strong>Estado:</strong> ${envio.estado || 'En preparación'}</p>
+                ${envio.direccion ? `<p><strong>Dirección:</strong> ${envio.direccion}</p>` : ''}
+              </div>
+              <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                <em>Recibirás una notificación cuando tu pedido sea despachado.</em>
+              </p>
             </div>
-            ` : ''}
-            
-            <!-- Información de Comprobante -->
-            <div class="info-section">
-                <div class="info-card" style="background: #f0f9ff; border-left-color: #0ea5e9;">
-                    <div class="info-card-title">Comprobante</div>
-                    <div class="info-card-content">
-                        <p><strong>Tipo:</strong> ${comprobante.tipo.toUpperCase()}</p>
-                        ${comprobante.serie ? `<p><strong>Serie:</strong> ${comprobante.serie}</p>` : ''}
-                        ${comprobante.numero ? `<p><strong>Número:</strong> ${comprobante.numero}</p>` : ''}
-                        <p style="margin-top: 8px; font-size: 12px;">
-                            Este correo electrónico sirve como comprobante oficial de tu compra.
-                        </p>
-                    </div>
-                </div>
+          ` : ''}
+          
+          <!-- Información de comprobante -->
+          <div class="section">
+            <h2 class="section-title">📄 Comprobante</h2>
+            <div style="background: #f9f9f9; padding: 15px; border-radius: 5px;">
+              <p><strong>Tipo:</strong> ${comprobante.tipo.toUpperCase()}</p>
+              ${comprobante.serie ? `<p><strong>Serie:</strong> ${comprobante.serie}</p>` : ''}
+              ${comprobante.numero ? `<p><strong>Número:</strong> ${comprobante.numero}</p>` : ''}
+              <p style="margin-top: 10px; font-size: 14px;">
+                <em>Este correo sirve como comprobante de compra. Guárdalo para cualquier consulta.</em>
+              </p>
             </div>
-            
-            <!-- Pasos del Proceso -->
-            <div class="steps-section">
-                <div class="step">
-                    <span class="step-icon">📦</span>
-                    <div class="step-title">Preparación</div>
-                    <div class="step-desc">Tu pedido está siendo preparado</div>
-                </div>
-                <div class="step">
-                    <span class="step-icon">🚚</span>
-                    <div class="step-title">Envío</div>
-                    <div class="step-desc">Recibirás notificación del despacho</div>
-                </div>
-                <div class="step">
-                    <span class="step-icon">🏠</span>
-                    <div class="step-title">Entrega</div>
-                    <div class="step-desc">Tu pedido llegará a tu domicilio</div>
-                </div>
+          </div>
+          
+          <!-- Información importante -->
+          <div class="info-box">
+            <h3 style="color: #856404; margin-bottom: 10px;">📌 Información Importante</h3>
+            <ul style="padding-left: 20px;">
+              <li>Tu pedido está siendo procesado y preparado para el envío.</li>
+              <li>Recibirás actualizaciones por email sobre el estado de tu pedido.</li>
+              <li>Para consultas sobre tu orden, contáctanos a: contacto@goldinfiniti.com</li>
+              <li>El tiempo de entrega estimado es de 2-4 días hábiles.</li>
+            </ul>
+          </div>
+          
+          <!-- Pasos siguientes -->
+          <div style="margin-top: 30px; text-align: center;">
+            <h3 style="margin-bottom: 15px;">👉 ¿Qué sigue?</h3>
+            <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px;">
+              <div style="flex: 1; min-width: 150px; background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                <div style="font-size: 24px; margin-bottom: 10px;">📦</div>
+                <p><strong>Preparación</strong><br>Tu pedido está siendo preparado</p>
+              </div>
+              <div style="flex: 1; min-width: 150px; background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                <div style="font-size: 24px; margin-bottom: 10px;">🚚</div>
+                <p><strong>Envío</strong><br>Recibirás notificación del despacho</p>
+              </div>
+              <div style="flex: 1; min-width: 150px; background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                <div style="font-size: 24px; margin-bottom: 10px;">🏠</div>
+                <p><strong>Entrega</strong><br>Tu pedido llegará a tu domicilio</p>
+              </div>
             </div>
-            
-            <!-- Información Importante -->
-            <div class="info-section">
-                <div class="info-card" style="background: #fffbeb; border-left-color: #f59e0b;">
-                    <div class="info-card-title">Información Importante</div>
-                    <div class="info-card-content">
-                        <ul style="padding-left: 18px; margin: 8px 0;">
-                            <li style="margin-bottom: 6px;">Tu pedido está siendo procesado</li>
-                            <li style="margin-bottom: 6px;">Para consultas: contacto@goldinfiniti.com</li>
-                            <li>Tiempo de entrega estimado: 2-4 días hábiles</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-            
+          </div>
         </div>
         
-        <!-- Footer Profesional -->
-        <div class="email-footer">
-            <div class="footer-brand">GOLDINFINITI</div>
-            <div class="footer-info">
-                📧 contacto@goldinfiniti.com | 🌐 www.goldinfiniti.com<br>
-                📞 +51 968 786 648 | 🏢 Lima, Perú
-            </div>
-            <div class="footer-links">
-                <a href="#" class="footer-link">Términos y Condiciones</a>
-                <a href="#" class="footer-link">Política de Privacidad</a>
-                <a href="#" class="footer-link">Centro de Ayuda</a>
-            </div>
-            <div class="footer-legal">
-                © ${new Date().getFullYear()} Goldinfiniti Tech Corp. Sistema Automático de Notificaciones.<br>
-                Este es un mensaje automático, por favor no responder.<br>
-                ID de transacción: ${culqi_id || order_id} | ${new Date().toLocaleDateString('es-PE')}
-            </div>
+        <!-- Footer -->
+        <div class="footer">
+          <p style="margin-bottom: 10px;">
+            <strong>GOLDINFINITI - E-COMMERCE PREMIUM</strong>
+          </p>
+          <p style="margin-bottom: 10px; font-size: 11px;">
+            📧 contacto@goldinfiniti.com | 🌐 www.goldinfiniti.com<br>
+            📞 +51 968 786 648 | 🏢 Av. Principal 123, Lima, Perú
+          </p>
+          <p style="font-size: 10px; color: #999; margin-top: 15px;">
+            © ${new Date().getFullYear()} Goldinfiniti. Todos los derechos reservados.<br>
+            Este es un correo automático, por favor no responder.<br>
+            ID de transacción: ${culqi_id || order_id}
+          </p>
         </div>
-        
-    </div>
-</body>
-</html>
+      </div>
+    </body>
+    </html>
   `;
   
-  // Texto plano (IGUAL)
+  // Texto plano para clientes de email sin HTML
   const text = `
 GOLDINFINITI - CONFIRMACIÓN DE COMPRA
 ========================================
@@ -760,7 +724,7 @@ GOLDINFINITI - E-COMMERCE PREMIUM
 contacto@goldinfiniti.com
 www.goldinfiniti.com
 +51 968 786 648
-© ${new Date().getFullYear()} Goldinfiniti Tech Corp.
+© ${new Date().getFullYear()} Goldinfiniti
 ----------------------------------------
   `;
   
@@ -768,10 +732,10 @@ www.goldinfiniti.com
 }
 
 // ========================
-// 6. GENERACIÓN DE PDF - VERSIÓN ULTRA-FINA 1 PÁGINA (FIX DEFINITIVO)
+// 6. GENERACIÓN DE PDF ADJUNTO PREMIUM (CON FECHA CORREGIDA)
 // ========================
 /**
- * Genera PDF profesional estilo ecommerce premium con paginación correcta
+ * Genera PDF profesional estilo ecommerce premium
  * @param {Object} firebaseData - Datos de Firebase
  * @returns {Object} Adjunto de PDF
  */
@@ -790,35 +754,56 @@ async function _generateOrderPDF(firebaseData) {
       
       // ==================== SOLUCIÓN DEFINITIVA PARA FECHA ====================
       let fechaOrden;
+      console.log('🔍 DEBUG fecha_creacion recibida:', fecha_creacion);
+      console.log('🔍 Tipo:', typeof fecha_creacion);
       
       if (fecha_creacion) {
+        // CASO 1: Timestamp de Firebase (objeto con .seconds)
         if (fecha_creacion.seconds !== undefined) {
+          console.log('✅ Es timestamp Firebase con seconds:', fecha_creacion.seconds);
           fechaOrden = new Date(fecha_creacion.seconds * 1000);
         }
+        // CASO 2: Timestamp de Firebase (objeto con _seconds)
         else if (fecha_creacion._seconds !== undefined) {
+          console.log('✅ Es timestamp Firebase con _seconds:', fecha_creacion._seconds);
           fechaOrden = new Date(fecha_creacion._seconds * 1000);
         }
+        // CASO 3: String ISO
         else if (typeof fecha_creacion === 'string') {
+          console.log('✅ Es string ISO:', fecha_creacion);
           fechaOrden = new Date(fecha_creacion);
         }
+        // CASO 4: Número (timestamp en milisegundos)
         else if (typeof fecha_creacion === 'number') {
+          console.log('✅ Es número timestamp:', fecha_creacion);
+          // Si el número es muy pequeño (como 1703126400), es en segundos
           if (fecha_creacion < 10000000000) {
             fechaOrden = new Date(fecha_creacion * 1000);
           } else {
             fechaOrden = new Date(fecha_creacion);
           }
         }
+        // CASO 5: Objeto Date
         else if (fecha_creacion instanceof Date) {
+          console.log('✅ Es objeto Date');
           fechaOrden = fecha_creacion;
         }
+        // CASO 6: Cualquier otro caso, usar fecha actual
         else {
+          console.log('⚠️ Formato no reconocido, usando fecha actual');
           fechaOrden = new Date();
         }
       } else {
+        console.log('⚠️ fecha_creacion es null/undefined, usando fecha actual');
         fechaOrden = new Date();
       }
       
+      console.log('📅 Fecha procesada:', fechaOrden);
+      console.log('📅 Timestamp:', fechaOrden.getTime());
+      
+      // Verificar que la fecha sea válida (no 1970)
       if (fechaOrden.getFullYear() === 1970) {
+        console.warn('⚠️⚠️⚠️ ATENCIÓN: Fecha es 1970, usando fecha actual');
         fechaOrden = new Date();
       }
       
@@ -844,13 +829,16 @@ async function _generateOrderPDF(firebaseData) {
       const fechaFormateada = formateadorFecha.format(fechaOrden);
       const horaFormateada = formateadorHora.format(fechaOrden);
       
+      console.log('✅ Fecha formateada:', fechaFormateada);
+      console.log('✅ Hora formateada:', horaFormateada);
+      
       const doc = new PDFDocument({ 
         size: 'A4', 
-        margin: 40, // Reducido de 50 a 40 para más espacio
-        bufferPages: true,
+        margin: 50,
         info: {
           Title: `Comprobante ${order_id} - Goldinfiniti`,
           Author: 'Goldinfiniti E-commerce',
+          Subject: 'Comprobante de compra',
           Keywords: 'comprobante, factura, orden, ecommerce'
         }
       });
@@ -860,415 +848,290 @@ async function _generateOrderPDF(firebaseData) {
       doc.on('data', chunk => chunks.push(chunk));
       doc.on('end', () => {
         const pdfBuffer = Buffer.concat(chunks);
+        // ✅ CORRECCIÓN: Convertir a Base64 para SendGrid (CAMBIO MÍNIMO)
         const pdfBase64 = pdfBuffer.toString('base64');
         
         resolve({
           filename: `comprobante-${order_id}.pdf`,
-          content: pdfBase64,
+          content: pdfBase64,  // ✅ AHORA ES Base64
           contentType: 'application/pdf'
         });
       });
       
-      // ==================== CONSTANTES DE CONTROL ====================
-      const ALTURA_PAGINA = 842;
-      const MARGEN_SUPERIOR = 40;
-      const MARGEN_INFERIOR = 40;
-      
-      // ALTURAS MÁS COMPACTAS
-      const ALTURA_ENCABEZADO = 90; // Reducido de 150
-      const ALTURA_INFO_ORDEN = 60; // Reducido de 80
-      const ALTURA_INFO_CLIENTE = 60; // Reducido de 80
-      const ALTURA_ENCABEZADO_TABLA = 30; // Reducido de 40
-      const ALTURA_POR_PRODUCTO = 28; // Reducido de 35
-      const ALTURA_RESUMEN = 140; // Reducido de 180
-      const ALTURA_FOOTER = 40; // Reducido de 50
-      
-      // ==================== FUNCIÓN PARA AGREGAR NUEVA PÁGINA ====================
-      const agregarNuevaPagina = (conHeader = true) => {
-        doc.addPage();
-        
-        if (conHeader) {
-          // Header minimalista
-          doc.rect(0, 0, doc.page.width, 60) // Reducido de 120
-             .fillColor('#000000')
-             .fill();
-          
-          // Logo más pequeño y elegante
-          doc.fillColor('#FFFFFF')
-             .fontSize(20) // Reducido de 28
-             .font('Helvetica-Bold')
-             .text('GOLDINFINITI', 0, 20, { align: 'center' });
-          
-          doc.fillColor('#CCCCCC')
-             .fontSize(9) // Reducido de 11
-             .font('Helvetica')
-             .text('E-COMMERCE PREMIUM', 0, 42, { align: 'center' });
-          
-          // Línea decorativa más fina
-          doc.strokeColor('#FFD700')
-             .lineWidth(1) // Reducido de 2
-             .moveTo(80, 55)
-             .lineTo(doc.page.width - 80, 55)
-             .stroke();
-        }
-        
-        return MARGEN_SUPERIOR + 60;
-      };
-      
-      // ==================== PÁGINA 1 - ENCABEZADO ====================
-      // Header minimalista
-      doc.rect(0, 0, doc.page.width, 60)
+      // ==================== HEADER MINIMALISTA ====================
+      // Fondo negro sólido
+      doc.rect(0, 0, doc.page.width, 120)
          .fillColor('#000000')
          .fill();
       
-      // Título más pequeño y elegante
+      // Logo y nombre - diseño limpio
       doc.fillColor('#FFFFFF')
-         .fontSize(20)
+         .fontSize(28)
          .font('Helvetica-Bold')
-         .text('GOLDINFINITI', 0, 20, { align: 'center' });
+         .text('GOLDINFINITI', 0, 40, { align: 'center' });
       
       doc.fillColor('#CCCCCC')
-         .fontSize(9)
+         .fontSize(11)
          .font('Helvetica')
-         .text('E-COMMERCE PREMIUM', 0, 42, { align: 'center' });
+         .text('E-COMMERCE PREMIUM', 0, 70, { align: 'center' });
       
+      // Línea decorativa sutil
+      doc.strokeColor('#FFD700')
+         .lineWidth(2)
+         .moveTo(100, 95)
+         .lineTo(doc.page.width - 100, 95)
+         .stroke();
       
-      // Posición inicial después del header
-      let yPos = 90;
-      doc.y = yPos;
+      doc.fillColor('#FFFFFF')
+         .fontSize(18)
+         .font('Helvetica-Bold')
+         .text('COMPROBANTE DE COMPRA', 0, 105, { align: 'center' });
+      
+      doc.moveDown(3);
       
       // ==================== INFORMACIÓN DE ORDEN ====================
-      doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold'); // Reducido de 16
-      doc.text('INFORMACIÓN DE LA ORDEN', 40, doc.y);
+      doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
+      doc.text('INFORMACIÓN DE LA ORDEN', 50, 160);
       
-      doc.strokeColor('#FFD700').lineWidth(0.5) // Reducido de 1
-         .moveTo(40, doc.y + 4)
-         .lineTo(doc.page.width - 40, doc.y + 4)
-         .stroke();
+      // Línea decorativa
+      doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, 175).lineTo(doc.page.width - 50, 175).stroke();
+      doc.moveDown(1.5);
       
-      doc.moveDown(0.5);
+      // Grid de información minimalista
+      doc.fillColor('#333333').fontSize(10).font('Helvetica');
       
-      const infoLeft = 40;
-      const infoRight = doc.page.width / 2 + 20;
+      const infoLeft = 50;
+      const infoRight = doc.page.width / 2 + 30;
       let currentY = doc.y;
       
-      // Texto más pequeño y elegante
-      doc.fillColor('#666666').fontSize(9).font('Helvetica'); // Reducido de 10
-      doc.text('NÚMERO:', infoLeft, currentY);
-      doc.fillColor('#000000').font('Helvetica-Bold').text(order_id, infoLeft + 70, currentY);
+      // Columna izquierda
+      doc.text('NÚMERO DE ORDEN:', infoLeft, currentY);
+      doc.fillColor('#000000').font('Helvetica-Bold').text(order_id, infoLeft + 110, currentY);
       
-      doc.fillColor('#666666').font('Helvetica');
-      doc.text('FECHA:', infoLeft, currentY + 15); // Reducido de 18
-      doc.fillColor('#000000').text(fechaFormateada, infoLeft + 70, currentY + 15);
+      doc.fillColor('#333333').font('Helvetica');
+      doc.text('FECHA:', infoLeft, currentY + 18);
+      doc.fillColor('#000000').text(fechaFormateada, infoLeft + 110, currentY + 18);
       
-      doc.fillColor('#666666').text('HORA:', infoLeft, currentY + 30);
-      doc.fillColor('#000000').text(horaFormateada, infoLeft + 70, currentY + 30);
+      doc.fillColor('#333333').text('HORA:', infoLeft, currentY + 36);
+      doc.fillColor('#000000').text(horaFormateada, infoLeft + 110, currentY + 36);
       
       // Columna derecha
-      doc.fillColor('#666666').text('ESTADO:', infoRight, currentY);
-      doc.fillColor('#27ae60').font('Helvetica-Bold').text('PAGO APROBADO', infoRight + 70, currentY);
+      doc.fillColor('#333333').text('ESTADO:', infoRight, currentY);
+      doc.fillColor('#27ae60').font('Helvetica-Bold').text('PAGO APROBADO', infoRight + 110, currentY);
       
-      doc.fillColor('#666666').font('Helvetica');
-      doc.text('PAGO:', infoRight, currentY + 15);
-      doc.fillColor('#000000').text('Tarjeta', infoRight + 70, currentY + 15);
+      doc.fillColor('#333333').font('Helvetica');
+      doc.text('MÉTODO DE PAGO:', infoRight, currentY + 18);
+      doc.fillColor('#000000').text('Tarjeta de Crédito/Débito', infoRight + 110, currentY + 18);
       
-      doc.fillColor('#666666').text('MONEDA:', infoRight, currentY + 30);
-      doc.fillColor('#000000').text('PEN (S/.)', infoRight + 70, currentY + 30);
+      doc.fillColor('#333333').text('MONEDA:', infoRight, currentY + 36);
+      doc.fillColor('#000000').text('Soles (PEN)', infoRight + 110, currentY + 36);
       
-      doc.y = currentY + 45;
+      doc.moveDown(4);
       
       // ==================== INFORMACIÓN DEL CLIENTE ====================
-      // Verificar espacio (CÁLCULO CORREGIDO)
-      const espacioNecesarioCliente = ALTURA_INFO_CLIENTE + 20;
-      const espacioDisponible = ALTURA_PAGINA - MARGEN_INFERIOR - doc.y;
-      
-      if (espacioDisponible < espacioNecesarioCliente) {
-        doc.y = agregarNuevaPagina(false); // Nueva página sin header completo
-      }
-      
-      doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
-      doc.text('INFORMACIÓN DEL CLIENTE', 40, doc.y);
-      
-      doc.strokeColor('#FFD700').lineWidth(0.5)
-         .moveTo(40, doc.y + 4)
-         .lineTo(doc.page.width - 40, doc.y + 4)
-         .stroke();
-      
-      doc.moveDown(0.5);
+      doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
+      doc.text('INFORMACIÓN DEL CLIENTE', 50, doc.y);
+      doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, doc.y + 5).lineTo(doc.page.width - 50, doc.y + 5).stroke();
+      doc.moveDown(1.5);
       
       currentY = doc.y;
       
-      doc.fillColor('#666666').fontSize(9).font('Helvetica');
-      doc.text('NOMBRE:', infoLeft, currentY);
-      doc.fillColor('#000000').text(`${cliente.nombre} ${cliente.apellido}`, infoLeft + 70, currentY);
+      doc.fillColor('#333333').fontSize(10).font('Helvetica');
+      doc.text('NOMBRE COMPLETO:', infoLeft, currentY);
+      doc.fillColor('#000000').text(`${cliente.nombre} ${cliente.apellido}`, infoLeft + 110, currentY);
       
-      doc.fillColor('#666666').text('EMAIL:', infoLeft, currentY + 15);
-      doc.fillColor('#000000').text(cliente.email, infoLeft + 70, currentY + 15);
+      doc.fillColor('#333333').text('EMAIL:', infoLeft, currentY + 18);
+      doc.fillColor('#000000').text(cliente.email, infoLeft + 110, currentY + 18);
       
-      doc.fillColor('#666666').text('TELÉFONO:', infoLeft, currentY + 30);
-      doc.fillColor('#000000').text(cliente.telefono || 'No especificado', infoLeft + 70, currentY + 30);
+      doc.fillColor('#333333').text('TELÉFONO:', infoLeft, currentY + 36);
+      doc.fillColor('#000000').text(cliente.telefono || 'No especificado', infoLeft + 110, currentY + 36);
       
-      doc.y = currentY + 45;
+      doc.moveDown(4);
       
-      // ==================== TABLA DE PRODUCTOS CON PAGINACIÓN INTELIGENTE ====================
-      let productosRestantes = productos.length;
-      let indiceProducto = 0;
-      let paginaActual = 1;
+      // ==================== TABLA DE PRODUCTOS ELEGANTE ====================
+      doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
+      doc.text('DETALLE DE PRODUCTOS', 50, doc.y);
+      doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, doc.y + 5).lineTo(doc.page.width - 50, doc.y + 5).stroke();
+      doc.moveDown(1.5);
       
-      // CALCULAR EXACTAMENTE CUÁNTAS PÁGINAS SE NECESITAN
-      const productosPorPagina = Math.floor((ALTURA_PAGINA - MARGEN_INFERIOR - doc.y - ALTURA_RESUMEN - ALTURA_FOOTER) / ALTURA_POR_PRODUCTO);
+      // Encabezados de tabla
+      const tableTop = doc.y;
+      const colWidths = [270, 60, 90, 90];
+      const colPositions = [50];
       
-      console.log(`📊 Cálculo de paginación:`);
-      console.log(`   • Productos totales: ${productos.length}`);
-      console.log(`   • Productos por página: ${productosPorPagina}`);
-      console.log(`   • Altura disponible: ${ALTURA_PAGINA - MARGEN_INFERIOR - doc.y}`);
-      console.log(`   • Posición Y actual: ${doc.y}`);
-      
-      while (productosRestantes > 0) {
-        if (paginaActual > 1) {
-          doc.y = agregarNuevaPagina(false);
-        }
-        
-        // Encabezado de tabla
-        doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
-        if (paginaActual === 1) {
-          doc.text('DETALLE DE PRODUCTOS', 40, doc.y);
-        } else {
-          doc.text(`DETALLE DE PRODUCTOS (Página ${paginaActual})`, 40, doc.y);
-        }
-        
-        doc.strokeColor('#FFD700').lineWidth(0.5)
-           .moveTo(40, doc.y + 4)
-           .lineTo(doc.page.width - 40, doc.y + 4)
-           .stroke();
-        
-        doc.moveDown(0.5);
-        
-        // Encabezados de tabla
-        const tableTop = doc.y;
-        const colWidths = [260, 50, 80, 80]; // Reducidos
-        const colPositions = [40];
-        
-        for (let i = 1; i < colWidths.length; i++) {
-          colPositions[i] = colPositions[i - 1] + colWidths[i - 1];
-        }
-        
-        // Fondo encabezado minimalista
-        doc.rect(colPositions[0], tableTop, colWidths.reduce((a, b) => a + b, 0), 22) // Reducido de 25
-           .fillColor('#f8f9fa')
-           .fill();
-        
-        // Texto encabezados más pequeño
-        doc.fillColor('#000000').fontSize(8).font('Helvetica-Bold'); // Reducido de 9
-        const headers = ['PRODUCTO', 'CANT.', 'P. UNIT.', 'SUBTOTAL'];
-        
-        headers.forEach((header, i) => {
-          const xPos = colPositions[i] + (i === 0 ? 8 : 4); // Reducido
-          doc.text(header, xPos, tableTop + 6, { // Reducido de 8
-            width: colWidths[i] - 8,
-            align: i >= 2 ? 'right' : 'left'
-          });
-        });
-        
-        // Línea debajo del encabezado
-        doc.strokeColor('#FFD700').lineWidth(0.5) // Reducido de 1
-           .moveTo(colPositions[0], tableTop + 22)
-           .lineTo(colPositions[3] + colWidths[3], tableTop + 22)
-           .stroke();
-        
-        let currentTableY = tableTop + 25;
-        
-        // Renderizar productos de esta página
-        const productosEnEstaPagina = Math.min(productosPorPagina, productosRestantes);
-        
-        for (let i = 0; i < productosEnEstaPagina; i++) {
-          const producto = productos[indiceProducto];
-          const nombre = producto.nombre || producto.titulo || `Producto ${indiceProducto + 1}`;
-          const cantidad = producto.cantidad || producto.quantity || 1;
-          const precio = producto.precio || producto.precioOriginal || 0;
-          const subtotal = producto.subtotal || (cantidad * precio);
-          
-          // Fondo alternado muy sutil
-          if (i % 2 === 0) {
-            doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), ALTURA_POR_PRODUCTO)
-               .fillColor('#fafafa')
-               .fill();
-          }
-          
-          // Nombre del producto (más pequeño)
-          doc.fillColor('#000000').fontSize(8).font('Helvetica'); // Reducido de 9
-          doc.text(nombre, colPositions[0] + 8, currentTableY + 6, {
-            width: colWidths[0] - 16
-          });
-          
-          // Detalles adicionales (más pequeño)
-          if (producto.color || producto.talla || producto.sku) {
-            const detalles = [];
-            if (producto.color) detalles.push(`Color: ${producto.color}`);
-            if (producto.talla) detalles.push(`Talla: ${producto.talla}`);
-            if (producto.sku) detalles.push(`SKU: ${producto.sku}`);
-            
-            doc.fillColor('#666666').fontSize(6); // Reducido de 7
-            doc.text(detalles.join(' | '), colPositions[0] + 8, currentTableY + 16, {
-              width: colWidths[0] - 16
-            });
-          }
-          
-          // Cantidad
-          doc.fillColor('#000000').fontSize(8);
-          doc.text(cantidad.toString(), colPositions[1] + 4, currentTableY + 10, {
-            width: colWidths[1] - 8,
-            align: 'center'
-          });
-          
-          // Precio unitario
-          doc.text(`S/ ${precio.toFixed(2)}`, colPositions[2] + 4, currentTableY + 10, {
-            width: colWidths[2] - 8,
-            align: 'right'
-          });
-          
-          // Subtotal
-          doc.font('Helvetica-Bold');
-          doc.text(`S/ ${subtotal.toFixed(2)}`, colPositions[3] + 4, currentTableY + 10, {
-            width: colWidths[3] - 8,
-            align: 'right'
-          });
-          
-          // Línea separadora muy sutil
-          doc.strokeColor('#e0e0e0').lineWidth(0.2) // Reducido de 0.3
-             .moveTo(colPositions[0], currentTableY + ALTURA_POR_PRODUCTO)
-             .lineTo(colPositions[3] + colWidths[3], currentTableY + ALTURA_POR_PRODUCTO)
-             .stroke();
-          
-          currentTableY += ALTURA_POR_PRODUCTO;
-          indiceProducto++;
-        }
-        
-        doc.y = currentTableY + 15;
-        productosRestantes -= productosEnEstaPagina;
-        paginaActual++;
+      for (let i = 1; i < colWidths.length; i++) {
+        colPositions[i] = colPositions[i - 1] + colWidths[i - 1];
       }
       
-      // ==================== RESUMEN DE PAGO ELEGANTE ====================
-      // Verificar si hay espacio para el resumen
-      if (doc.y > ALTURA_PAGINA - MARGEN_INFERIOR - ALTURA_RESUMEN) {
-        doc.y = agregarNuevaPagina(false);
-      }
-      
-      const summaryBoxTop = doc.y;
-      const summaryBoxWidth = 280; // Reducido
-      const summaryBoxLeft = doc.page.width - summaryBoxWidth - 40;
-      
-      // Caja de resumen más compacta
-      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 120, 3) // Reducido de 150
+      // Fondo encabezado minimalista
+      doc.rect(colPositions[0], tableTop, colWidths.reduce((a, b) => a + b, 0), 25)
          .fillColor('#f8f9fa')
          .fill();
       
-      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 120, 3)
+      // Texto encabezados
+      doc.fillColor('#000000').fontSize(9).font('Helvetica-Bold');
+      const headers = ['PRODUCTO', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL'];
+      
+      headers.forEach((header, i) => {
+        const xPos = colPositions[i] + (i === 0 ? 10 : 5);
+        doc.text(header, xPos, tableTop + 8, {
+          width: colWidths[i] - 10,
+          align: i >= 2 ? 'right' : 'left'
+        });
+      });
+      
+      // Línea debajo del encabezado
+      doc.strokeColor('#FFD700').lineWidth(1)
+         .moveTo(colPositions[0], tableTop + 25)
+         .lineTo(colPositions[3] + colWidths[3], tableTop + 25)
+         .stroke();
+      
+      let currentTableY = tableTop + 30;
+      
+      // Filas de productos
+      productos.forEach((producto, index) => {
+        const nombre = producto.nombre || producto.titulo || `Producto ${index + 1}`;
+        const cantidad = producto.cantidad || producto.quantity || 1;
+        const precio = producto.precio || producto.precioOriginal || 0;
+        const subtotal = producto.subtotal || (cantidad * precio);
+        
+        // Fondo alternado muy sutil
+        if (index % 2 === 0) {
+          doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), 35)
+             .fillColor('#fafafa')
+             .fill();
+        }
+        
+        // Nombre del producto
+        doc.fillColor('#000000').fontSize(9).font('Helvetica');
+        doc.text(nombre, colPositions[0] + 10, currentTableY + 8, {
+          width: colWidths[0] - 20
+        });
+        
+        // Detalles adicionales pequeños
+        if (producto.color || producto.talla || producto.sku) {
+          const detalles = [];
+          if (producto.color) detalles.push(`Color: ${producto.color}`);
+          if (producto.talla) detalles.push(`Talla: ${producto.talla}`);
+          if (producto.sku) detalles.push(`SKU: ${producto.sku}`);
+          
+          doc.fillColor('#666666').fontSize(7);
+          doc.text(detalles.join(' | '), colPositions[0] + 10, currentTableY + 22, {
+            width: colWidths[0] - 20
+          });
+        }
+        
+        // Cantidad
+        doc.fillColor('#000000').fontSize(9);
+        doc.text(cantidad.toString(), colPositions[1] + 5, currentTableY + 12, {
+          width: colWidths[1] - 10,
+          align: 'center'
+        });
+        
+        // Precio unitario
+        doc.text(`S/ ${precio.toFixed(2)}`, colPositions[2] + 5, currentTableY + 12, {
+          width: colWidths[2] - 10,
+          align: 'right'
+        });
+        
+        // Subtotal
+        doc.font('Helvetica-Bold');
+        doc.text(`S/ ${subtotal.toFixed(2)}`, colPositions[3] + 5, currentTableY + 12, {
+          width: colWidths[3] - 10,
+          align: 'right'
+        });
+        
+        // Línea separadora muy sutil
+        doc.strokeColor('#e0e0e0').lineWidth(0.3)
+           .moveTo(colPositions[0], currentTableY + 35)
+           .lineTo(colPositions[3] + colWidths[3], currentTableY + 35)
+           .stroke();
+        
+        currentTableY += 35;
+      });
+      
+      doc.y = currentTableY + 20;
+      
+      // ==================== RESUMEN DE PAGO ELEGANTE ====================
+      const summaryBoxTop = doc.y;
+      const summaryBoxWidth = 300;
+      const summaryBoxLeft = doc.page.width - summaryBoxWidth - 50;
+      
+      // Caja de resumen con bordes redondeados
+      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 150, 5)
+         .fillColor('#f8f9fa')
+         .fill();
+      
+      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 150, 5)
          .strokeColor('#FFD700')
-         .lineWidth(0.5) // Reducido de 1
+         .lineWidth(1)
          .stroke();
       
-      doc.fillColor('#000000').fontSize(12).font('Helvetica-Bold'); // Reducido de 14
-      doc.text('RESUMEN DE PAGO', summaryBoxLeft + 12, summaryBoxTop + 12);
+      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold');
+      doc.text('RESUMEN DE PAGO', summaryBoxLeft + 15, summaryBoxTop + 15);
       
-      doc.strokeColor('#e0e0e0').lineWidth(0.3) // Reducido de 0.5
-         .moveTo(summaryBoxLeft + 12, summaryBoxTop + 30)
-         .lineTo(summaryBoxLeft + summaryBoxWidth - 12, summaryBoxTop + 30)
+      doc.strokeColor('#e0e0e0').lineWidth(0.5)
+         .moveTo(summaryBoxLeft + 15, summaryBoxTop + 40)
+         .lineTo(summaryBoxLeft + summaryBoxWidth - 15, summaryBoxTop + 40)
          .stroke();
       
-      let summaryY = summaryBoxTop + 38;
-      const lineHeight = 18; // Reducido de 22
+      let summaryY = summaryBoxTop + 50;
+      const lineHeight = 22;
       
       // Subtotal
-      doc.fillColor('#666666').fontSize(9).font('Helvetica'); // Reducido de 10
-      doc.text('Subtotal:', summaryBoxLeft + 12, summaryY);
-      doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 100, summaryY, {
+      doc.fillColor('#333333').fontSize(10).font('Helvetica');
+      doc.text('Subtotal:', summaryBoxLeft + 15, summaryY);
+      doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 115, summaryY, {
         align: 'right'
       });
       
       // Envío
       if (envio.costo > 0) {
         summaryY += lineHeight;
-        doc.text(`Envío:`, summaryBoxLeft + 12, summaryY);
-        doc.text(`S/ ${envio.costo.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 100, summaryY, {
+        doc.text(`Envío (${envio.tipo}):`, summaryBoxLeft + 15, summaryY);
+        doc.text(`S/ ${envio.costo.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 115, summaryY, {
           align: 'right'
         });
       }
       
       // Línea separadora
-      summaryY += lineHeight + 3;
-      doc.strokeColor('#FFD700').lineWidth(0.5) // Reducido de 1
-         .moveTo(summaryBoxLeft + 12, summaryY)
-         .lineTo(summaryBoxLeft + summaryBoxWidth - 12, summaryY)
+      summaryY += lineHeight + 5;
+      doc.strokeColor('#FFD700').lineWidth(1)
+         .moveTo(summaryBoxLeft + 15, summaryY)
+         .lineTo(summaryBoxLeft + summaryBoxWidth - 15, summaryY)
          .stroke();
       
-      // TOTAL
-      summaryY += 8;
-      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold'); // Reducido de 16
-      doc.text('TOTAL:', summaryBoxLeft + 12, summaryY);
+      // TOTAL - Destacado
+      summaryY += 10;
+      doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
+      doc.text('TOTAL:', summaryBoxLeft + 15, summaryY);
       doc.fillColor('#27ae60');
-      doc.text(`S/ ${resumen.total.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 100, summaryY, {
+      doc.text(`S/ ${resumen.total.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 115, summaryY, {
         align: 'right'
       });
       
-      // ==================== FOOTER ELEGANTE EN TODAS LAS PÁGINAS ====================
-      const totalPaginas = doc.bufferedPageRange().count;
+      // ==================== FINAL DEL PDF ====================
+      doc.moveDown(4);
       
-      for (let i = 0; i < totalPaginas; i++) {
-        doc.switchToPage(i);
-        
-        // Footer minimalista y elegante
-        doc.fillColor('#666666').fontSize(7).font('Helvetica'); // Reducido de 8
-        doc.text('Este documento es su comprobante oficial de compra.', 
-          40, ALTURA_PAGINA - 35, { 
-            width: doc.page.width - 80, 
-            align: 'center' 
-          });
-        
-        doc.fillColor('#999999').fontSize(6); // Reducido de 7
-        doc.text(`Goldinfiniti tech corp. • Sistema automático de notificaciones`, 
-          40, ALTURA_PAGINA - 25, { 
-            width: doc.page.width - 80, 
-            align: 'center' 
-          });
-        
-        doc.fillColor('#999999').fontSize(6);
-        doc.text(`Página ${i + 1} de ${totalPaginas} • ID: ${order_id} • ${fechaFormateada}`, 
-          40, ALTURA_PAGINA - 18, { 
-            width: doc.page.width - 80, 
-            align: 'center' 
-          });
-        
-        // Línea decorativa muy sutil
-        doc.strokeColor('#e0e0e0').lineWidth(0.3)
-           .moveTo(40, ALTURA_PAGINA - 40)
-           .lineTo(doc.page.width - 40, ALTURA_PAGINA - 40)
-           .stroke();
-      }
+      // Footer
+      doc.fillColor('#333333').fontSize(8).font('Helvetica');
+      doc.text('Gracias por su compra. Este documento es su comprobante oficial.', 
+        50, doc.page.height - 40, { width: doc.page.width - 100, align: 'center' });
       
-      // ==================== LOG FINAL ====================
-      console.log(`✅ PDF GENERADO CORRECTAMENTE:`);
-      console.log(`   • Productos: ${productos.length}`);
-      console.log(`   • Páginas generadas: ${totalPaginas}`);
-      console.log(`   • Espacio optimizado: COMPLETO`);
-      
-      if (totalPaginas > 1 && productos.length < 10) {
-        console.log(`⚠️ ADVERTENCIA: Se generaron ${totalPaginas} páginas para solo ${productos.length} productos`);
-        console.log(`   • Revisar cálculo de altura`);
-      }
+      doc.fillColor('#666666').fontSize(7);
+      doc.text(`ID de transacción: ${order_id}`, 50, doc.page.height - 25, { width: doc.page.width - 100, align: 'center' });
       
       doc.end();
       
     } catch (error) {
-      console.error('❌ Error generando PDF profesional:', error);
+      console.error('Error generando PDF profesional:', error);
       reject(error);
     }
   });
 }
 
 // ========================
-// 7. FUNCIÓN DE NOTIFICACIÓN INTERNA (MANTENER IGUAL)
+// 7. FUNCIÓN DE NOTIFICACIÓN INTERNA
 // ========================
 async function sendPaymentNotification(paymentData) {
   try {
@@ -1287,7 +1150,6 @@ async function sendPaymentNotification(paymentData) {
     const customerLastName = paymentData.cliente?.apellido || '';
     const customerFullName = `${customerName} ${customerLastName}`.trim();
     
-    // HTML de productos (MANTENER IGUAL)
     let productosHtml = '';
     if (paymentData.productos && Array.isArray(paymentData.productos)) {
       let totalProductos = 0;
@@ -1387,7 +1249,7 @@ async function sendPaymentNotification(paymentData) {
               </div>
             </div>
             
-            <!-- 🚚 INFORMACIÓN DE ENVÍO (MANTENER IGUAL) -->
+            <!-- 🚚 INFORMACIÓN DE ENVÍO (CRÍTICA) -->
 <div style="background: #d1ecf1; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #17a2b8;">
   <p style="margin: 0 0 10px 0; color: #0c5460; font-weight: bold; font-size: 16px;">🚚 DIRECCIÓN DE ENVÍO:</p>
   
@@ -1410,7 +1272,7 @@ async function sendPaymentNotification(paymentData) {
   </div>
 </div>
 
-<!-- 📞 Información de contacto (MANTENER IGUAL) -->
+<!-- 📞 Información de contacto -->
 <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #6c757d;">
   <p style="margin: 0 0 10px 0; color: #495057; font-weight: bold;">📞 CONTACTO DEL CLIENTE:</p>
   
@@ -1536,7 +1398,7 @@ async function sendPaymentNotification(paymentData) {
 }
 
 // ========================
-// 8. FUNCIONES DE UTILIDAD (EXACTO IGUAL)
+// 8. FUNCIONES DE UTILIDAD
 // ========================
 function _maskEmail(email) {
   if (!email || typeof email !== 'string') return 'unknown@email.com';
@@ -1559,25 +1421,12 @@ function verifyService() {
 }
 
 // ========================
-// 9. EXPORTACIÓN COMPLETA (EXACTO IGUAL)
+// 9. EXPORTACIÓN
 // ========================
 const emailService = {
-  transporter,
-  createTransporter,
-  sendEmailWithRetry,
   sendPaymentConfirmation,
   sendPaymentNotification,
   verifyService,
-  checkEmailConfig: () => ({
-    gmailUser: process.env.GMAIL_USER,
-    hasGmailPassword: !!process.env.GMAIL_APP_PASSWORD,
-    hasSendGrid: !!process.env.SENDGRID_API_KEY,
-    passwordLength: process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.length : 0,
-    sendgridKeyLength: process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY.length : 0,
-    timestamp: new Date().toISOString(),
-    status: process.env.SENDGRID_API_KEY ? 'SENGRID_CONFIGURADO' : 
-            process.env.GMAIL_APP_PASSWORD ? 'GMAIL_CONFIGURADO' : 'NO_CONFIGURADO'
-  }),
   _extractFirebaseData,
   _generateGoldenInfinityEmail,
   _generateOrderPDF,
