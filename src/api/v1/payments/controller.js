@@ -105,14 +105,29 @@ async _generarOrderIdSecuencial() {
   try {
     const firebase = require('../../../core/config/firebase');
     const firestore = firebase.firestore;
-    const hoy = new Date();
-    const año = hoy.getFullYear();
-    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+    
+    // ============================================
+    // ¡¡SOLO ESTO CAMBIA!! - CORRECCIÓN DE ZONA HORARIA
+    // ============================================
+    const hoyUTC = new Date(); // Hora actual del servidor (probablemente UTC)
+    const hoyPeru = new Date(hoyUTC.getTime() - (5 * 60 * 60 * 1000)); // Restar 5 horas
+    
+    const año = hoyPeru.getFullYear();
+    const mes = String(hoyPeru.getMonth() + 1).padStart(2, '0');
     const prefijo = `ORD-${año}${mes}`;
+    
+    // DEBUG: Verificar
+    console.log('🕐 ZONA HORARIA CORREGIDA:', {
+      horaUTC: hoyUTC.toISOString(),
+      horaPeru: hoyPeru.toISOString(),
+      prefijo: prefijo
+    });
     
     logger.info(`🔢 Generando ID secuencial para ${prefijo}...`);
     
-    // INTENTAR BUSCAR EL ÚLTIMO ID DEL MES
+    // ============================================
+    // EL RESTO DEL CÓDIGO QUEDA IGUAL
+    // ============================================
     try {
       // Buscar por ID que comience con el prefijo
       const snapshot = await firestore
@@ -144,8 +159,7 @@ async _generarOrderIdSecuencial() {
       logger.warn('⚠️ Error consultando Firebase, usando fallback', { error: firestoreError.message });
     }
     
-    // FALLBACK: Si no hay órdenes este mes o hay error
-    // Buscar la última orden de cualquier mes para sugerir número
+    // FALLBACK: Buscar la última orden de cualquier mes
     try {
       const snapshot = await firestore
         .collection('ordenes')
@@ -157,7 +171,6 @@ async _generarOrderIdSecuencial() {
         const ultimaOrden = snapshot.docs[0].data();
         const ultimoId = ultimaOrden.id;
         
-        // Si la última orden es de este mes y tiene número
         if (ultimoId && ultimoId.startsWith(prefijo)) {
           const partes = ultimoId.split('-');
           if (partes.length === 3) {
@@ -175,21 +188,20 @@ async _generarOrderIdSecuencial() {
       logger.warn('⚠️ Error en fallback también', { error: error.message });
     }
     
-    // FALLBACK FINAL: Si todo falla, empezar desde 0089 (tu siguiente número)
-    const orderId = `${prefijo}-0089`; // ✅ CAMBIA AQUÍ EL NÚMERO QUE QUIERAS
+    // FALLBACK FINAL: Si todo falla, empezar desde 0099 (después de 0098)
+    const orderId = `${prefijo}-0099`;
     logger.info(`🔄 Fallback final - ID generado: ${orderId}`);
     return orderId;
     
   } catch (error) {
     logger.error('❌ Error crítico generando ID:', error);
     
-    // FALLBACK DE EMERGENCIA - NUNCA usar timestamp
-    const hoy = new Date();
-    const año = hoy.getFullYear();
-    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-    // ✅ NUNCA usar Date.now() - usar número fijo
-    const numero = "0089"; // ✅ ESTO ES LO IMPORTANTE
-    const orderId = `ORD-${año}${mes}-${numero}`;
+    // FALLBACK DE EMERGENCIA
+    const hoyUTC = new Date();
+    const hoyPeru = new Date(hoyUTC.getTime() - (5 * 60 * 60 * 1000));
+    const año = hoyPeru.getFullYear();
+    const mes = String(hoyPeru.getMonth() + 1).padStart(2, '0');
+    const orderId = `ORD-${año}${mes}-0099`;
     logger.info(`🔥 Emergencia - ID: ${orderId}`);
     return orderId;
   }
