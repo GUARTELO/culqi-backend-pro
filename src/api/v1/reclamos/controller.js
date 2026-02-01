@@ -21,21 +21,18 @@ const obtenerFirestore = () => {
   }
   
   // FALLBACK: Crear instancia manual (solo si es necesario)
-  console.warn('⚠️ Firestore no disponible en módulo, creando manual...');
-  const admin = require('firebase-admin');
-  
-  if (!admin.apps.length) {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
-      });
-    }
+ const obtenerFirestore = () => {
+  console.log('🔄 ReclamoController: Obteniendo Firestore desde módulo firebase.js...');
+
+  if (firebase.firestore && typeof firebase.firestore.collection === 'function') {
+    console.log('✅ Firestore obtenido como objeto');
+    return firebase.firestore;
   }
-  
-  return admin.firestore();
+
+  throw new Error('Firestore no disponible desde core/config/firebase');
+ }
 };
+
 
 // OBTENER FIRESTORE (IGUAL QUE PAGOS)
 const db = obtenerFirestore();
