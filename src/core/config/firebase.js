@@ -62,14 +62,10 @@ const initializeFirebase = () => {
         
         if (!admin.apps.length) {
           admin.initializeApp({
-  credential: admin.credential.cert({
-    ...serviceAccount,
-    projectId: serviceAccount.project_id
-  }),
-  projectId: serviceAccount.project_id,
-  databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
-});
-
+            credential: admin.credential.cert(serviceAccount),
+            databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
+          });
+          
           console.log('✅ Firebase inicializado con credenciales de entorno');
         }
       } catch (parseError) {
