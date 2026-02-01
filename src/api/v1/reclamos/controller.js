@@ -1,63 +1,9 @@
 const reclamoEmailService = require('../../../services/reclamo/emailService');
 const logger = require('../../../core/utils/logger');
 
-// 🔥 SOLUCIÓN SIMPLE Y DIRECTA
-const admin = require('firebase-admin');
-
-// INICIALIZACIÓN GARANTIZADA
-const initializeFirebase = () => {
-  try {
-    console.log('🔄 ReclamoController: Inicializando Firebase...');
-    
-    // 1. VERIFICAR SI YA HAY APP
-    if (admin.apps.length > 0) {
-      console.log('✅ Firebase ya inicializado, usando instancia existente');
-      return admin.firestore();
-    }
-    
-    // 2. OBTENER CREDENCIALES DE RENDER
-    if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-      console.error('❌ ERROR: FIREBASE_SERVICE_ACCOUNT no configurada en Render');
-      throw new Error('Configura FIREBASE_SERVICE_ACCOUNT en Render');
-    }
-    
-    console.log('🔐 Parseando credenciales de Render...');
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    
-    // 3. INICIALIZAR CON CREDENCIALES
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
-    });
-    
-    console.log('✅ Firebase inicializado exitosamente');
-    console.log(`📊 Project: ${serviceAccount.project_id}`);
-    
-    return admin.firestore();
-    
-  } catch (error) {
-    console.error('❌ ERROR inicializando Firebase:', error.message);
-    throw error;
-  }
-};
-
-// INTENTAR INICIALIZAR
-let db;
-try {
-  db = initializeFirebase();
-  console.log('🎯 Firestore listo para operaciones');
-} catch (error) {
-  console.error('🔥 ERROR FATAL: No se pudo inicializar Firebase');
-  // Crear mock simple para evitar crash
-  db = {
-    collection: () => ({ 
-      doc: () => ({ 
-        get: () => Promise.resolve({ exists: false }) 
-      }) 
-    }),
-    _isMock: true
-  };
-}
+// ✅ USAR FIREBASE CENTRAL
+const { firestore } = require('../../../core/config/firebase');
+const db = firestore;
 
 // VERIFICAR
 console.log('🔍 Estado Firestore:', db._isMock ? 'MOCK' : 'REAL');
