@@ -210,7 +210,7 @@ app.get('/', (req, res) => {
         webhook: '/api/v1/payments/webhook'
       },
       // ✅ SOLO AGREGA ESTA LÍNEA:
-     // reclamos: '/api/v1/reclamos',
+      reclamos: '/api/v1/reclamos',
       docs: '/api-docs',
     },
     limits: {
@@ -222,7 +222,24 @@ app.get('/', (req, res) => {
 // ============================================
 // 4. MANEJO DE ERRORES (SISTEMA DE REPARACIÓN)
 // ============================================
-
+// ============================================
+// 🆕 SISTEMA DE RECLAMOS - AGREGADO AL FINAL
+// ============================================
+try {
+  const reclamosRoutes = require('./api/v1/reclamos/routes');
+  app.use('/api/v1/reclamos', reclamosRoutes);
+  console.log('✅ RECLAMOS: Cargado en /api/v1/reclamos');
+} catch (error) {
+  console.error('❌ RECLAMOS: Error -', error.message);
+  console.log('⚠️  SISTEMA DE PAGOS SIGUE 100% OPERATIVO');
+  app.use('/api/v1/reclamos', (req, res) => {
+    res.status(503).json({
+      success: false,
+      error: 'Servicio de reclamos no disponible',
+      note: 'Sistema de pagos está operativo'
+    });
+  });
+}
 // A. 404 HANDLER - Ruta no encontrada
 app.use('*', (req, res) => {
   logger.warn(`Route not found: ${req.method} ${req.originalUrl}`);
