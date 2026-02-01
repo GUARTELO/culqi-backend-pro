@@ -1010,70 +1010,32 @@ async function _generateOrderPDF(firebaseData) {
       
       doc.y = currentY + 45;
       
-      // ==================== TABLA DE PRODUCTOS - SIN PAGINACIÓN COMPLEJA ====================
-// Encabezado de tabla
-doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
-doc.text('DETALLE DE PRODUCTOS', 40, doc.y);
-
-doc.strokeColor('#FFD700').lineWidth(0.5)
-   .moveTo(40, doc.y + 4)
-   .lineTo(doc.page.width - 40, doc.y + 4)
-   .stroke();
-
-doc.moveDown(0.5);
-
-// Encabezados de tabla
-const tableTop = doc.y;
-const colWidths = [260, 50, 80, 80];
-const colPositions = [40];
-
-for (let i = 1; i < colWidths.length; i++) {
-    colPositions[i] = colPositions[i - 1] + colWidths[i - 1];
-}
-
-// Fondo encabezado minimalista
-doc.rect(colPositions[0], tableTop, colWidths.reduce((a, b) => a + b, 0), 22)
-   .fillColor('#f8f9fa')
-   .fill();
-
-// Texto encabezados más pequeño
-doc.fillColor('#000000').fontSize(8).font('Helvetica-Bold');
-const headers = ['PRODUCTO', 'CANT.', 'P. UNIT.', 'SUBTOTAL'];
-
-headers.forEach((header, i) => {
-    const xPos = colPositions[i] + (i === 0 ? 8 : 4);
-    doc.text(header, xPos, tableTop + 6, {
-        width: colWidths[i] - 8,
-        align: i >= 2 ? 'right' : 'left'
-    });
-});
-
-// Línea debajo del encabezado
-doc.strokeColor('#FFD700').lineWidth(0.5)
-   .moveTo(colPositions[0], tableTop + 22)
-   .lineTo(colPositions[3] + colWidths[3], tableTop + 22)
-   .stroke();
-
-let currentTableY = tableTop + 25;
-
-// Renderizar TODOS los productos directamente
-for (let i = 0; i < productos.length; i++) {
-    const producto = productos[i];
-    const nombre = producto.nombre || producto.titulo || `Producto ${i + 1}`;
-    const cantidad = producto.cantidad || producto.quantity || 1;
-    const precio = producto.precio || producto.precioOriginal || 0;
-    const subtotal = producto.subtotal || (cantidad * precio);
-    
-    // Verificar si necesitamos nueva página ANTES de dibujar
-    if (currentTableY + ALTURA_POR_PRODUCTO > ALTURA_PAGINA - MARGEN_INFERIOR - ALTURA_RESUMEN) {
-        // Si no cabe en esta página, crear nueva página y redibujar encabezados
-        doc.y = agregarNuevaPagina(false);
+      // ==================== TABLA DE PRODUCTOS CON PAGINACIÓN INTELIGENTE ====================
+      let productosRestantes = productos.length;
+      let indiceProducto = 0;
+      let paginaActual = 1;
+      
+      // CALCULAR EXACTAMENTE CUÁNTAS PÁGINAS SE NECESITAN
+      const productosPorPagina = Math.floor((ALTURA_PAGINA - MARGEN_INFERIOR - doc.y - ALTURA_RESUMEN - ALTURA_FOOTER) / ALTURA_POR_PRODUCTO);
+      
+      console.log(`📊 Cálculo de paginación:`);
+      console.log(`   • Productos totales: ${productos.length}`);
+      console.log(`   • Productos por página: ${productosPorPagina}`);
+      console.log(`   • Altura disponible: ${ALTURA_PAGINA - MARGEN_INFERIOR - doc.y}`);
+      console.log(`   • Posición Y actual: ${doc.y}`);
+      
+      while (productosRestantes > 0) {
+        if (paginaActual > 1) {
+          doc.y = agregarNuevaPagina(false);
+        }
         
-        // Redibujar encabezados de tabla en nueva página
-        const newTableTop = doc.y;
-        
+        // Encabezado de tabla
         doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
-        doc.text('DETALLE DE PRODUCTOS (Continuación)', 40, doc.y);
+        if (paginaActual === 1) {
+          doc.text('DETALLE DE PRODUCTOS', 40, doc.y);
+        } else {
+          doc.text(`DETALLE DE PRODUCTOS (Página ${paginaActual})`, 40, doc.y);
+        }
         
         doc.strokeColor('#FFD700').lineWidth(0.5)
            .moveTo(40, doc.y + 4)
@@ -1082,96 +1044,110 @@ for (let i = 0; i < productos.length; i++) {
         
         doc.moveDown(0.5);
         
-        // Fondo encabezado en nueva página
-        doc.rect(colPositions[0], doc.y, colWidths.reduce((a, b) => a + b, 0), 22)
+        // Encabezados de tabla
+        const tableTop = doc.y;
+        const colWidths = [260, 50, 80, 80]; // Reducidos
+        const colPositions = [40];
+        
+        for (let i = 1; i < colWidths.length; i++) {
+          colPositions[i] = colPositions[i - 1] + colWidths[i - 1];
+        }
+        
+        // Fondo encabezado minimalista
+        doc.rect(colPositions[0], tableTop, colWidths.reduce((a, b) => a + b, 0), 22) // Reducido de 25
            .fillColor('#f8f9fa')
            .fill();
         
-        // Texto encabezados en nueva página
+        // Texto encabezados más pequeño
+        doc.fillColor('#000000').fontSize(8).font('Helvetica-Bold'); // Reducido de 9
+        const headers = ['PRODUCTO', 'CANT.', 'P. UNIT.', 'SUBTOTAL'];
+        
         headers.forEach((header, i) => {
-            const xPos = colPositions[i] + (i === 0 ? 8 : 4);
-            doc.text(header, xPos, doc.y + 6, {
-                width: colWidths[i] - 8,
-                align: i >= 2 ? 'right' : 'left'
-            });
+          const xPos = colPositions[i] + (i === 0 ? 8 : 4); // Reducido
+          doc.text(header, xPos, tableTop + 6, { // Reducido de 8
+            width: colWidths[i] - 8,
+            align: i >= 2 ? 'right' : 'left'
+          });
         });
         
-        // Línea debajo del encabezado en nueva página
-        doc.strokeColor('#FFD700').lineWidth(0.5)
-           .moveTo(colPositions[0], doc.y + 22)
-           .lineTo(colPositions[3] + colWidths[3], doc.y + 22)
+        // Línea debajo del encabezado
+        doc.strokeColor('#FFD700').lineWidth(0.5) // Reducido de 1
+           .moveTo(colPositions[0], tableTop + 22)
+           .lineTo(colPositions[3] + colWidths[3], tableTop + 22)
            .stroke();
         
-        currentTableY = doc.y + 25;
-    }
-    
-    // Fondo alternado muy sutil
-    if (i % 2 === 0) {
-        doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), ALTURA_POR_PRODUCTO)
-           .fillColor('#fafafa')
-           .fill();
-    }
-    
-    // Nombre del producto
-    doc.fillColor('#000000').fontSize(8).font('Helvetica');
-    doc.text(nombre, colPositions[0] + 8, currentTableY + 6, {
-        width: colWidths[0] - 16
-    });
-    
-    // Detalles adicionales
-    if (producto.color || producto.talla || producto.sku) {
-        const detalles = [];
-        if (producto.color) detalles.push(`Color: ${producto.color}`);
-        if (producto.talla) detalles.push(`Talla: ${producto.talla}`);
-        if (producto.sku) detalles.push(`SKU: ${producto.sku}`);
+        let currentTableY = tableTop + 25;
         
-        doc.fillColor('#666666').fontSize(6);
-        doc.text(detalles.join(' | '), colPositions[0] + 8, currentTableY + 16, {
+        // Renderizar productos de esta página
+        const productosEnEstaPagina = Math.min(productosPorPagina, productosRestantes);
+        
+        for (let i = 0; i < productosEnEstaPagina; i++) {
+          const producto = productos[indiceProducto];
+          const nombre = producto.nombre || producto.titulo || `Producto ${indiceProducto + 1}`;
+          const cantidad = producto.cantidad || producto.quantity || 1;
+          const precio = producto.precio || producto.precioOriginal || 0;
+          const subtotal = producto.subtotal || (cantidad * precio);
+          
+          // Fondo alternado muy sutil
+          if (i % 2 === 0) {
+            doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), ALTURA_POR_PRODUCTO)
+               .fillColor('#fafafa')
+               .fill();
+          }
+          
+          // Nombre del producto (más pequeño)
+          doc.fillColor('#000000').fontSize(8).font('Helvetica'); // Reducido de 9
+          doc.text(nombre, colPositions[0] + 8, currentTableY + 6, {
             width: colWidths[0] - 16
-        });
-    }
-    
-    // Cantidad
-    doc.fillColor('#000000').fontSize(8);
-    doc.text(cantidad.toString(), colPositions[1] + 4, currentTableY + 10, {
-        width: colWidths[1] - 8,
-        align: 'center'
-    });
-    
-    // Precio unitario
-    doc.text(`S/ ${precio.toFixed(2)}`, colPositions[2] + 4, currentTableY + 10, {
-        width: colWidths[2] - 8,
-        align: 'right'
-    });
-    
-    // Subtotal
-    doc.font('Helvetica-Bold');
-    doc.text(`S/ ${subtotal.toFixed(2)}`, colPositions[3] + 4, currentTableY + 10, {
-        width: colWidths[3] - 8,
-        align: 'right'
-    });
-    
-    // Línea separadora muy sutil
-    doc.strokeColor('#e0e0e0').lineWidth(0.2)
-       .moveTo(colPositions[0], currentTableY + ALTURA_POR_PRODUCTO)
-       .lineTo(colPositions[3] + colWidths[3], currentTableY + ALTURA_POR_PRODUCTO)
-       .stroke();
-    
-    currentTableY += ALTURA_POR_PRODUCTO;
-}
-
-// Actualizar posición Y después de la tabla
-doc.y = currentTableY + 15;
-
-// Si no hay productos, mostrar mensaje
-if (productos.length === 0) {
-    doc.fillColor('#666666').fontSize(10).font('Helvetica');
-    doc.text('No hay productos en esta orden.', 40, doc.y, {
-        width: doc.page.width - 80,
-        align: 'center'
-    });
-    doc.moveDown(1);
-}
+          });
+          
+          // Detalles adicionales (más pequeño)
+          if (producto.color || producto.talla || producto.sku) {
+            const detalles = [];
+            if (producto.color) detalles.push(`Color: ${producto.color}`);
+            if (producto.talla) detalles.push(`Talla: ${producto.talla}`);
+            if (producto.sku) detalles.push(`SKU: ${producto.sku}`);
+            
+            doc.fillColor('#666666').fontSize(6); // Reducido de 7
+            doc.text(detalles.join(' | '), colPositions[0] + 8, currentTableY + 16, {
+              width: colWidths[0] - 16
+            });
+          }
+          
+          // Cantidad
+          doc.fillColor('#000000').fontSize(8);
+          doc.text(cantidad.toString(), colPositions[1] + 4, currentTableY + 10, {
+            width: colWidths[1] - 8,
+            align: 'center'
+          });
+          
+          // Precio unitario
+          doc.text(`S/ ${precio.toFixed(2)}`, colPositions[2] + 4, currentTableY + 10, {
+            width: colWidths[2] - 8,
+            align: 'right'
+          });
+          
+          // Subtotal
+          doc.font('Helvetica-Bold');
+          doc.text(`S/ ${subtotal.toFixed(2)}`, colPositions[3] + 4, currentTableY + 10, {
+            width: colWidths[3] - 8,
+            align: 'right'
+          });
+          
+          // Línea separadora muy sutil
+          doc.strokeColor('#e0e0e0').lineWidth(0.2) // Reducido de 0.3
+             .moveTo(colPositions[0], currentTableY + ALTURA_POR_PRODUCTO)
+             .lineTo(colPositions[3] + colWidths[3], currentTableY + ALTURA_POR_PRODUCTO)
+             .stroke();
+          
+          currentTableY += ALTURA_POR_PRODUCTO;
+          indiceProducto++;
+        }
+        
+        doc.y = currentTableY + 15;
+        productosRestantes -= productosEnEstaPagina;
+        paginaActual++;
+      }
       
       // ==================== RESUMEN DE PAGO ELEGANTE ====================
       // Verificar si hay espacio para el resumen
