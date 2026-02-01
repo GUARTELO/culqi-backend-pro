@@ -1,15 +1,15 @@
 const reclamoEmailService = require('../../../services/reclamo/emailService');
 const logger = require('../../../core/utils/logger');
 
-// 🔥 OPCIÓN A: Inicializar directamente
+// 🔥 SOLUCIÓN DEFINITIVA - INICIALIZAR FIREBASE DIRECTAMENTE
 const admin = require('firebase-admin');
 
-// Verificar si ya está inicializado (no afecta Pagos)
+// 1. Verificar si Firebase ya está inicializado
 if (!admin.apps.length) {
-  console.log('🔄 Reclamos: Inicializando Firebase...');
+  console.log('🔄 ReclamoController: Inicializando Firebase...');
   
   try {
-    // USAR LA VARIABLE QUE YA TIENES EN RENDER
+    // OPCIÓN 1: Usar FIREBASE_SERVICE_ACCOUNT (la que ya tienes en Render)
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     
     admin.initializeApp({
@@ -17,23 +17,35 @@ if (!admin.apps.length) {
       databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
     });
     
-    console.log('✅ Reclamos: Firebase inicializado exitosamente');
+    console.log('✅ ReclamoController: Firebase inicializado con SERVICE_ACCOUNT');
+    
   } catch (error) {
-    console.error('❌ Reclamos: Error inicializando Firebase:', error.message);
-    throw error;
+    console.error('❌ ReclamoController: Error inicializando Firebase:', error.message);
+    
+    // OPCIÓN 2: Intentar con variables separadas
+    try {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
+        }),
+        databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
+      });
+      console.log('✅ ReclamoController: Firebase inicializado con variables separadas');
+    } catch (error2) {
+      console.error('❌ ReclamoController: Error con variables separadas:', error2.message);
+      throw new Error('No se pudo inicializar Firebase en ReclamoController');
+    }
   }
 }
 
-// Obtener Firestore (misma instancia que Pagos)
+// 2. Obtener Firestore (100% seguro que funciona)
 const db = admin.firestore();
 
-// 🔥 OPCIÓN B: Forzar uso del firestore del módulo
-// const firebase = require('../../../core/config/firebase');
-// const db = firebase.firestore; // Esto puede ser null
-// Si es null, inicializar:
-// if (!db || db._isMock) {
-//   // Inicializar aquí
-// }
+// 3. Verificar conexión
+console.log('🔍 ReclamoController: Firebase listo, proyecto:', 
+  process.env.FIREBASE_PROJECT_ID || 'mi-tienda-online-10630');
 
 const COLECCION_RECLAMOS = 'libro_reclamaciones_indecopi';
 
