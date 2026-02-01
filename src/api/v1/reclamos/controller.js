@@ -1,63 +1,63 @@
 const reclamoEmailService = require('../../../services/reclamo/emailService');
 const logger = require('../../../core/utils/logger');
 
-// 🔥 SOLUCIÓN DEFINITIVA - SIN VERIFICACIÓN ASYNC
+// 🔥 SOLUCIÓN DEFINITIVA - INICIALIZAR SIEMPRE CON CREDENCIALES EXPLÍCITAS
 const admin = require('firebase-admin');
 
-// INICIALIZAR FIREBASE SIN VERIFICACIONES COMPLEJAS
-let db;
-
-try {
-  console.log('🔄 ReclamoController: Configurando Firebase...');
+// INICIALIZAR FIREBASE CON CREDENCIALES EXPLÍCITAS (NO DEPENDER DE OTROS MÓDULOS)
+const initializeFirebaseExplicitly = () => {
+  console.log('🔄 ReclamoController: Inicializando Firebase con credenciales explícitas...');
   
-  // Si ya está inicializado, usar esa instancia
-  if (admin.apps.length === 0) {
-    console.log('📦 Inicializando Firebase...');
-    
-    // INTENTAR CON VARIABLE DE ENTORNO (RENDER)
+  try {
+    // OPCIÓN 1: VARIABLE DE ENTORNO RENDER (FIREBASE_SERVICE_ACCOUNT)
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      console.log('📦 Usando FIREBASE_SERVICE_ACCOUNT de variables de entorno');
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
-      });
-      console.log('✅ Firebase inicializado con FIREBASE_SERVICE_ACCOUNT');
-    } 
-    // INTENTAR CON ARCHIVO LOCAL
-    else {
-      const path = require('path');
-      const serviceAccountPath = path.join(__dirname, '../../../../config/firebase-service-account.json');
-      const serviceAccount = require(serviceAccountPath);
       
+      // Inicializar con nombre único para evitar conflictos
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
-      });
-      console.log('✅ Firebase inicializado con archivo local');
+      }, 'reclamos-app'); // 🔥 NOMBRE ÚNICO
+      
+      console.log('✅ Firebase inicializado con credenciales explícitas (reclamos-app)');
+      return admin.firestore();
     }
-  } else {
-    console.log('✅ Firebase ya estaba inicializado (reusando)');
+    
+    // OPCIÓN 2: ARCHIVO LOCAL (desarrollo)
+    const path = require('path');
+    const serviceAccountPath = path.join(__dirname, '../../../../config/firebase-service-account.json');
+    
+    console.log('📁 Intentando con archivo local:', serviceAccountPath);
+    const serviceAccount = require(serviceAccountPath);
+    
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
+    }, 'reclamos-app'); // 🔥 NOMBRE ÚNICO
+    
+    console.log('✅ Firebase inicializado con archivo local (reclamos-app)');
+    return admin.firestore();
+    
+  } catch (error) {
+    console.error('❌ ERROR CRÍTICO inicializando Firebase:', error.message);
+    
+    // FALLBACK: Intentar usar app default si existe
+    try {
+      console.log('🔄 Intentando usar app default...');
+      return admin.app().firestore();
+    } catch (fallbackError) {
+      console.error('❌ Fallback también falló:', fallbackError.message);
+      throw new Error(`No se pudo inicializar Firebase: ${error.message}`);
+    }
   }
-  
-  // OBTENER FIRESTORE (SIMPLEMENTE)
-  db = admin.firestore();
-  console.log('🎯 ReclamoController: Firestore listo');
-  
-} catch (error) {
-  console.error('❌ ERROR inicializando Firebase:', error.message);
-  
-  // CREAR MOCK PARA EVITAR ERRORES (solo para desarrollo)
-  db = {
-    collection: () => ({ 
-      doc: () => ({ 
-        get: () => Promise.resolve({ exists: false }),
-        set: () => Promise.resolve() 
-      }),
-      where: () => ({ get: () => Promise.resolve({ empty: true }) })
-    })
-  };
-  console.log('⚠️ Usando Firestore mock (modo desarrollo)');
-}
+};
+
+// INICIALIZAR AHORA
+const db = initializeFirebaseExplicitly();
+
+// VERIFICAR RÁPIDAMENTE
+console.log('🔍 Firebase listo para ReclamoController, proyecto:', process.env.FIREBASE_PROJECT_ID || 'mi-tienda-online-10630');
 
 const COLECCION_RECLAMOS = 'libro_reclamaciones_indecopi';
 
