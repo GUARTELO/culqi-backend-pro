@@ -1,11 +1,15 @@
 const reclamoEmailService = require('../../../services/reclamo/emailService');
-const admin = require('firebase-admin');
 const logger = require('../../../core/utils/logger');
 
-const db = admin.firestore();
+// 🔥 SOLO ESTAS 2 LÍNEAS CAMBIAN - USAMOS LA MISMA CONFIG QUE PAGOS
+const firebase = require('../../../core/config/firebase'); // MISMO ARCHIVO QUE PAGOS
+const db = firebase.firestore; // MISMO OBJETO firestore QUE PAGOS
+// 🔥 FIN DEL CAMBIO - TODO LO DEMÁS IGUAL
+
 const COLECCION_RECLAMOS = 'libro_reclamaciones_indecopi';
 
 class ReclamoController {
+    // ... TODO EL RESTO DEL CÓDIGO PERMANECE EXACTAMENTE IGUAL ...
     
     /**
      * 🔥 ENDPOINT PRINCIPAL - ENVÍA EMAILS DE CONFIRMACIÓN
