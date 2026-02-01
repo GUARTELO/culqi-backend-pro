@@ -1,14 +1,44 @@
 const reclamoEmailService = require('../../../services/reclamo/emailService');
 const logger = require('../../../core/utils/logger');
 
-// 🔥 SOLO ESTAS 2 LÍNEAS CAMBIAN - USAMOS LA MISMA CONFIG QUE PAGOS
-const firebase = require('../../../core/config/firebase'); // MISMO ARCHIVO QUE PAGOS
-const db = firebase.firestore; // MISMO OBJETO firestore QUE PAGOS
-// 🔥 FIN DEL CAMBIO - TODO LO DEMÁS IGUAL
+// 🔥 OPCIÓN A: Inicializar directamente
+const admin = require('firebase-admin');
+
+// Verificar si ya está inicializado (no afecta Pagos)
+if (!admin.apps.length) {
+  console.log('🔄 Reclamos: Inicializando Firebase...');
+  
+  try {
+    // USAR LA VARIABLE QUE YA TIENES EN RENDER
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
+    });
+    
+    console.log('✅ Reclamos: Firebase inicializado exitosamente');
+  } catch (error) {
+    console.error('❌ Reclamos: Error inicializando Firebase:', error.message);
+    throw error;
+  }
+}
+
+// Obtener Firestore (misma instancia que Pagos)
+const db = admin.firestore();
+
+// 🔥 OPCIÓN B: Forzar uso del firestore del módulo
+// const firebase = require('../../../core/config/firebase');
+// const db = firebase.firestore; // Esto puede ser null
+// Si es null, inicializar:
+// if (!db || db._isMock) {
+//   // Inicializar aquí
+// }
 
 const COLECCION_RECLAMOS = 'libro_reclamaciones_indecopi';
 
 class ReclamoController {
+    // ...
     // ... TODO EL RESTO DEL CÓDIGO PERMANECE EXACTAMENTE IGUAL ...
     
     /**
