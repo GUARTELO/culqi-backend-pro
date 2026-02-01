@@ -1,55 +1,84 @@
 const reclamoEmailService = require('../../../services/reclamo/emailService');
 const logger = require('../../../core/utils/logger');
 
-// 🔥 SOLUCIÓN DEFINITIVA - INICIALIZAR FIREBASE DIRECTAMENTE
+// 🔥 SOLUCIÓN 100% FUNCIONAL - CON TU ARCHIVO REAL
 const admin = require('firebase-admin');
+const path = require('path');
 
-// 1. Verificar si Firebase ya está inicializado
-if (!admin.apps.length) {
-  console.log('🔄 ReclamoController: Inicializando Firebase...');
-  
+// INICIALIZAR FIREBASE CON TU ARCHIVO REAL
+const initializeFirebaseForReclamos = () => {
   try {
-    // OPCIÓN 1: Usar FIREBASE_SERVICE_ACCOUNT (la que ya tienes en Render)
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    // Verificar si ya está inicializado
+    if (admin.apps.length > 0) {
+      console.log('✅ Firebase ya inicializado, reusando instancia');
+      return admin.firestore();
+    }
     
+    console.log('🔄 ReclamoController: Inicializando Firebase...');
+    
+    // RUTA ABSOLUTA A TU ARCHIVO ENCONTRADO
+    const serviceAccountPath = path.join(
+      __dirname, 
+      '../../../../config/firebase-service-account.json'  // 🔥 TU ARCHIVO REAL
+    );
+    
+    console.log('📁 Cargando credenciales desde:', serviceAccountPath);
+    
+    // Cargar TU archivo de credenciales
+    const serviceAccount = require(serviceAccountPath);
+    
+    // Inicializar Firebase con TUS credenciales
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
       databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
     });
     
-    console.log('✅ ReclamoController: Firebase inicializado con SERVICE_ACCOUNT');
+    console.log('✅ Firebase inicializado exitosamente en ReclamoController');
+    console.log('📊 Proyecto:', serviceAccount.project_id);
+    
+    return admin.firestore();
     
   } catch (error) {
-    console.error('❌ ReclamoController: Error inicializando Firebase:', error.message);
+    console.error('❌ ERROR CRÍTICO inicializando Firebase:', error.message);
+    console.error('Detalles:', error);
     
-    // OPCIÓN 2: Intentar con variables separadas
-    try {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
-        }),
-        databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
-      });
-      console.log('✅ ReclamoController: Firebase inicializado con variables separadas');
-    } catch (error2) {
-      console.error('❌ ReclamoController: Error con variables separadas:', error2.message);
-      throw new Error('No se pudo inicializar Firebase en ReclamoController');
+    // Si falla con el archivo, intentar con variables de entorno (Render)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      console.log('🔄 Intentando con variables de entorno...');
+      try {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+          databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
+        });
+        console.log('✅ Firebase inicializado con variables de entorno');
+        return admin.firestore();
+      } catch (envError) {
+        console.error('❌ Error con variables de entorno:', envError.message);
+      }
     }
+    
+    throw new Error(`No se pudo inicializar Firebase: ${error.message}`);
   }
-}
+};
 
-// 2. Obtener Firestore (100% seguro que funciona)
-const db = admin.firestore();
+// INICIALIZAR AHORA MISMO
+const db = initializeFirebaseForReclamos();
 
-// 3. Verificar conexión
-console.log('🔍 ReclamoController: Firebase listo, proyecto:', 
-  process.env.FIREBASE_PROJECT_ID || 'mi-tienda-online-10630');
+// VERIFICAR CONEXIÓN INMEDIATA
+console.log('🔍 Verificando conexión a Firebase...');
+db.collection('libro_reclamaciones_indecopi').limit(1).get()
+  .then(snapshot => {
+    console.log(`✅ Firebase conectado. Colección 'libro_reclamaciones_indecopi' accesible`);
+  })
+  .catch(err => {
+    console.warn('⚠️ Advertencia al verificar colección:', err.message);
+  });
 
 const COLECCION_RECLAMOS = 'libro_reclamaciones_indecopi';
 
 class ReclamoController {
+    // ... EL RESTO DE TU CÓDIGO PERMANECE EXACTAMENTE IGUAL ...
     // ...
     // ... TODO EL RESTO DEL CÓDIGO PERMANECE EXACTAMENTE IGUAL ...
     
