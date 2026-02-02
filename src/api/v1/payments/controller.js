@@ -247,6 +247,70 @@ class PaymentController {
     }
   }
 
+/* ============================================================
+ * GENERAR ID DIARIO COMO EL FRONTEND (REC-YYYYMMDD-SSS)
+ * ============================================================
+ */
+async _generarIdDiarioComoFrontend() {
+  try {
+    const firebase = require('../../../core/config/firebase');
+    const firestore = firebase.firestore;
+    const hoy = new Date();
+    
+    // Formato: REC-YYYYMMDD
+    const fechaStr = hoy.toISOString().split('T')[0].replace(/-/g, '');
+    const prefijo = `REC-${fechaStr}`;
+    
+    logger.info(`🔢 Generando ID diario frontend: ${prefijo}...`);
+    
+    // Buscar reclamos de HOY
+    const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const finDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000);
+    
+    const snapshot = await firestore
+      .collection('libro_reclamaciones_indecopi')
+      .where('fechaCreacion', '>=', inicioDia)
+      .where('fechaCreacion', '<', finDia)
+      .orderBy('fechaCreacion', 'desc')
+      .limit(1)
+      .get();
+    
+    let siguienteNumero = 1;
+    
+    if (!snapshot.empty) {
+      const ultimoReclamo = snapshot.docs[0].data();
+      const ultimoNumero = ultimoReclamo.id;
+      
+      // Buscar formato REC-YYYYMMDD-001
+      if (ultimoNumero && ultimoNumero.startsWith('REC-')) {
+        const partes = ultimoNumero.split('-');
+        if (partes.length === 3) {
+          const ultimoNum = parseInt(partes[2]);
+          if (!isNaN(ultimoNum)) {
+            siguienteNumero = ultimoNum + 1;
+          }
+        }
+        logger.info(`📊 Último número diario: ${ultimoNumero}, Siguiente: ${siguienteNumero}`);
+      }
+    } else {
+      logger.info(`📊 Primer reclamo del día ${prefijo}`);
+    }
+    
+    const claimId = `${prefijo}-${siguienteNumero.toString().padStart(3, '0')}`;
+    logger.info(`✅ ID DIARIO GENERADO: ${claimId}`);
+    return claimId;
+    
+  } catch (error) {
+    logger.error('❌ Error generando ID diario:', error);
+    
+    // Fallback: usar timestamp
+    const hoy = new Date();
+    const fechaStr = hoy.toISOString().split('T')[0].replace(/-/g, '');
+    const timestamp = Date.now().toString().slice(-3);
+    return `REC-${fechaStr}-${timestamp}`;
+  }
+}
+
   /* ============================================================
    * PROCESAR PAGO CON DATOS DE FIREBASE
    * ============================================================
@@ -463,6 +527,10 @@ class PaymentController {
    * 🆕 PROCESAR RECLAMO - SISTEMA COMPLETO PROFESIONAL
    * ============================================================
    */
+   /* ============================================================
+   * 🆕 PROCESAR RECLAMO - SISTEMA COMPLETO PROFESIONAL
+   * ============================================================
+   */
   async processClaim(req, res) {
     const startTime = Date.now();
     const requestId = `claim_${uuidv4().substring(0, 8)}`;
@@ -471,7 +539,8 @@ class PaymentController {
     try {
       logger.info(`📝 Procesando reclamo ${requestId}`, { 
         cliente: req.body.consumidor?.nombreCompleto,
-        tipo: req.body.tipoSolicitud 
+        tipo: req.body.tipoSolicitud,
+        idRecibido: claimId
       });
 
       /* =======================
@@ -501,12 +570,21 @@ class PaymentController {
         throw this._error('MISSING_DESCRIPTION', 'Descripción del reclamo requerida', 400);
       }
 
-      // Generar ID si no viene o es inválido
-      if (!claimId || !claimId.match(/^CLAIM-\d{6}-\d{4}$/)) {
-        claimId = await this._generarClaimIdSecuencial();
-        logger.info(`🆕 ID RECLAMO GENERADO: ${claimId}`);
+      // ✅ VALIDAR FORMATO DEL ID DEL FRONTEND
+      const esIdValido = claimId && (
+        claimId.match(/^REC-\d{8}-\d{3}$/) ||      // Formato: REC-20260202-001
+        claimId.match(/^CLAIM-\d{6}-\d{4}$/)       // Formato antiguo: CLAIM-202602-0001
+      );
+      
+      // ✅ SI NO HAY ID O ES INVÁLIDO, GENERAR UNO
+      if (!claimId || !esIdValido) {
+        logger.warn(`⚠️ ID inválido o no proporcionado: ${claimId}, generando nuevo`);
+        
+        // Intentar formato diario como el frontend
+        claimId = await this._generarIdDiarioComoFrontend();
+        logger.info(`🆕 ID GENERADO POR BACKEND: ${claimId}`);
       } else {
-        logger.info(`✅ ID RECLAMO RECIBIDO: ${claimId}`);
+        logger.info(`✅ ID ACEPTADO DEL FRONTEND: ${claimId}`);
       }
 
       /* =======================
@@ -563,7 +641,10 @@ class PaymentController {
           origen: 'formulario_web_indecopi',
           dispositivo: req.get('User-Agent') || 'Desconocido',
           ip: req.ip || '127.0.0.1',
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          // ✅ IMPORTANTE: Registrar de dónde vino el ID
+          id_proveniente: req.body.id ? 'frontend' : 'backend',
+          id_original_frontend: req.body.id || null
         },
         
         // Estado del sistema
@@ -578,7 +659,8 @@ class PaymentController {
         email: claimData.consumidor.email,
         tipo: claimData.tipoSolicitud,
         descripcionLength: claimData.reclamo.descripcion?.length,
-        monto: claimData.reclamo.montoReclamado
+        monto: claimData.reclamo.montoReclamado,
+        idOrigen: claimData.metadata.id_proveniente
       });
 
       /* =======================
@@ -620,6 +702,7 @@ class PaymentController {
       logger.info(`🎉 Reclamo procesado exitosamente ${claimId}`, {
         claimId,
         cliente: claimData.consumidor.nombreCompleto,
+        idOrigen: claimData.metadata.id_proveniente,
         emailUsuario: emailResults.usuario.success,
         emailAdmin: emailResults.admin.success,
         duration: `${totalDuration}ms`
