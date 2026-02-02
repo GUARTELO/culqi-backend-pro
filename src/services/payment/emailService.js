@@ -649,7 +649,7 @@ function _generateGoldenInfinityEmail(firebaseData) {
             📞 +51 968 786 648 | 🏢 Av. Principal 123, Lima, Perú
           </p>
           <p style="font-size: 10px; color: #999; margin-top: 15px;">
-            © ${new Date().getFullYear()} Goldinfiniti. Todos los derechos reservados.<br>
+            © ${new Date().getFullYear()} Goldinfiniti Tech Corp. Sistema Automatico de notificaciones.<br>
             Este es un correo automático, por favor no responder.<br>
             ID de transacción: ${culqi_id || order_id}
           </p>
@@ -1297,7 +1297,7 @@ async function sendPaymentNotification(paymentData) {
           </div>
           
           <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd;">
-            <p style="margin: 0 0 5px 0; font-weight: bold;">Goldinfiniti - Sistema Automático de Notificaciones</p>
+            <p style="margin: 0 0 5px 0; font-weight: bold;">Goldinfiniti Tech Corp - Sistema Automático de Notificaciones</p>
             <p style="margin: 0; font-size: 11px;">
   🔔 Notificación generada automáticamente • ${new Date().toLocaleString('es-PE', {
     weekday: 'long',
@@ -1538,7 +1538,7 @@ function _generateClaimEmail(claimData) {
           
           <!-- Detalles del reclamo -->
           <div class="section">
-            <h2 class="section-title">📝 Detalles del ${tipoSolicitud}</h2>
+            <h2 class="section-title">📝 Detalle de ${tipoSolicitud}</h2>
             <div class="info-box">
               <p><strong>Producto/Servicio:</strong><br>${reclamo.productoServicio || 'No especificado'}</p>
               <p><strong>Descripción:</strong><br>${reclamo.descripcion || 'Sin descripción'}</p>
@@ -1590,7 +1590,7 @@ function _generateClaimEmail(claimData) {
             📞 +51 968 786 648 | 🏢 Av. Principal 123, Lima, Perú
           </p>
           <p style="font-size: 10px; color: #999; margin-top: 15px;">
-            © ${new Date().getFullYear()} Goldinfiniti. Todos los derechos reservados.<br>
+            © ${new Date().getFullYear()} Goldinfiniti Tech Corp. Sistema Automatico de Notificaciones.<br>
             Este es un correo automático, por favor no responder.<br>
             N° de Reclamo: ${id}
           </p>
@@ -1695,7 +1695,7 @@ function _generateClaimAdminNotification(claimData) {
         
         <div class="content">
           <div class="alert">
-            <strong>⚠️ ATENCIÓN:</strong> Un nuevo ${tipoSolicitud.toLowerCase()} ha sido registrado en el sistema y requiere revisión.
+            <strong>⚠️ ATENCIÓN:</strong> Revisar ${tipoSolicitud.toLowerCase()} ha sido registrado en el sistema y requiere revisión.
           </div>
           
           <div class="info-box">
@@ -1756,7 +1756,7 @@ function _generateClaimAdminNotification(claimData) {
         
         <div class="footer">
           <p style="margin-bottom: 10px;">
-            <strong>GOLDINFINITI - Sistema de Notificaciones de Reclamos</strong>
+            <strong>Goldinfiniti Tech Corp - Sistema de Notificaciones Automatico</strong>
           </p>
           <p style="font-size: 11px;">
             🔔 Notificación automática • ${new Date().toLocaleString('es-PE', {
