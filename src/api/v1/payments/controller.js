@@ -96,68 +96,109 @@ class PaymentController {
   /* ============================================================
    * GENERAR ID SECUENCIAL POR MES - VERSIÓN CORREGIDA
    * ============================================================
-   */
-  async _generarOrderIdSecuencial() {
+  /* ============================================================
+ * GENERAR ID SECUENCIAL POR MES - VERSIÓN PROFESIONAL FUNCIONAL
+ * ============================================================
+ */
+async _generarOrderIdSecuencial() {
+  try {
+    const firebase = require('../../../core/config/firebase');
+    const firestore = firebase.firestore;
+    
+    // Fecha actual (servidor ya en UTC-5)
+    const ahora = new Date();
+    const año = ahora.getFullYear();
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    const prefijo = `ORD-${año}${mes}`;
+    
+    logger.info(`🔢 Generando ID para ${prefijo}...`);
+    
+    // OBTENER EL MÁXIMO CORRELATIVO DE ESTE MES
+    let maxNumero = 0;
+    
     try {
-      const firebase = require('../../../core/config/firebase');
-      const firestore = firebase.firestore;
+      // Método 1: Buscar órdenes de este mes
+      const snapshot = await firestore
+        .collection('ordenes')
+        .where('id', '>=', `${prefijo}-0000`)
+        .where('id', '<=', `${prefijo}-9999`)
+        .get();
       
-      // Fecha actual del servidor (ya en UTC-5)
-      const ahora = new Date();
-      const año = ahora.getFullYear();
-      const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-      const prefijo = `ORD-${año}${mes}`;
-      
-      logger.info(`🔢 Buscando último correlativo para ${prefijo}...`);
-      
-      try {
-        // Buscar el máximo correlativo de este mes
-        const snapshot = await firestore
-          .collection('ordenes')
-          .where('id', '>=', `${prefijo}-0000`)
-          .where('id', '<=', `${prefijo}-9999`)
-          .orderBy('id', 'desc')
-          .limit(1)
-          .get();
-        
-        if (!snapshot.empty) {
-          const ultimaOrden = snapshot.docs[0].data();
-          const ultimoId = ultimaOrden.id;
+      if (!snapshot.empty) {
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          const id = data.id;
           
-          if (ultimoId && ultimoId.startsWith(prefijo)) {
-            const partes = ultimoId.split('-');
+          if (id && id.startsWith(prefijo)) {
+            const partes = id.split('-');
             if (partes.length === 3) {
-              const ultimoNum = parseInt(partes[2]);
-              if (!isNaN(ultimoNum)) {
-                const siguienteNumero = ultimoNum + 1;
-                const orderId = `${prefijo}-${String(siguienteNumero).padStart(4, '0')}`;
-                logger.info(`✅ Último ID: ${ultimoId}, Siguiente: ${orderId}`);
-                return orderId;
+              const num = parseInt(partes[2]);
+              if (!isNaN(num) && num > maxNumero) {
+                maxNumero = num;
               }
             }
           }
-        }
-      } catch (firestoreError) {
-        logger.warn('⚠️ Error consultando Firebase, usando fallback', { error: firestoreError.message });
+        });
+        
+        // SI ENCUENTRA ORDENES: maxNumero será > 0
+        // Ejemplo: Si encuentra ORD-202602-0005, maxNumero = 5
       }
       
-      // Si no hay órdenes este mes, empezar desde 0001
-      const orderId = `${prefijo}-0001`;
-      logger.info(`🔄 Primera orden del mes: ${orderId}`);
-      return orderId;
-      
     } catch (error) {
-      logger.error('❌ Error crítico generando ID:', error);
+      logger.warn('⚠️ Error en consulta, usando fallback simple', { error: error.message });
       
-      // FALLBACK DE EMERGENCIA
-      const ahora = new Date();
-      const año = ahora.getFullYear();
-      const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-      const orderId = `ORD-${año}${mes}-0001`;
-      logger.info(`🔥 Emergencia - ID: ${orderId}`);
-      return orderId;
+      // Método 2: Fallback simple
+      try {
+        const allSnapshot = await firestore
+          .collection('ordenes')
+          .orderBy('fechaCreacion', 'desc')
+          .limit(20)
+          .get();
+        
+        allSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          const id = data.id;
+          
+          if (id && id.startsWith(prefijo)) {
+            const partes = id.split('-');
+            if (partes.length === 3) {
+              const num = parseInt(partes[2]);
+              if (!isNaN(num) && num > maxNumero) {
+                maxNumero = num;
+              }
+            }
+          }
+        });
+      } catch (fallbackError) {
+        logger.error('❌ Error en fallback:', { error: fallbackError.message });
+      }
     }
+    
+    // CALCULAR SIGUIENTE NÚMERO
+    const siguienteNumero = maxNumero + 1;
+    const orderId = `${prefijo}-${String(siguienteNumero).padStart(4, '0')}`;
+    
+    // LOG PARA VERIFICAR
+    logger.info(`📊 CORRELATIVO CALCULADO:`, {
+      prefijo: prefijo,
+      maxEncontrado: maxNumero,
+      siguiente: siguienteNumero,
+      idGenerado: orderId,
+      nota: maxNumero === 0 ? 'Primera orden del mes' : `Continuando desde ${maxNumero}`
+    });
+    
+    return orderId;
+    
+  } catch (error) {
+    logger.error('❌ Error en _generarOrderIdSecuencial:', error);
+    
+    // FALLBACK ABSOLUTO
+    const ahora = new Date();
+    const año = ahora.getFullYear();
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    return `ORD-${año}${mes}-9999`;
   }
+}
 
   /* ============================================================
    * PROCESAR PAGO CON DATOS DE FIREBASE - CORREGIDO PARA RESPETAR ID FIREBASE
