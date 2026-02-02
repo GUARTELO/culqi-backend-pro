@@ -25,12 +25,11 @@ const requestLogger = require('./api/middleware/requestLogger');
 const paymentRoutes = require('./api/v1/payments/routes');
 const healthRoutes = require('./api/v1/health/routes');
 
+// ✅ IMPORTAR EL CONTROLLER DE PAGOS (CORRECCIÓN)
+const paymentController = require('./api/v1/payments/controller');
+
 // 1. Crear la aplicación Express
 const app = express();
-
-// ============================================
-// 2. MIDDLEWARES (EN ORDEN CORRECTO)
-// ============================================
 
 // ============================================
 // 2. MIDDLEWARES (EN ORDEN CORRECTO)
@@ -51,7 +50,6 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "same-site" },
 }));
 
-// B. CORS - Control de acceso entre dominios
 // B. CORS - Configuración para PRODUCCIÓN
 const corsOptions = {
   origin: function (origin, callback) {
@@ -187,14 +185,14 @@ app.use('/health', healthRoutes);
 // B. PAYMENTS API - El sistema circulatorio de pagos
 app.use('/api/v1/payments', paymentRoutes);
 
-// C. RECLAMOS API - Sistema INDEPENDIENTE para libro de reclamaciones
-//const reclamosRoutes = require('./api/v1/reclamos/routes');  // ← usa "reclamos"
-//app.use('/api/v1/reclamos', reclamosRoutes);  // ← ruta "/api/v1/reclamos"
+// C. ✅ RECLAMOS API - Sistema INDEPENDIENTE para libro de reclamaciones
+app.post('/api/v1/reclamos', paymentController.processClaim);
+
 // D. RUTA RAÍZ - Información del API
 app.get('/', (req, res) => {
   res.json({
-    service: 'Culqi Payment Processor',
-    version: '1.0.0',
+    service: 'Culqi Payment Processor + Libro de Reclamaciones INDECOPI',
+    version: '2.0.0',
     status: 'operational',
     environment: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),
@@ -209,16 +207,22 @@ app.get('/', (req, res) => {
         methods: '/api/v1/payments/methods',
         webhook: '/api/v1/payments/webhook'
       },
-      // ✅ SOLO AGREGA ESTA LÍNEA:
-     // reclamos: '/api/v1/reclamos',
+      reclamos: '/api/v1/reclamos',
       docs: '/api-docs',
     },
     limits: {
       rate_limit: '100 requests per 15 minutes',
       payment_rate_limit: '10 requests per minute',
     },
+    features: [
+      'Procesamiento de pagos con Culqi',
+      'Libro de Reclamaciones INDECOPI digital',
+      'Firebase en tiempo real',
+      'Emails automáticos con SendGrid/Gmail'
+    ]
   });
 });
+
 // ============================================
 // 4. MANEJO DE ERRORES (SISTEMA DE REPARACIÓN)
 // ============================================
@@ -241,6 +245,7 @@ app.use('*', (req, res) => {
         'GET    /',
         'GET    /health',
         'POST   /api/v1/payments',
+        'POST   /api/v1/reclamos',
         'GET    /api/v1/payments/stats',
         'GET    /api/v1/payments/methods',
         'POST   /api/v1/payments/webhook',
@@ -267,6 +272,7 @@ if (process.env.NODE_ENV === 'development') {
     console.log('📁 Rutas montadas:');
     console.log('   - GET    /health');
     console.log('   - POST   /api/v1/payments');
+    console.log('   - POST   /api/v1/reclamos');
     console.log('   - GET    /api/v1/payments/stats');
     console.log('   - GET    /api/v1/payments/methods');
     console.log('   - POST   /api/v1/payments/webhook');

@@ -244,13 +244,11 @@ async function sendEmailWithRetry(mailOptions, retries = 3) {
   }
 }
 
-// 8. EXPORTAR FUNCIÓN MEJORADA (TODO IGUAL)
-module.exports = {
-  transporter,
-  createTransporter,
-  sendEmailWithRetry,
-  
-  checkEmailConfig: () => ({
+// ========================
+// 8. 🔧 FUNCIÓN checkEmailConfig - QUE TU CONTROLLER BUSCA
+// ========================
+function checkEmailConfig() {
+  return {
     gmailUser: process.env.GMAIL_USER,
     hasGmailPassword: !!process.env.GMAIL_APP_PASSWORD,
     hasSendGrid: !!process.env.SENDGRID_API_KEY,
@@ -259,8 +257,8 @@ module.exports = {
     timestamp: new Date().toISOString(),
     status: process.env.SENDGRID_API_KEY ? 'SENGRID_CONFIGURADO' : 
             process.env.GMAIL_APP_PASSWORD ? 'GMAIL_CONFIGURADO' : 'NO_CONFIGURADO'
-  })
-};
+  };
+}
 
 // ========================
 // 3. FUNCIÓN PRINCIPAL - ENVIAR CONFIRMACIÓN CON DATOS FIREBASE
@@ -431,7 +429,6 @@ function _generateGoldenInfinityEmail(firebaseData) {
     comprobante
   } = firebaseData;
   
-  // ✅ IGUAL AL CONTROLLER pero con SEGUNDOS agregados
   const fecha = new Date().toLocaleString('es-PE', {
     weekday: 'long',
     year: 'numeric',
@@ -752,62 +749,39 @@ async function _generateOrderPDF(firebaseData) {
         comprobante
       } = firebaseData;
       
-      // ==================== SOLUCIÓN DEFINITIVA PARA FECHA ====================
       let fechaOrden;
-      console.log('🔍 DEBUG fecha_creacion recibida:', fecha_creacion);
-      console.log('🔍 Tipo:', typeof fecha_creacion);
       
       if (fecha_creacion) {
-        // CASO 1: Timestamp de Firebase (objeto con .seconds)
         if (fecha_creacion.seconds !== undefined) {
-          console.log('✅ Es timestamp Firebase con seconds:', fecha_creacion.seconds);
           fechaOrden = new Date(fecha_creacion.seconds * 1000);
         }
-        // CASO 2: Timestamp de Firebase (objeto con _seconds)
         else if (fecha_creacion._seconds !== undefined) {
-          console.log('✅ Es timestamp Firebase con _seconds:', fecha_creacion._seconds);
           fechaOrden = new Date(fecha_creacion._seconds * 1000);
         }
-        // CASO 3: String ISO
         else if (typeof fecha_creacion === 'string') {
-          console.log('✅ Es string ISO:', fecha_creacion);
           fechaOrden = new Date(fecha_creacion);
         }
-        // CASO 4: Número (timestamp en milisegundos)
         else if (typeof fecha_creacion === 'number') {
-          console.log('✅ Es número timestamp:', fecha_creacion);
-          // Si el número es muy pequeño (como 1703126400), es en segundos
           if (fecha_creacion < 10000000000) {
             fechaOrden = new Date(fecha_creacion * 1000);
           } else {
             fechaOrden = new Date(fecha_creacion);
           }
         }
-        // CASO 5: Objeto Date
         else if (fecha_creacion instanceof Date) {
-          console.log('✅ Es objeto Date');
           fechaOrden = fecha_creacion;
         }
-        // CASO 6: Cualquier otro caso, usar fecha actual
         else {
-          console.log('⚠️ Formato no reconocido, usando fecha actual');
           fechaOrden = new Date();
         }
       } else {
-        console.log('⚠️ fecha_creacion es null/undefined, usando fecha actual');
         fechaOrden = new Date();
       }
       
-      console.log('📅 Fecha procesada:', fechaOrden);
-      console.log('📅 Timestamp:', fechaOrden.getTime());
-      
-      // Verificar que la fecha sea válida (no 1970)
       if (fechaOrden.getFullYear() === 1970) {
-        console.warn('⚠️⚠️⚠️ ATENCIÓN: Fecha es 1970, usando fecha actual');
         fechaOrden = new Date();
       }
       
-      // Formatear fechas para Perú
       const opcionesFecha = {
         weekday: 'long',
         year: 'numeric',
@@ -829,9 +803,6 @@ async function _generateOrderPDF(firebaseData) {
       const fechaFormateada = formateadorFecha.format(fechaOrden);
       const horaFormateada = formateadorHora.format(fechaOrden);
       
-      console.log('✅ Fecha formateada:', fechaFormateada);
-      console.log('✅ Hora formateada:', horaFormateada);
-      
       const doc = new PDFDocument({ 
         size: 'A4', 
         margin: 50,
@@ -848,23 +819,20 @@ async function _generateOrderPDF(firebaseData) {
       doc.on('data', chunk => chunks.push(chunk));
       doc.on('end', () => {
         const pdfBuffer = Buffer.concat(chunks);
-        // ✅ CORRECCIÓN: Convertir a Base64 para SendGrid (CAMBIO MÍNIMO)
         const pdfBase64 = pdfBuffer.toString('base64');
         
         resolve({
           filename: `comprobante-${order_id}.pdf`,
-          content: pdfBase64,  // ✅ AHORA ES Base64
+          content: pdfBase64,
           contentType: 'application/pdf'
         });
       });
       
-      // ==================== HEADER MINIMALISTA ====================
-      // Fondo negro sólido
+      // Header
       doc.rect(0, 0, doc.page.width, 120)
          .fillColor('#000000')
          .fill();
       
-      // Logo y nombre - diseño limpio
       doc.fillColor('#FFFFFF')
          .fontSize(28)
          .font('Helvetica-Bold')
@@ -875,7 +843,6 @@ async function _generateOrderPDF(firebaseData) {
          .font('Helvetica')
          .text('E-COMMERCE PREMIUM', 0, 70, { align: 'center' });
       
-      // Línea decorativa sutil
       doc.strokeColor('#FFD700')
          .lineWidth(2)
          .moveTo(100, 95)
@@ -889,22 +856,19 @@ async function _generateOrderPDF(firebaseData) {
       
       doc.moveDown(3);
       
-      // ==================== INFORMACIÓN DE ORDEN ====================
+      // Información de orden
       doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
       doc.text('INFORMACIÓN DE LA ORDEN', 50, 160);
       
-      // Línea decorativa
       doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, 175).lineTo(doc.page.width - 50, 175).stroke();
       doc.moveDown(1.5);
       
-      // Grid de información minimalista
       doc.fillColor('#333333').fontSize(10).font('Helvetica');
       
       const infoLeft = 50;
       const infoRight = doc.page.width / 2 + 30;
       let currentY = doc.y;
       
-      // Columna izquierda
       doc.text('NÚMERO DE ORDEN:', infoLeft, currentY);
       doc.fillColor('#000000').font('Helvetica-Bold').text(order_id, infoLeft + 110, currentY);
       
@@ -915,7 +879,6 @@ async function _generateOrderPDF(firebaseData) {
       doc.fillColor('#333333').text('HORA:', infoLeft, currentY + 36);
       doc.fillColor('#000000').text(horaFormateada, infoLeft + 110, currentY + 36);
       
-      // Columna derecha
       doc.fillColor('#333333').text('ESTADO:', infoRight, currentY);
       doc.fillColor('#27ae60').font('Helvetica-Bold').text('PAGO APROBADO', infoRight + 110, currentY);
       
@@ -928,7 +891,7 @@ async function _generateOrderPDF(firebaseData) {
       
       doc.moveDown(4);
       
-      // ==================== INFORMACIÓN DEL CLIENTE ====================
+      // Información del cliente
       doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
       doc.text('INFORMACIÓN DEL CLIENTE', 50, doc.y);
       doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, doc.y + 5).lineTo(doc.page.width - 50, doc.y + 5).stroke();
@@ -948,13 +911,12 @@ async function _generateOrderPDF(firebaseData) {
       
       doc.moveDown(4);
       
-      // ==================== TABLA DE PRODUCTOS ELEGANTE ====================
+      // Tabla de productos
       doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
       doc.text('DETALLE DE PRODUCTOS', 50, doc.y);
       doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, doc.y + 5).lineTo(doc.page.width - 50, doc.y + 5).stroke();
       doc.moveDown(1.5);
       
-      // Encabezados de tabla
       const tableTop = doc.y;
       const colWidths = [270, 60, 90, 90];
       const colPositions = [50];
@@ -963,12 +925,10 @@ async function _generateOrderPDF(firebaseData) {
         colPositions[i] = colPositions[i - 1] + colWidths[i - 1];
       }
       
-      // Fondo encabezado minimalista
       doc.rect(colPositions[0], tableTop, colWidths.reduce((a, b) => a + b, 0), 25)
          .fillColor('#f8f9fa')
          .fill();
       
-      // Texto encabezados
       doc.fillColor('#000000').fontSize(9).font('Helvetica-Bold');
       const headers = ['PRODUCTO', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL'];
       
@@ -980,7 +940,6 @@ async function _generateOrderPDF(firebaseData) {
         });
       });
       
-      // Línea debajo del encabezado
       doc.strokeColor('#FFD700').lineWidth(1)
          .moveTo(colPositions[0], tableTop + 25)
          .lineTo(colPositions[3] + colWidths[3], tableTop + 25)
@@ -988,27 +947,23 @@ async function _generateOrderPDF(firebaseData) {
       
       let currentTableY = tableTop + 30;
       
-      // Filas de productos
       productos.forEach((producto, index) => {
         const nombre = producto.nombre || producto.titulo || `Producto ${index + 1}`;
         const cantidad = producto.cantidad || producto.quantity || 1;
         const precio = producto.precio || producto.precioOriginal || 0;
         const subtotal = producto.subtotal || (cantidad * precio);
         
-        // Fondo alternado muy sutil
         if (index % 2 === 0) {
           doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), 35)
              .fillColor('#fafafa')
              .fill();
         }
         
-        // Nombre del producto
         doc.fillColor('#000000').fontSize(9).font('Helvetica');
         doc.text(nombre, colPositions[0] + 10, currentTableY + 8, {
           width: colWidths[0] - 20
         });
         
-        // Detalles adicionales pequeños
         if (producto.color || producto.talla || producto.sku) {
           const detalles = [];
           if (producto.color) detalles.push(`Color: ${producto.color}`);
@@ -1021,27 +976,23 @@ async function _generateOrderPDF(firebaseData) {
           });
         }
         
-        // Cantidad
         doc.fillColor('#000000').fontSize(9);
         doc.text(cantidad.toString(), colPositions[1] + 5, currentTableY + 12, {
           width: colWidths[1] - 10,
           align: 'center'
         });
         
-        // Precio unitario
         doc.text(`S/ ${precio.toFixed(2)}`, colPositions[2] + 5, currentTableY + 12, {
           width: colWidths[2] - 10,
           align: 'right'
         });
         
-        // Subtotal
         doc.font('Helvetica-Bold');
         doc.text(`S/ ${subtotal.toFixed(2)}`, colPositions[3] + 5, currentTableY + 12, {
           width: colWidths[3] - 10,
           align: 'right'
         });
         
-        // Línea separadora muy sutil
         doc.strokeColor('#e0e0e0').lineWidth(0.3)
            .moveTo(colPositions[0], currentTableY + 35)
            .lineTo(colPositions[3] + colWidths[3], currentTableY + 35)
@@ -1052,12 +1003,11 @@ async function _generateOrderPDF(firebaseData) {
       
       doc.y = currentTableY + 20;
       
-      // ==================== RESUMEN DE PAGO ELEGANTE ====================
+      // Resumen de pago
       const summaryBoxTop = doc.y;
       const summaryBoxWidth = 300;
       const summaryBoxLeft = doc.page.width - summaryBoxWidth - 50;
       
-      // Caja de resumen con bordes redondeados
       doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 150, 5)
          .fillColor('#f8f9fa')
          .fill();
@@ -1078,14 +1028,12 @@ async function _generateOrderPDF(firebaseData) {
       let summaryY = summaryBoxTop + 50;
       const lineHeight = 22;
       
-      // Subtotal
       doc.fillColor('#333333').fontSize(10).font('Helvetica');
       doc.text('Subtotal:', summaryBoxLeft + 15, summaryY);
       doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 115, summaryY, {
         align: 'right'
       });
       
-      // Envío
       if (envio.costo > 0) {
         summaryY += lineHeight;
         doc.text(`Envío (${envio.tipo}):`, summaryBoxLeft + 15, summaryY);
@@ -1094,14 +1042,12 @@ async function _generateOrderPDF(firebaseData) {
         });
       }
       
-      // Línea separadora
       summaryY += lineHeight + 5;
       doc.strokeColor('#FFD700').lineWidth(1)
          .moveTo(summaryBoxLeft + 15, summaryY)
          .lineTo(summaryBoxLeft + summaryBoxWidth - 15, summaryY)
          .stroke();
       
-      // TOTAL - Destacado
       summaryY += 10;
       doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
       doc.text('TOTAL:', summaryBoxLeft + 15, summaryY);
@@ -1110,10 +1056,9 @@ async function _generateOrderPDF(firebaseData) {
         align: 'right'
       });
       
-      // ==================== FINAL DEL PDF ====================
+      // Footer
       doc.moveDown(4);
       
-      // Footer
       doc.fillColor('#333333').fontSize(8).font('Helvetica');
       doc.text('Gracias por su compra. Este documento es su comprobante oficial.', 
         50, doc.page.height - 40, { width: doc.page.width - 100, align: 'center' });
@@ -1249,7 +1194,7 @@ async function sendPaymentNotification(paymentData) {
               </div>
             </div>
             
-            <!-- 🚚 INFORMACIÓN DE ENVÍO (CRÍTICA) -->
+            <!-- 🚚 INFORMACIÓN DE ENVÍO -->
 <div style="background: #d1ecf1; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #17a2b8;">
   <p style="margin: 0 0 10px 0; color: #0c5460; font-weight: bold; font-size: 16px;">🚚 DIRECCIÓN DE ENVÍO:</p>
   
@@ -1398,7 +1343,444 @@ async function sendPaymentNotification(paymentData) {
 }
 
 // ========================
-// 8. FUNCIONES DE UTILIDAD
+// 🆕 9. FUNCIONES NUEVAS PARA RECLAMOS - ✅ SEGURAS, NO MODIFICAN EXISTENTES
+// ========================
+
+/**
+ * Envía email de confirmación de reclamo al usuario
+ * @param {Object} claimData - Datos del reclamo desde Firebase
+ * @returns {Promise<Object>} Resultado del envío
+ */
+async function sendClaimConfirmation(claimData) {
+  const startTime = Date.now();
+  const claimId = claimData.id || claimData.reclamoId || 'N/A';
+  
+  try {
+    logger.info(`📝 Iniciando envío de confirmación para reclamo ${claimId}`);
+    
+    // Validar datos mínimos
+    if (!claimData.consumidor?.email) {
+      throw new Error('Email del consumidor no proporcionado');
+    }
+    
+    // Generar contenido del email
+    const emailContent = _generateClaimEmail(claimData);
+    
+    // Preparar opciones del correo
+    const mailOptions = {
+      from: '"GOLDINFINITI - Libro de Reclamaciones" <contacto@goldinfiniti.com>',
+      to: claimData.consumidor.email,
+      bcc: process.env.ADMIN_EMAIL || 'contacto@goldinfiniti.com',
+      subject: `✅ Confirmación de Reclamo #${claimId} - Goldinfiniti`,
+      html: emailContent.html,
+      text: emailContent.text
+    };
+    
+    // Enviar correo
+    logger.info(`📤 Enviando email a ${claimData.consumidor.email}`, {
+      claimId,
+      tipo: claimData.tipoSolicitud,
+      usuario: claimData.consumidor.nombreCompleto
+    });
+    
+    const info = await transporter.sendMail(mailOptions);
+    const duration = Date.now() - startTime;
+    
+    logger.info(`✅ Email de reclamo enviado exitosamente para ${claimId}`, {
+      messageId: info.messageId,
+      duration: `${duration}ms`
+    });
+    
+    return {
+      success: true,
+      messageId: info.messageId,
+      claimId,
+      customerEmail: claimData.consumidor.email,
+      timestamp: new Date().toISOString(),
+      duration: `${duration}ms`
+    };
+    
+  } catch (error) {
+    logger.error(`❌ Error enviando confirmación de reclamo para ${claimId}`, {
+      error: error.message,
+      customer: _maskEmail(claimData.consumidor?.email)
+    });
+    
+    return {
+      success: false,
+      error: error.message,
+      claimId,
+      timestamp: new Date().toISOString(),
+      fallback: true
+    };
+  }
+}
+
+/**
+ * Envía notificación de nuevo reclamo al administrador
+ * @param {Object} claimData - Datos del reclamo desde Firebase
+ * @returns {Promise<Object>} Resultado del envío
+ */
+async function sendClaimNotification(claimData) {
+  try {
+    const claimId = claimData.id || claimData.reclamoId || 'N/A';
+    const customerName = claimData.consumidor?.nombreCompleto || 'Cliente';
+    const customerEmail = claimData.consumidor?.email || 'No especificado';
+    
+    const mailOptions = {
+      from: '"Sistema de Reclamos Goldinfiniti" <contacto@goldinfiniti.com>',
+      to: process.env.ADMIN_EMAIL || 'contacto@goldinfiniti.com',
+      subject: `🚨 NUEVO RECLAMO #${claimId} - ${claimData.tipoSolicitud || 'RECLAMO'}`,
+      html: _generateClaimAdminNotification(claimData)
+    };
+    
+    const info = await transporter.sendMail(mailOptions);
+    
+    logger.info(`📢 Notificación de reclamo enviada al admin para ${claimId}`);
+    
+    return {
+      success: true,
+      messageId: info.messageId,
+      claimId,
+      customer: customerName,
+      tipo: claimData.tipoSolicitud,
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    logger.error('❌ Error enviando notificación de reclamo al admin:', { 
+      error: error.message,
+      claimId: claimData.id || 'N/A'
+    });
+    return {
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+/**
+ * Genera contenido HTML del email de reclamo para usuario
+ * @param {Object} claimData - Datos del reclamo
+ * @returns {Object} HTML y texto plano
+ */
+function _generateClaimEmail(claimData) {
+  const {
+    id,
+    consumidor,
+    reclamo,
+    tipoSolicitud,
+    fechaRegistro,
+    legal
+  } = claimData;
+  
+  // Formatear fecha
+  const fecha = new Date(fechaRegistro).toLocaleString('es-PE', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Lima'
+  });
+  
+  const fechaLimite = legal?.fechaLimiteRespuesta || '15 días hábiles';
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Confirmación de Reclamo - GOLDINFINITI</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f8f9fa; }
+        .container { max-width: 700px; margin: 0 auto; background: white; }
+        .header { background: linear-gradient(135deg, #000000 0%, #333333 100%); color: #FFD700; padding: 30px 20px; text-align: center; }
+        .content { padding: 30px; }
+        .footer { background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd; }
+        .section { margin-bottom: 30px; }
+        .section-title { color: #000; font-size: 18px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #FFD700; }
+        .info-box { background: #f8f8f8; padding: 20px; border-radius: 8px; border-left: 4px solid #FFD700; margin-top: 20px; }
+        .status-badge { display: inline-block; padding: 5px 15px; background: #007bff; color: white; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        @media (max-width: 600px) {
+          .content { padding: 20px; }
+          .header { padding: 20px 15px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <!-- Header -->
+        <div class="header">
+          <h1 style="margin-top: 20px; font-size: 28px;">✅ RECLAMO REGISTRADO</h1>
+          <p style="margin-top: 10px; font-size: 16px;">Libro de Reclamaciones INDECOPI</p>
+        </div>
+        
+        <!-- Contenido -->
+        <div class="content">
+          <!-- Información del reclamo -->
+          <div class="section">
+            <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+              <p><strong>📋 Número de Reclamo:</strong><br>${id}</p>
+              <p><strong>📅 Fecha de Registro:</strong><br>${fecha}</p>
+              <p><strong>👤 Consumidor:</strong><br>${consumidor.nombreCompleto}</p>
+              <p><strong>📧 Email:</strong><br>${consumidor.email}</p>
+              <p><strong>📱 Teléfono:</strong><br>${consumidor.telefono || 'No especificado'}</p>
+              <div style="margin-top: 10px;">
+                <span class="status-badge">📝 ${tipoSolicitud}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Detalles del reclamo -->
+          <div class="section">
+            <h2 class="section-title">📝 Detalles del ${tipoSolicitud}</h2>
+            <div class="info-box">
+              <p><strong>Producto/Servicio:</strong><br>${reclamo.productoServicio || 'No especificado'}</p>
+              <p><strong>Descripción:</strong><br>${reclamo.descripcion || 'Sin descripción'}</p>
+              ${reclamo.montoReclamado > 0 ? `
+                <p><strong>Monto Reclamado:</strong><br>S/ ${reclamo.montoReclamado.toFixed(2)}</p>
+              ` : ''}
+              <p><strong>Pedido del Consumidor:</strong><br>${reclamo.pedidoConsumidor || 'No especificado'}</p>
+            </div>
+          </div>
+          
+          <!-- Información importante -->
+          <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h3 style="color: #856404; margin-bottom: 10px;">📌 Información Importante</h3>
+            <ul style="padding-left: 20px;">
+              <li>Su ${tipoSolicitud.toLowerCase()} ha sido registrado en nuestro sistema</li>
+              <li>Recibirá una respuesta en un plazo máximo de <strong>${fechaLimite}</strong></li>
+              <li>Puede consultar el estado llamando al 📞 +51 968 786 648</li>
+              <li>Para consultas adicionales: 📧 contacto@goldinfiniti.com</li>
+            </ul>
+          </div>
+          
+          <!-- Pasos siguientes -->
+          <div style="margin-top: 30px; text-align: center;">
+            <h3 style="margin-bottom: 15px;">👉 ¿Qué sigue?</h3>
+            <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px;">
+              <div style="flex: 1; min-width: 150px; background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                <div style="font-size: 24px; margin-bottom: 10px;">📥</div>
+                <p><strong>Recepción</strong><br>Su reclamo ha sido recibido</p>
+              </div>
+              <div style="flex: 1; min-width: 150px; background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                <div style="font-size: 24px; margin-bottom: 10px;">📋</div>
+                <p><strong>Revisión</strong><br>Será revisado por nuestro equipo</p>
+              </div>
+              <div style="flex: 1; min-width: 150px; background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                <div style="font-size: 24px; margin-bottom: 10px;">📞</div>
+                <p><strong>Respuesta</strong><br>Recibirá nuestra respuesta</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+          <p style="margin-bottom: 10px;">
+            <strong>GOLDINFINITI - Libro de Reclamaciones INDECOPI</strong>
+          </p>
+          <p style="margin-bottom: 10px; font-size: 11px;">
+            📧 contacto@goldinfiniti.com | 🌐 www.goldinfiniti.com<br>
+            📞 +51 968 786 648 | 🏢 Av. Principal 123, Lima, Perú
+          </p>
+          <p style="font-size: 10px; color: #999; margin-top: 15px;">
+            © ${new Date().getFullYear()} Goldinfiniti. Todos los derechos reservados.<br>
+            Este es un correo automático, por favor no responder.<br>
+            N° de Reclamo: ${id}
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  const text = `
+GOLDINFINITI - CONFIRMACIÓN DE RECLAMO
+========================================
+
+Estimado/a ${consumidor.nombreCompleto},
+
+Su ${tipoSolicitud} ha sido registrado exitosamente.
+
+📋 INFORMACIÓN DEL RECLAMO:
+---------------------------
+Número de Reclamo: ${id}
+Fecha: ${fecha}
+Tipo: ${tipoSolicitud}
+Consumidor: ${consumidor.nombreCompleto}
+Email: ${consumidor.email}
+Teléfono: ${consumidor.telefono || 'No especificado'}
+
+📝 DETALLES:
+------------
+Producto/Servicio: ${reclamo.productoServicio || 'No especificado'}
+Descripción: ${reclamo.descripcion || 'Sin descripción'}
+${reclamo.montoReclamado > 0 ? `Monto Reclamado: S/ ${reclamo.montoReclamado.toFixed(2)}\n` : ''}
+Pedido: ${reclamo.pedidoConsumidor || 'No especificado'}
+
+📌 INFORMACIÓN IMPORTANTE:
+--------------------------
+- Su reclamo ha sido registrado en nuestro sistema
+- Recibirá una respuesta en un plazo máximo de ${fechaLimite}
+- Puede consultar el estado llamando al +51 968 786 648
+- Para consultas adicionales: contacto@goldinfiniti.com
+
+----------------------------------------
+GOLDINFINITI - Libro de Reclamaciones INDECOPI
+contacto@goldinfiniti.com
+www.goldinfiniti.com
++51 968 786 648
+© ${new Date().getFullYear()} Goldinfiniti
+----------------------------------------
+  `;
+  
+  return { html, text };
+}
+
+/**
+ * Genera notificación HTML para el administrador
+ * @param {Object} claimData - Datos del reclamo
+ * @returns {String} HTML de la notificación
+ */
+function _generateClaimAdminNotification(claimData) {
+  const {
+    id,
+    consumidor,
+    reclamo,
+    tipoSolicitud,
+    fechaRegistro
+  } = claimData;
+  
+  const fecha = new Date(fechaRegistro).toLocaleString('es-PE', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Lima'
+  });
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Nuevo Reclamo - Administrador</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f8f9fa; }
+        .container { max-width: 800px; margin: 0 auto; background: white; }
+        .header { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 25px 20px; text-align: center; }
+        .content { padding: 30px; }
+        .footer { background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd; }
+        .alert { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; color: #856404; }
+        .info-box { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #007bff; }
+        .detail-item { margin: 10px 0; padding: 10px; background: white; border-radius: 5px; border: 1px solid #e0e0e0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0; font-size: 24px;">🚨 NUEVO RECLAMO REGISTRADO</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Requiere atención inmediata</p>
+        </div>
+        
+        <div class="content">
+          <div class="alert">
+            <strong>⚠️ ATENCIÓN:</strong> Un nuevo ${tipoSolicitud.toLowerCase()} ha sido registrado en el sistema y requiere revisión.
+          </div>
+          
+          <div class="info-box">
+            <h3 style="margin-top: 0; color: #007bff;">📋 Información del Reclamo</h3>
+            <div class="detail-item">
+              <strong>Número de Reclamo:</strong> ${id}<br>
+              <strong>Fecha y Hora:</strong> ${fecha}<br>
+              <strong>Tipo:</strong> ${tipoSolicitud}
+            </div>
+          </div>
+          
+          <div class="info-box">
+            <h3 style="margin-top: 0; color: #28a745;">👤 Información del Consumidor</h3>
+            <div class="detail-item">
+              <strong>Nombre Completo:</strong> ${consumidor.nombreCompleto}<br>
+              <strong>Email:</strong> ${consumidor.email}<br>
+              <strong>Teléfono:</strong> ${consumidor.telefono || 'No especificado'}<br>
+              <strong>Documento:</strong> ${consumidor.tipoDocumento || ''} ${consumidor.numeroDocumento || ''}<br>
+              <strong>Dirección:</strong> ${consumidor.direccion || 'No especificada'}
+            </div>
+          </div>
+          
+          <div class="info-box">
+            <h3 style="margin-top: 0; color: #6f42c1;">📝 Detalles del Reclamo</h3>
+            <div class="detail-item">
+              <strong>Producto/Servicio:</strong> ${reclamo.productoServicio || 'No especificado'}<br>
+              <strong>Descripción:</strong><br>${reclamo.descripcion || 'Sin descripción'}<br>
+              ${reclamo.montoReclamado > 0 ? `<strong>Monto Reclamado:</strong> S/ ${reclamo.montoReclamado.toFixed(2)}<br>` : ''}
+              <strong>Pedido del Consumidor:</strong><br>${reclamo.pedidoConsumidor || 'No especificado'}
+            </div>
+          </div>
+          
+          <div style="margin-top: 25px; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 2px dashed #6c757d;">
+            <h3 style="margin-top: 0; color: #dc3545;">📊 Acciones Requeridas</h3>
+            <ol style="padding-left: 20px;">
+              <li>Revisar los detalles del reclamo en Firebase</li>
+              <li>Contactar al consumidor dentro de las próximas 24 horas</li>
+              <li>Actualizar el estado del reclamo en el sistema</li>
+              <li>Dar seguimiento hasta su resolución</li>
+            </ol>
+            
+            <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+              <a href="https://console.firebase.google.com/project/mi-tienda-online-10630/firestore/data/~2Flibro_reclamaciones_indecopi~2F${id}" 
+                 style="background: #007bff; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-size: 14px;">
+                 🔍 Ver en Firebase
+              </a>
+              <a href="mailto:${consumidor.email}" 
+                 style="background: #28a745; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-size: 14px;">
+                 📧 Contactar Cliente
+              </a>
+              <a href="tel:${consumidor.telefono || ''}" 
+                 style="background: #17a2b8; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-size: 14px;">
+                 📞 Llamar al Cliente
+              </a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <p style="margin-bottom: 10px;">
+            <strong>GOLDINFINITI - Sistema de Notificaciones de Reclamos</strong>
+          </p>
+          <p style="font-size: 11px;">
+            🔔 Notificación automática • ${new Date().toLocaleString('es-PE', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: 'America/Lima'
+            })}
+          </p>
+          <p style="font-size: 10px; color: #999; margin-top: 10px;">
+            Reclamo ID: ${id} • Tipo: ${tipoSolicitud} • Prioridad: ALTA
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+// ========================
+// 10. FUNCIONES DE UTILIDAD
 // ========================
 function _maskEmail(email) {
   if (!email || typeof email !== 'string') return 'unknown@email.com';
@@ -1421,16 +1803,33 @@ function verifyService() {
 }
 
 // ========================
-// 9. EXPORTACIÓN
+// 11. EXPORTACIÓN COMPLETA (CON TODO LO QUE TU CONTROLLER NECESITA)
 // ========================
 const emailService = {
+  // 🔧 FUNCIONES DE CONFIGURACIÓN (que tu PaymentController busca)
+  checkEmailConfig,
+  verifyService,
+  
+  // 📤 FUNCIONES DE ENVÍO EXISTENTES (pagos)
   sendPaymentConfirmation,
   sendPaymentNotification,
-  verifyService,
+  
+  // 📝 FUNCIONES NUEVAS PARA RECLAMOS
+  sendClaimConfirmation,
+  sendClaimNotification,
+  
+  // 🛠️ FUNCIONES INTERNAS Y UTILIDAD
   _extractFirebaseData,
   _generateGoldenInfinityEmail,
   _generateOrderPDF,
-  _maskEmail
+  _generateClaimEmail,
+  _generateClaimAdminNotification,
+  _maskEmail,
+  
+  // 🔌 TRANSPORTER Y FUNCIONES DE ENVÍO
+  transporter,
+  createTransporter,
+  sendEmailWithRetry
 };
 
 module.exports = emailService;

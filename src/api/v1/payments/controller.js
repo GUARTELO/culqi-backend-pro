@@ -1,10 +1,12 @@
 /**
  * ============================================================
  * PAYMENT CONTROLLER - VERSIÓN FIREBASE COMPLETA CON IDs SECUENCIALES
+ * INCLUYENDO SISTEMA DE RECLAMOS PROFESIONAL
  * ============================================================
  * - IDs SECUENCIALES POR MES: ORD-202601-0001, ORD-202601-0002...
  * - Febrero: ORD-202602-0001, ORD-202602-0002...
  * - Marzo: ORD-202603-0001... (se reinicia cada mes)
+ * - Sistema de Reclamos Completo: CLAIM-202602-0001...
  * ============================================================
  */
 
@@ -57,6 +59,24 @@ try {
         timestamp: new Date().toISOString()
       };
     },
+    sendClaimConfirmation: async (claimData) => {
+      logger.warn('📧 EmailService en modo fallback - Reclamo', { claimId: claimData?.id });
+      return { 
+        success: true, 
+        fallback: true,
+        message: 'Email de reclamo en modo simulación',
+        timestamp: new Date().toISOString()
+      };
+    },
+    sendClaimNotification: async (claimData) => {
+      logger.warn('📧 EmailService en modo fallback - Notificación Reclamo', { claimId: claimData?.id });
+      return { 
+        success: true, 
+        fallback: true,
+        message: 'Notificación de reclamo en modo simulación',
+        timestamp: new Date().toISOString()
+      };
+    },
     enviarCorreoComprobante: async (email, productos = [], tipoComprobante = 'boleta') => {
       logger.warn('📧 EmailService en modo fallback - Comprobante', { email });
       return { 
@@ -82,15 +102,23 @@ class PaymentController {
         sent: 0,
         failed: 0,
         queued: 0
+      },
+      claimsStats: {
+        totalClaims: 0,
+        processedClaims: 0,
+        emailsSent: 0,
+        failedClaims: 0
       }
     };
 
     // Bind explícito de TODOS los métodos
     this.processPayment = this.processPayment.bind(this);
+    this.processClaim = this.processClaim.bind(this);
     this.getStats = this.getStats.bind(this);
     this.verifyPayment = this.verifyPayment.bind(this);
+    this.getServiceInfo = this.getServiceInfo.bind(this);
     
-    logger.info('🚀 PaymentController (Firebase - IDs SECUENCIALES) inicializado');
+    logger.info('🚀 PaymentController (Firebase + Reclamos) inicializado');
   }
 
   /* ============================================================
@@ -157,6 +185,69 @@ class PaymentController {
   }
 
   /* ============================================================
+   * GENERAR ID SECUENCIAL PARA RECLAMOS
+   * ============================================================
+   */
+  async _generarClaimIdSecuencial() {
+    try {
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
+      const hoy = new Date();
+      const año = hoy.getFullYear();
+      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+      const prefijo = `CLAIM-${año}${mes}`;
+      
+      logger.info(`🔢 Generando ID secuencial para reclamo ${prefijo}...`);
+      
+      // Buscar TODOS los reclamos del mes actual
+      const inicioMes = new Date(año, hoy.getMonth(), 1);
+      const finMes = new Date(año, hoy.getMonth() + 1, 0);
+      
+      const snapshot = await firestore
+        .collection('libro_reclamaciones_indecopi')
+        .where('fechaRegistro', '>=', inicioMes)
+        .where('fechaRegistro', '<=', finMes)
+        .orderBy('fechaRegistro', 'desc')
+        .limit(1)
+        .get();
+      
+      let siguienteNumero = 1;
+      
+      if (!snapshot.empty) {
+        const ultimoReclamo = snapshot.docs[0].data();
+        const ultimoNumero = ultimoReclamo.id;
+        
+        if (ultimoNumero && ultimoNumero.startsWith(prefijo)) {
+          const partes = ultimoNumero.split('-');
+          if (partes.length === 3) {
+            const ultimoNum = parseInt(partes[2]);
+            if (!isNaN(ultimoNum)) {
+              siguienteNumero = ultimoNum + 1;
+            }
+          }
+          logger.info(`📊 Último número reclamo: ${ultimoNumero}, Siguiente: ${siguienteNumero}`);
+        }
+      } else {
+        logger.info(`📊 Primer reclamo del mes ${prefijo}`);
+      }
+      
+      const claimId = `${prefijo}-${String(siguienteNumero).padStart(4, '0')}`;
+      logger.info(`✅ ID RECLAMO SECUENCIAL GENERADO: ${claimId}`);
+      return claimId;
+      
+    } catch (error) {
+      logger.error('❌ Error generando ID secuencial para reclamo:', error);
+      
+      // Fallback
+      const hoy = new Date();
+      const año = hoy.getFullYear();
+      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+      const timestamp = Date.now().toString().slice(-6);
+      return `CLAIM-${año}${mes}-${timestamp}`;
+    }
+  }
+
+  /* ============================================================
    * PROCESAR PAGO CON DATOS DE FIREBASE
    * ============================================================
    */
@@ -204,15 +295,15 @@ class PaymentController {
         }
       }
       // CASO 2: ID ya es válido (ORD-202601-XXXX) → USARLO TAL CUAL
-else if (ordenId && ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
-  logger.info('✅ ID ya es válido, usando:', ordenId);
-  ordenIdCorregido = ordenId; // ← ¡NO generar nuevo!
-}
-// CASO 3: No hay ID o es incorrecto → Generar nuevo
-else {
-  ordenIdCorregido = await this._generarOrderIdSecuencial();
-  logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
-}
+      else if (ordenId && ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
+        logger.info('✅ ID ya es válido, usando:', ordenId);
+        ordenIdCorregido = ordenId; // ← ¡NO generar nuevo!
+      }
+      // CASO 3: No hay ID o es incorrecto → Generar nuevo
+      else {
+        ordenIdCorregido = await this._generarOrderIdSecuencial();
+        logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
+      }
       // ========== FIN CORRECCIÓN ==========
 
       // Validar datos mínimos
@@ -334,7 +425,7 @@ else {
       res.status(200).json(response);
       
       /* =======================
-       * 9. TAREAS POST-PAGO (OPCIONAL) - AQUÍ ESTÁ LA CORRECCIÓN
+       * 9. TAREAS POST-PAGO
        * =======================
        */
       this._executePostPaymentTasks(
@@ -347,7 +438,7 @@ else {
           productos,
           resumen,
           metadata,
-          ordenId: ordenIdCorregido // ✅ ESTE ES EL ID CORRECTO: ORD-202601-0029
+          ordenId: ordenIdCorregido
         },
         emailResult
       ).catch(err => {
@@ -369,9 +460,679 @@ else {
   }
 
   /* ============================================================
-   * PREPARAR DATOS PARA CULQI - CORREGIDO CON ID SECUENCIAL
+   * 🆕 PROCESAR RECLAMO - SISTEMA COMPLETO PROFESIONAL
    * ============================================================
    */
+  async processClaim(req, res) {
+    const startTime = Date.now();
+    const requestId = `claim_${uuidv4().substring(0, 8)}`;
+    let claimId = req.body.reclamoId || req.body.id;
+
+    try {
+      logger.info(`📝 Procesando reclamo ${requestId}`, { 
+        cliente: req.body.consumidor?.nombreCompleto,
+        tipo: req.body.tipoSolicitud 
+      });
+
+      /* =======================
+       * 1. EXTRAER Y VALIDAR DATOS DEL RECLAMO
+       * =======================
+       */
+      const { 
+        consumidor,
+        empresa,
+        reclamo,
+        tipoSolicitud,
+        fechaRegistro,
+        legal,
+        metadata: claimMetadata
+      } = req.body;
+
+      // Validaciones básicas obligatorias
+      if (!consumidor?.email) {
+        throw this._error('MISSING_EMAIL', 'Email del consumidor requerido', 400);
+      }
+      
+      if (!consumidor?.nombreCompleto) {
+        throw this._error('MISSING_NAME', 'Nombre del consumidor requerido', 400);
+      }
+      
+      if (!reclamo?.descripcion) {
+        throw this._error('MISSING_DESCRIPTION', 'Descripción del reclamo requerida', 400);
+      }
+
+      // Generar ID si no viene o es inválido
+      if (!claimId || !claimId.match(/^CLAIM-\d{6}-\d{4}$/)) {
+        claimId = await this._generarClaimIdSecuencial();
+        logger.info(`🆕 ID RECLAMO GENERADO: ${claimId}`);
+      } else {
+        logger.info(`✅ ID RECLAMO RECIBIDO: ${claimId}`);
+      }
+
+      /* =======================
+       * 2. PREPARAR DATOS COMPLETOS DEL RECLAMO
+       * =======================
+       */
+      const claimData = {
+        // Información del reclamo
+        id: claimId,
+        reclamoId: claimId,
+        tipoSolicitud: tipoSolicitud || 'RECLAMO',
+        fechaRegistro: fechaRegistro || new Date().toISOString(),
+        
+        // Información del consumidor
+        consumidor: {
+          nombreCompleto: consumidor.nombreCompleto,
+          email: consumidor.email,
+          telefono: consumidor.telefono || '',
+          tipoDocumento: consumidor.tipoDocumento || '',
+          numeroDocumento: consumidor.numeroDocumento || '',
+          direccion: consumidor.direccion || ''
+        },
+        
+        // Datos del reclamo
+        reclamo: {
+          productoServicio: reclamo.productoServicio || 'No especificado',
+          descripcion: reclamo.descripcion,
+          montoReclamado: parseFloat(reclamo.montoReclamado) || 0,
+          pedidoConsumidor: reclamo.pedidoConsumidor || '',
+          estado: 'REGISTRADO'
+        },
+        
+        // Empresa
+        empresa: empresa || {
+          nombre: "GOLDINFINITI TECH CORP",
+          ruc: "20613360281",
+          direccion: "Av. Principal 123, Lima, Perú",
+          telefono: "+51 968 786 648"
+        },
+        
+        // Información legal
+        legal: legal || {
+          declaracionJurada: true,
+          fechaLimiteRespuesta: this._calcularFechaLimiteReclamo(),
+          plazoDias: 30,
+          tipo: 'Libro de Reclamaciones INDECOPI'
+        },
+        
+        // Metadata del sistema
+        metadata: {
+          ...claimMetadata,
+          procesado: true,
+          procesado_en: new Date().toISOString(),
+          origen: 'formulario_web_indecopi',
+          dispositivo: req.get('User-Agent') || 'Desconocido',
+          ip: req.ip || '127.0.0.1',
+          timestamp: Date.now()
+        },
+        
+        // Estado del sistema
+        estado: 'REGISTRADO',
+        fechaCreacion: new Date().toISOString(),
+        totalArchivos: 0,
+        archivos: []
+      };
+
+      logger.debug(`📋 Datos reclamo preparados ${claimId}`, {
+        consumidor: claimData.consumidor.nombreCompleto,
+        email: claimData.consumidor.email,
+        tipo: claimData.tipoSolicitud,
+        descripcionLength: claimData.reclamo.descripcion?.length,
+        monto: claimData.reclamo.montoReclamado
+      });
+
+      /* =======================
+       * 3. GUARDAR EN FIREBASE
+       * =======================
+       */
+      const firebaseResult = await this._guardarReclamoEnFirebase(claimData);
+      logger.info(`✅ Reclamo guardado en Firebase: ${claimId}`);
+
+      /* =======================
+       * 4. ENVIAR EMAILS DE CONFIRMACIÓN
+       * =======================
+       */
+      const emailResults = await this._enviarEmailsReclamo(claimData);
+
+      /* =======================
+       * 5. ACTUALIZAR ESTADÍSTICAS
+       * =======================
+       */
+      this.stats.claimsStats.totalClaims++;
+      this.stats.claimsStats.processedClaims++;
+      if (emailResults.usuario.success || emailResults.admin.success) {
+        this.stats.claimsStats.emailsSent++;
+      }
+
+      /* =======================
+       * 6. CONSTRUIR RESPUESTA PROFESIONAL
+       * =======================
+       */
+      const totalDuration = Date.now() - startTime;
+      const response = this._buildClaimResponse(
+        claimId,
+        claimData,
+        firebaseResult,
+        emailResults,
+        totalDuration
+      );
+
+      logger.info(`🎉 Reclamo procesado exitosamente ${claimId}`, {
+        claimId,
+        cliente: claimData.consumidor.nombreCompleto,
+        emailUsuario: emailResults.usuario.success,
+        emailAdmin: emailResults.admin.success,
+        duration: `${totalDuration}ms`
+      });
+
+      /* =======================
+       * 7. ENVIAR RESPUESTA
+       * =======================
+       */
+      res.status(200).json(response);
+
+      /* =======================
+       * 8. TAREAS POST-RECLAMO (ASÍNCRONO)
+       * =======================
+       */
+      this._executePostClaimTasks(
+        claimId,
+        claimData,
+        firebaseResult,
+        emailResults
+      ).catch(err => {
+        logger.warn(`⚠️ Error en tareas post-reclamo ${claimId}`, { error: err.message });
+      });
+
+    } catch (error) {
+      const errorDuration = Date.now() - startTime;
+      this.stats.claimsStats.totalClaims++;
+      this.stats.claimsStats.failedClaims++;
+      
+      this._handleClaimError(
+        error,
+        claimId || requestId,
+        req,
+        res,
+        errorDuration
+      );
+    }
+  }
+
+  /* ============================================================
+   * MÉTODOS AUXILIARES PARA RECLAMOS
+   * ============================================================
+   */
+
+  async _guardarReclamoEnFirebase(claimData) {
+    try {
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
+      
+      if (!firestore) {
+        throw new Error('Firebase no disponible');
+      }
+
+      // Preparar documento para Firebase
+      const firebaseDoc = {
+        id: claimData.id,
+        numeroReclamo: claimData.id,
+        fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+        fechaRegistro: claimData.fechaRegistro,
+        estado: 'REGISTRADO',
+        
+        consumidor: claimData.consumidor,
+        empresa: claimData.empresa,
+        reclamo: claimData.reclamo,
+        legal: claimData.legal,
+        
+        archivos: claimData.archivos || [],
+        totalArchivos: claimData.totalArchivos || 0,
+        
+        metadata: {
+          ...claimData.metadata,
+          procesado: true,
+          procesado_en: new Date().toISOString(),
+          emailEnviado: false,
+          emailPendiente: true,
+          timestamp: Date.now(),
+          dispositivo: claimData.metadata.dispositivo,
+          ip: claimData.metadata.ip,
+          origen: 'sistema_backend_reclamos'
+        },
+        
+        sistema: {
+          version: '2.0.0',
+          fuente: 'API Goldinfiniti',
+          entorno: process.env.NODE_ENV || 'production'
+        }
+      };
+
+      logger.info(`💾 Guardando reclamo en Firebase: ${claimData.id}`);
+      
+      // Guardar en la colección correcta
+      await firestore
+        .collection('libro_reclamaciones_indecopi')
+        .doc(claimData.id)
+        .set(firebaseDoc);
+
+      return {
+        success: true,
+        saved: true,
+        claimId: claimData.id,
+        timestamp: new Date().toISOString(),
+        collection: 'libro_reclamaciones_indecopi'
+      };
+
+    } catch (error) {
+      logger.error(`❌ Error guardando reclamo en Firebase: ${claimData.id}`, {
+        error: error.message,
+        code: error.code
+      });
+      
+      return {
+        success: false,
+        saved: false,
+        claimId: claimData.id,
+        error: error.message,
+        fallback: true,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  async _enviarEmailsReclamo(claimData) {
+    const emailResults = {
+      usuario: { success: false, fallback: false },
+      admin: { success: false, fallback: false }
+    };
+
+    // 1. ENVIAR EMAIL AL USUARIO
+    try {
+      if (emailServiceAvailable && emailService.sendClaimConfirmation) {
+        logger.info(`📤 Enviando email de confirmación a usuario: ${claimData.consumidor.email}`);
+        
+        const userEmailResult = await emailService.sendClaimConfirmation(claimData);
+        emailResults.usuario = userEmailResult;
+        
+        if (userEmailResult.success) {
+          logger.info(`✅ Email usuario enviado: ${claimData.consumidor.email}`);
+        } else {
+          logger.warn(`⚠️ Email usuario falló: ${claimData.consumidor.email}`);
+        }
+      } else {
+        logger.warn(`📧 Modo fallback para email usuario: ${claimData.consumidor.email}`);
+        emailResults.usuario = {
+          success: true,
+          fallback: true,
+          message: 'Email en modo simulación - Datos guardados',
+          timestamp: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      logger.error(`❌ Error enviando email a usuario: ${claimData.consumidor.email}`, {
+        error: error.message
+      });
+      emailResults.usuario = {
+        success: false,
+        error: error.message,
+        fallback: false,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // 2. ENVIAR EMAIL AL ADMINISTRADOR
+    try {
+      if (emailServiceAvailable && emailService.sendClaimNotification) {
+        logger.info(`📤 Enviando notificación a administrador`);
+        
+        const adminEmailResult = await emailService.sendClaimNotification(claimData);
+        emailResults.admin = adminEmailResult;
+        
+        if (adminEmailResult.success) {
+          logger.info(`✅ Email administrador enviado`);
+        } else {
+          logger.warn(`⚠️ Email administrador falló`);
+        }
+      } else {
+        logger.warn(`📧 Modo fallback para email administrador`);
+        emailResults.admin = {
+          success: true,
+          fallback: true,
+          message: 'Notificación en modo simulación',
+          timestamp: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      logger.error(`❌ Error enviando email a administrador`, {
+        error: error.message
+      });
+      emailResults.admin = {
+        success: false,
+        error: error.message,
+        fallback: false,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    return emailResults;
+  }
+
+  _buildClaimResponse(claimId, claimData, firebaseResult, emailResults, duration) {
+    return {
+      success: true,
+      message: '✅ RECLAMO REGISTRADO EXITOSAMENTE',
+      claim: {
+        id: claimId,
+        numeroReclamo: claimId,
+        tipo: claimData.tipoSolicitud,
+        estado: 'REGISTRADO',
+        fechaRegistro: claimData.fechaRegistro,
+        fechaLimiteRespuesta: claimData.legal.fechaLimiteRespuesta
+      },
+      consumidor: {
+        nombre: claimData.consumidor.nombreCompleto,
+        email: claimData.consumidor.email,
+        telefono: claimData.consumidor.telefono || 'No especificado',
+        documento: claimData.consumidor.tipoDocumento 
+          ? `${claimData.consumidor.tipoDocumento} ${claimData.consumidor.numeroDocumento}`
+          : 'No especificado'
+      },
+      reclamo: {
+        productoServicio: claimData.reclamo.productoServicio,
+        descripcion: claimData.reclamo.descripcion.substring(0, 100) + '...',
+        montoReclamado: claimData.reclamo.montoReclamado,
+        pedidoConsumidor: claimData.reclamo.pedidoConsumidor || 'No especificado'
+      },
+      email: {
+        usuario: {
+          sent: emailResults.usuario.success,
+          email: claimData.consumidor.email,
+          status: emailResults.usuario.success ? 'ENVIADO' : 'PENDIENTE',
+          fallback: emailResults.usuario.fallback
+        },
+        administrador: {
+          sent: emailResults.admin.success,
+          status: emailResults.admin.success ? 'ENVIADO' : 'PENDIENTE',
+          fallback: emailResults.admin.fallback
+        },
+        timestamp: new Date().toISOString()
+      },
+      sistema: {
+        firebase: {
+          saved: firebaseResult.saved,
+          status: firebaseResult.saved ? 'GUARDADO' : 'FALLBACK',
+          collection: firebaseResult.collection || 'libro_reclamaciones_indecopi'
+        },
+        backend: 'Goldinfiniti Reclamos API',
+        version: '2.0.0'
+      },
+      informacionImportante: [
+        `Su reclamo ha sido registrado con el número: ${claimId}`,
+        `Recibirá una respuesta en un plazo máximo de ${claimData.legal.plazoDias} días hábiles`,
+        `Puede consultar el estado llamando al ${claimData.empresa.telefono}`,
+        `Para consultas adicionales: ${claimData.empresa.nombre}`
+      ],
+      metadata: {
+        response_time: `${duration}ms`,
+        timestamp: new Date().toISOString(),
+        golden_infinity: true,
+        indecopi_compliant: true
+      }
+    };
+  }
+
+  async _executePostClaimTasks(claimId, claimData, firebaseResult, emailResults) {
+    const tasksStartTime = Date.now();
+    
+    try {
+      logger.info(`🔄 Ejecutando tareas post-reclamo ${claimId}`);
+
+      const tasks = [];
+
+      // 1. Actualizar Firebase con estado de emails
+      if (firebaseResult.saved) {
+        tasks.push(
+          this._actualizarEstadoEmailFirebase(claimId, emailResults)
+            .then(result => {
+              logger.info(`✅ Firebase actualizado con estado email: ${claimId}`);
+              return result;
+            })
+            .catch(err => {
+              logger.warn(`⚠️ Error actualizando Firebase email: ${claimId}`, { error: err.message });
+              return { success: false, error: err.message };
+            })
+        );
+      }
+
+      // 2. Registrar en log de auditoría
+      tasks.push(
+        this._registrarAuditoriaReclamo(claimId, claimData, emailResults)
+          .then(result => {
+            logger.info(`📝 Auditoría registrada: ${claimId}`);
+            return result;
+          })
+          .catch(err => {
+            logger.warn(`⚠️ Error en auditoría: ${claimId}`, { error: err.message });
+            return { success: false, error: err.message };
+          })
+      );
+
+      // Ejecutar tareas en paralelo
+      await Promise.allSettled(tasks);
+
+      const tasksDuration = Date.now() - tasksStartTime;
+      logger.info(`✅ Tareas post-reclamo completadas ${claimId}`, {
+        duration: `${tasksDuration}ms`,
+        totalTasks: tasks.length
+      });
+
+    } catch (error) {
+      logger.error(`🔥 Error en tareas post-reclamo ${claimId}`, {
+        error: error.message,
+        duration: `${Date.now() - tasksStartTime}ms`
+      });
+    }
+  }
+
+  async _actualizarEstadoEmailFirebase(claimId, emailResults) {
+    try {
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
+
+      const updateData = {
+        'metadata.emailEnviado': emailResults.usuario.success || emailResults.admin.success,
+        'metadata.emailPendiente': !(emailResults.usuario.success || emailResults.admin.success),
+        'metadata.emailTimestamp': new Date().toISOString(),
+        'metadata.emailUsuarioEnviado': emailResults.usuario.success,
+        'metadata.emailAdminEnviado': emailResults.admin.success,
+        'metadata.ultimaActualizacion': new Date().toISOString()
+      };
+
+      await firestore
+        .collection('libro_reclamaciones_indecopi')
+        .doc(claimId)
+        .update(updateData);
+
+      return { success: true, updated: true, claimId };
+
+    } catch (error) {
+      logger.error(`❌ Error actualizando estado email Firebase: ${claimId}`, {
+        error: error.message
+      });
+      return { success: false, error: error.message, claimId };
+    }
+  }
+
+  async _registrarAuditoriaReclamo(claimId, claimData, emailResults) {
+    try {
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
+
+      const auditLog = {
+        claimId: claimId,
+        action: 'PROCESAMIENTO_RECLAMO',
+        timestamp: new Date().toISOString(),
+        data: {
+          consumidor: {
+            nombre: claimData.consumidor.nombreCompleto,
+            email: claimData.consumidor.email
+          },
+          reclamo: {
+            tipo: claimData.tipoSolicitud,
+            productoServicio: claimData.reclamo.productoServicio,
+            monto: claimData.reclamo.montoReclamado
+          },
+          emailResults: {
+            usuario: emailResults.usuario.success,
+            admin: emailResults.admin.success
+          }
+        },
+        metadata: {
+          ip: claimData.metadata.ip,
+          dispositivo: claimData.metadata.dispositivo,
+          origen: claimData.metadata.origen,
+          entorno: process.env.NODE_ENV || 'production'
+        }
+      };
+
+      await firestore
+        .collection('auditoria_reclamos')
+        .add(auditLog);
+
+      return { success: true, logged: true, claimId };
+
+    } catch (error) {
+      // No es crítico si falla la auditoría
+      logger.warn(`⚠️ Error en auditoría (no crítico): ${claimId}`, {
+        error: error.message
+      });
+      return { success: false, error: error.message, claimId, nonCritical: true };
+    }
+  }
+
+  _calcularFechaLimiteReclamo() {
+    const fecha = new Date();
+    let diasHabiles = 0;
+    
+    while (diasHabiles < 30) {
+      fecha.setDate(fecha.getDate() + 1);
+      const dia = fecha.getDay();
+      if (dia !== 0 && dia !== 6) { // No sábado ni domingo
+        diasHabiles++;
+      }
+    }
+    
+    return fecha.toLocaleDateString('es-PE', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
+
+  _handleClaimError(error, claimId, req, res, duration) {
+    const errorCode = error.code || 'CLAIM_PROCESSING_ERROR';
+    
+    logger.error(`💥 Error procesando reclamo ${claimId}`, {
+      errorCode,
+      errorMessage: error.message,
+      statusCode: error.statusCode || 500,
+      duration: `${duration}ms`,
+      cliente: req.body.consumidor?.nombreCompleto
+    });
+    
+    const response = {
+      success: false,
+      error: {
+        code: errorCode,
+        message: error.message,
+        claim_id: claimId,
+        timestamp: new Date().toISOString(),
+        suggestions: this._getClaimErrorSuggestions(errorCode)
+      },
+      sistema: {
+        backend: 'Goldinfiniti Reclamos API',
+        status: 'ERROR',
+        response_time: `${duration}ms`
+      }
+    };
+    
+    // Si es error de validación, intentar guardar igual en modo fallback
+    if (error.statusCode === 400 && req.body.consumidor?.email) {
+      response.warning = 'Datos incompletos, pero se intentará procesar';
+      response.fallback_mode = true;
+      
+      // Ejecutar en segundo plano
+      this._processClaimFallback(req.body, claimId).catch(() => {});
+    }
+    
+    res.status(error.statusCode || 500).json(response);
+  }
+
+  async _processClaimFallback(claimData, claimId) {
+    try {
+      logger.warn(`🔄 Procesando reclamo en modo fallback: ${claimId}`);
+      
+      // Guardar mínimo en Firebase
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
+      
+      const fallbackDoc = {
+        id: claimId,
+        numeroReclamo: claimId,
+        fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+        estado: 'REGISTRADO_FALLBACK',
+        consumidor: {
+          nombreCompleto: claimData.consumidor?.nombreCompleto || 'Consumidor',
+          email: claimData.consumidor?.email || 'no-email',
+          telefono: claimData.consumidor?.telefono || ''
+        },
+        reclamo: {
+          descripcion: claimData.reclamo?.descripcion || 'Sin descripción',
+          productoServicio: claimData.reclamo?.productoServicio || 'No especificado',
+          estado: 'PENDIENTE_VALIDACION'
+        },
+        metadata: {
+          procesado: true,
+          procesado_en: new Date().toISOString(),
+          fallback_mode: true,
+          error: 'Validación fallida, procesado en modo de contingencia',
+          timestamp: Date.now(),
+          origen: 'formulario_web_fallback'
+        }
+      };
+      
+      await firestore
+        .collection('libro_reclamaciones_indecopi')
+        .doc(claimId)
+        .set(fallbackDoc);
+        
+      logger.info(`✅ Reclamo fallback guardado: ${claimId}`);
+      
+    } catch (fallbackError) {
+      logger.error(`🔥 Error crítico en modo fallback: ${claimId}`, {
+        error: fallbackError.message
+      });
+    }
+  }
+
+  _getClaimErrorSuggestions(code) {
+    const suggestions = {
+      MISSING_EMAIL: ['Proporciona un email válido del consumidor'],
+      MISSING_NAME: ['Ingresa el nombre completo del consumidor'],
+      MISSING_DESCRIPTION: ['Describe detalladamente tu reclamo'],
+      CLAIM_PROCESSING_ERROR: ['Intenta nuevamente', 'Contacta a soporte técnico']
+    };
+    
+    return suggestions[code] || ['Intenta nuevamente', 'Contacta soporte técnico'];
+  }
+
+  /* ============================================================
+   * MÉTODOS ORIGINALES DE PAYMENT CONTROLLER (NO MODIFICADOS)
+   * ============================================================
+   */
+
   _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
     const nombreCompleto = `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim();
     
@@ -401,14 +1162,9 @@ else {
     };
   }
 
-  /* ============================================================
-   * PREPARAR DATOS PARA EMAIL (CON FIREBASE)
-   * ============================================================
-   */
   _prepareEmailData(paymentId, culqiResult, firebaseData) {
     const { cliente, comprobante, envio, productos, resumen, metadata, ordenId } = firebaseData;
     
-    // Formatear productos para email
     const productosFormateados = Array.isArray(productos) ? productos.map(p => ({
       nombre: p.nombre || p.titulo || 'Producto',
       cantidad: p.cantidad || p.quantity || 1,
@@ -420,7 +1176,6 @@ else {
       imagen: p.imagen || ''
     })) : [];
     
-    // Información de envío
     const infoEnvio = envio ? {
       tipo: envio.tipo || 'estándar',
       costo: envio.costo || 0,
@@ -428,7 +1183,6 @@ else {
     } : null;
     
     return {
-      // Información de pago
       id: paymentId,
       culqi_id: culqiResult.id,
       amount: culqiResult.amount,
@@ -437,20 +1191,16 @@ else {
       created_at: culqiResult.created_at,
       receipt_url: culqiResult.receipt_url,
       
-      // Información del cliente (Firebase)
       customer_email: cliente.email,
       customer_name: `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim(),
       customer_phone: cliente.telefono || '',
       
-      // ✅✅✅ INFORMACIÓN DE LA ORDEN CON ID SECUENCIAL
       order_id: ordenId,
       firebase_doc_id: metadata?.firebaseDocId,
       fecha_creacion: metadata?.timestamp || new Date().toISOString(),
       
-      // Productos (Firebase)
       productos: productosFormateados,
       
-      // Resumen (Firebase)
       resumen: {
         subtotal: resumen?.subtotal || 0,
         envio: resumen?.envio || (envio?.costo || 0),
@@ -458,17 +1208,14 @@ else {
         cantidad_items: resumen?.cantidadItems || productosFormateados.length
       },
       
-      // Comprobante (Firebase)
       comprobante: {
         tipo: comprobante?.tipo || 'boleta',
         serie: comprobante?.serie || '',
         numero: comprobante?.numero || ''
       },
       
-      // Envío (Firebase)
       envio: infoEnvio,
       
-      // Metadata adicional
       metadata: {
         ...metadata,
         payment_processed: true,
@@ -478,10 +1225,6 @@ else {
     };
   }
 
-  /* ============================================================
-   * ENVIAR EMAIL CON DATOS DE FIREBASE
-   * ============================================================
-   */
   async _sendFirebaseEmail(emailData) {
     const startTime = Date.now();
     this.stats.emailStats.attempted++;
@@ -495,7 +1238,6 @@ else {
       
       let emailResult;
       
-      // 1. PRIMERO: Intenta con EmailService REAL
       if (emailServiceAvailable && emailService.sendPaymentConfirmation) {
         logger.info(`📤 Enviando email REAL con EmailService`);
         
@@ -530,7 +1272,6 @@ else {
         }
       }
       
-      // 2. FALLBACK: Generar email básico local
       logger.info(`🔄 Usando modo fallback para ${emailData.customer_email}`);
       
       const emailHtml = this._generateEmailHtml(emailData);
@@ -574,10 +1315,6 @@ else {
     }
   }
 
-  /* ============================================================
-   * TAREAS POST-PAGO - CORREGIDO PARA USAR MISMO ID
-   * ============================================================
-   */
   async _executePostPaymentTasks(paymentId, culqiResult, firebaseData, emailResult) {
     const tasksStartTime = Date.now();
     
@@ -589,11 +1326,8 @@ else {
       
       const tasks = [];
       
-      // ✅✅✅ CORRECCIÓN CRÍTICA: Notificación interna con MISMO ID
       if (emailServiceAvailable && emailService.sendPaymentNotification) {
-        // PREPARAR DATOS EXACTOS PARA LA NOTIFICACIÓN
         const notificationData = {
-          // Información del pago
           id: paymentId,
           culqi_id: culqiResult.id,
           amount: culqiResult.amount,
@@ -601,19 +1335,15 @@ else {
           status: culqiResult.status,
           created_at: culqiResult.created_at || new Date().toISOString(),
           
-          // ✅✅✅ AQUÍ ESTÁ LA CORRECCIÓN: MISMO ID QUE AL CLIENTE
-          order_id: firebaseData.ordenId, // ORD-202601-0029
+          order_id: firebaseData.ordenId,
           
-          // Información del cliente
           customer_email: firebaseData.cliente?.email,
           customer_name: `${firebaseData.cliente?.nombre || ''} ${firebaseData.cliente?.apellido || ''}`.trim(),
           customer_phone: firebaseData.cliente?.telefono || '',
           
-          // Productos
           productos: firebaseData.productos || [],
           productos_count: firebaseData.productos?.length || 0,
           
-          // Resumen
           resumen: {
             subtotal: firebaseData.resumen?.subtotal || 0,
             envio: firebaseData.resumen?.envio || 0,
@@ -621,33 +1351,27 @@ else {
             cantidad_items: firebaseData.resumen?.cantidadItems || 0
           },
           
-          // Comprobante
           comprobante: firebaseData.comprobante || { tipo: 'boleta' },
           
-          // Envío
           envio: firebaseData.envio || null,
           
-          // Resultado del email al cliente
           email_result: {
             success: emailResult.success,
             timestamp: emailResult.timestamp,
             customer: firebaseData.cliente?.email
           },
           
-          // Metadata
           metadata: {
             ...firebaseData.metadata,
             firebase_doc_id: firebaseData.metadata?.firebaseDocId,
             tipo_compra: firebaseData.metadata?.tipoCompra,
             procesado_en: new Date().toISOString(),
             golden_infinity: true,
-            // ✅ DEBUG IMPORTANTE
             debug_nota: 'NOTIFICACIÓN INTERNA - MISMO ID QUE EMAIL AL CLIENTE',
             order_id_verificado: firebaseData.ordenId
           }
         };
         
-        // ✅ LOG EXPLÍCITO PARA VERIFICAR
         logger.info(`📧 ENVIANDO NOTIFICACIÓN INTERNA CON ID: ${firebaseData.ordenId}`, {
           payment_id: paymentId,
           order_id_en_notification: notificationData.order_id,
@@ -673,7 +1397,6 @@ else {
         );
       }
       
-      // 2. Comprobante PDF si hay productos
       if (emailServiceAvailable && emailService.enviarCorreoComprobante && 
           firebaseData.productos && firebaseData.productos.length > 0) {
         
@@ -692,10 +1415,9 @@ else {
         );
       }
       
-      // 3. Actualizar Firebase (simulado)
       tasks.push(
         this._updateFirebaseDocument(
-          firebaseData.ordenId, // ✅ MISMO ID AQUÍ TAMBIÉN
+          firebaseData.ordenId,
           culqiResult,
           emailResult
         ).then(result => {
@@ -707,7 +1429,6 @@ else {
         })
       );
       
-      // Ejecutar todas las tareas en paralelo
       const results = await Promise.allSettled(tasks);
       
       const tasksDuration = Date.now() - tasksStartTime;
@@ -731,10 +1452,6 @@ else {
     }
   }
 
-  /* ============================================================
-   * GENERAR HTML DEL EMAIL (FALLBACK)
-   * ============================================================
-   */
   _generateEmailHtml(emailData) {
     const { customer_name, customer_email, order_id, productos, resumen, envio } = emailData;
     const fecha = new Date().toLocaleDateString('es-PE', {
@@ -746,7 +1463,6 @@ else {
       minute: '2-digit'
     });
     
-    // Generar tabla de productos
     let productosHtml = '';
     if (Array.isArray(productos)) {
       productos.forEach(p => {
@@ -837,10 +1553,6 @@ else {
     `;
   }
 
-  /* ============================================================
-   * CONSTRUIR RESPUESTA CON DATOS FIREBASE
-   * ============================================================
-   */
   _buildFirebaseResponse(paymentId, culqiResult, emailResult, firebaseData, totalDuration) {
     const { cliente, productos, resumen, ordenId } = firebaseData;
     
@@ -894,118 +1606,104 @@ else {
     };
   }
 
-  /* ============================================================
-   * ACTUALIZAR DOCUMENTO EN FIREBASE
-   * ============================================================
-   */
   async _updateFirebaseDocument(orderId, culqiResult, emailResult) {
-  try {
-    // 1. Cargar Firebase
-    const firebase = require('../../../core/config/firebase');
-    const firestore = firebase.firestore;
-    
-    // 2. Datos a actualizar
-    const updateData = {
-      'metadata.procesado': true,
-      'metadata.procesado_en': new Date().toISOString(),
-      'metadata.culqi_id': culqiResult.id,
-      'metadata.email_enviado': emailResult.success,
-      'metadata.email_timestamp': emailResult.timestamp || new Date().toISOString(),
-      'metadata.estado_pago': 'completado',
-      'metadata.metodo_pago': 'culqi',
-      'metadata.ultima_actualizacion': new Date().toISOString(),
-      
-      'pago.estado': 'completado',
-      'pago.metodo': 'culqi',
-      'pago.fecha_procesado': new Date().toISOString(),
-      'pago.monto': culqiResult.amount / 100,
-      'pago.currency': culqiResult.currency || 'PEN',
-      'pago.culqi_charge_id': culqiResult.id,
-      'pago.comprobante_url': culqiResult.receipt_url
-    };
-    
-    logger.info(`📝 ACTUALIZANDO REALMENTE Firebase para orden ${orderId}`, {
-      orderId,
-      culqiId: culqiResult.id,
-      updateData
-    });
-    
-    // 3. Buscar documento por orderId (ID SECUENCIAL)
-    const querySnapshot = await firestore
-      .collection('ordenes')
-      .where('id', '==', orderId)  // Busca por tu ID secuencial
-      .limit(1)
-      .get();
-    
-    if (!querySnapshot.empty) {
-      const docRef = querySnapshot.docs[0].ref;
-      
-      // 4. Actualizar con merge (no sobrescribe otros campos)
-      await docRef.update(updateData);
-      
-      logger.info(`✅ Firebase ACTUALIZADO REALMENTE para orden ${orderId}`);
-      
-      return { 
-        success: true, 
-        updated: true, 
-        orderId,
-        realUpdate: true,
-        documentId: docRef.id
+    try {
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
+
+      const updateData = {
+        'metadata.procesado': true,
+        'metadata.procesado_en': new Date().toISOString(),
+        'metadata.culqi_id': culqiResult.id,
+        'metadata.email_enviado': emailResult.success,
+        'metadata.email_timestamp': emailResult.timestamp || new Date().toISOString(),
+        'metadata.estado_pago': 'completado',
+        'metadata.metodo_pago': 'culqi',
+        'metadata.ultima_actualizacion': new Date().toISOString(),
+        
+        'pago.estado': 'completado',
+        'pago.metodo': 'culqi',
+        'pago.fecha_procesado': new Date().toISOString(),
+        'pago.monto': culqiResult.amount / 100,
+        'pago.currency': culqiResult.currency || 'PEN',
+        'pago.culqi_charge_id': culqiResult.id,
+        'pago.comprobante_url': culqiResult.receipt_url
       };
       
-    } else {
-      // 5. Buscar alternativamente por metadata.orderId
-      const altQuerySnapshot = await firestore
+      logger.info(`📝 ACTUALIZANDO REALMENTE Firebase para orden ${orderId}`, {
+        orderId,
+        culqiId: culqiResult.id,
+        updateData
+      });
+      
+      const querySnapshot = await firestore
         .collection('ordenes')
-        .where('metadata.orderId', '==', orderId)
+        .where('id', '==', orderId)
         .limit(1)
         .get();
       
-      if (!altQuerySnapshot.empty) {
-        const docRef = altQuerySnapshot.docs[0].ref;
+      if (!querySnapshot.empty) {
+        const docRef = querySnapshot.docs[0].ref;
+        
         await docRef.update(updateData);
         
-        logger.info(`✅ Firebase actualizado por metadata.orderId: ${orderId}`);
+        logger.info(`✅ Firebase ACTUALIZADO REALMENTE para orden ${orderId}`);
         
         return { 
           success: true, 
           updated: true, 
           orderId,
           realUpdate: true,
-          viaMetadata: true
+          documentId: docRef.id
+        };
+        
+      } else {
+        const altQuerySnapshot = await firestore
+          .collection('ordenes')
+          .where('metadata.orderId', '==', orderId)
+          .limit(1)
+          .get();
+        
+        if (!altQuerySnapshot.empty) {
+          const docRef = altQuerySnapshot.docs[0].ref;
+          await docRef.update(updateData);
+          
+          logger.info(`✅ Firebase actualizado por metadata.orderId: ${orderId}`);
+          
+          return { 
+            success: true, 
+            updated: true, 
+            orderId,
+            realUpdate: true,
+            viaMetadata: true
+          };
+        }
+        
+        logger.warn(`⚠️ Orden ${orderId} no encontrada en Firebase`);
+        return { 
+          success: false, 
+          error: 'Documento no encontrado', 
+          orderId,
+          notFound: true 
         };
       }
       
-      logger.warn(`⚠️ Orden ${orderId} no encontrada en Firebase`);
+    } catch (error) {
+      logger.error(`❌ Error actualizando Firebase para orden ${orderId}`, { 
+        error: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      
       return { 
         success: false, 
-        error: 'Documento no encontrado', 
+        error: error.message, 
         orderId,
-        notFound: true 
+        updateFailed: true 
       };
     }
-    
-  } catch (error) {
-    logger.error(`❌ Error actualizando Firebase para orden ${orderId}`, { 
-      error: error.message,
-      code: error.code,
-      stack: error.stack
-    });
-    
-    return { 
-      success: false, 
-      error: error.message, 
-      orderId,
-      updateFailed: true 
-    };
   }
-}
 
-  /* ============================================================
-   * MÉTODOS AUXILIARES
-   * ============================================================
-   */
-  
   _updateStats(success, amount, emailSent = false) {
     this.stats.totalPayments++;
     this.stats.totalAmount += amount;
@@ -1069,32 +1767,24 @@ else {
     return suggestions[code] || ['Intenta nuevamente', 'Contacta soporte'];
   }
 
-  /* ============================================================
-   * ENDPOINTS ADICIONALES - TODOS LOS MÉTODOS NECESARIOS
-   * ============================================================
-   */
-  
-  /**
-   * GET /stats - Obtiene estadísticas REALES para el dashboard
-   */
   async getStats(req, res) {
     const startTime = Date.now();
     
     try {
       logger.info('📊 Obteniendo estadísticas REALES para dashboard...');
       
-      // 1. DATOS DEL SERVIDOR
       const memory = process.memoryUsage();
       const uptime = process.uptime();
       
-      // 2. DATOS DE FIREBASE (REALES)
       let firebaseStats = {
         connected: false,
         total_orders: 0,
         today_orders: 0,
         today_amount: 0,
         active_clients: 0,
-        last_hour_orders: 0
+        last_hour_orders: 0,
+        total_claims: 0,
+        today_claims: 0
       };
       
       let backendStatus = {
@@ -1121,6 +1811,10 @@ else {
           const allOrdersSnapshot = await firestore.collection('ordenes').get();
           const totalOrders = allOrdersSnapshot.size;
           
+          // Total de reclamos
+          const allClaimsSnapshot = await firestore.collection('libro_reclamaciones_indecopi').get();
+          const totalClaims = allClaimsSnapshot.size;
+          
           // Órdenes de hoy
           const todayOrdersSnapshot = await firestore
             .collection('ordenes')
@@ -1135,6 +1829,15 @@ else {
             const data = doc.data();
             todayAmount += Number(data.resumen?.total) || 0;
           });
+          
+          // Reclamos de hoy
+          const todayClaimsSnapshot = await firestore
+            .collection('libro_reclamaciones_indecopi')
+            .where('fechaRegistro', '>=', today.toISOString())
+            .where('fechaRegistro', '<', tomorrow.toISOString())
+            .get();
+          
+          const todayClaims = todayClaimsSnapshot.size;
           
           // Órdenes última hora
           const lastHourSnapshot = await firestore
@@ -1159,12 +1862,15 @@ else {
           firebaseStats = {
             connected: true,
             total_orders: totalOrders,
+            total_claims: totalClaims,
             today_orders: todayOrders,
+            today_claims: todayClaims,
             today_amount: parseFloat(todayAmount.toFixed(2)),
             active_clients: uniqueEmails.size,
             last_hour_orders: lastHourOrders,
             location: 'nam5',
-            collection: 'ordenes'
+            collection_orders: 'ordenes',
+            collection_claims: 'libro_reclamaciones_indecopi'
           };
           
           backendStatus = {
@@ -1173,7 +1879,8 @@ else {
             last_check: new Date().toISOString(),
             uptime: `${Math.floor(uptime)}s`,
             firebase_connected: true,
-            total_orders_in_db: totalOrders
+            total_orders_in_db: totalOrders,
+            total_claims_in_db: totalClaims
           };
         }
       } catch (firebaseError) {
@@ -1188,7 +1895,6 @@ else {
         };
       }
       
-      // 3. CONSTRUIR RESPUESTA COMPLETA PARA EL DASHBOARD
       const responseTime = Date.now() - startTime;
       
       const response = {
@@ -1196,10 +1902,8 @@ else {
         timestamp: new Date().toISOString(),
         response_time: `${responseTime}ms`,
         
-        // ✅ ESTADO DEL BACKEND (para tu panel)
         backend_status: backendStatus,
         
-        // 📊 PAGOS HOY (para tu panel)
         payments_today: {
           count: firebaseStats.today_orders,
           amount: firebaseStats.today_amount,
@@ -1207,22 +1911,27 @@ else {
           formatted: `S/ ${firebaseStats.today_amount.toFixed(2)}`
         },
         
-        // 👥 CLIENTES ACTIVOS (para tu panel)
+        claims_today: {
+          count: firebaseStats.today_claims,
+          status: 'PROCESADOS',
+          system: 'Libro de Reclamaciones INDECOPI'
+        },
+        
         active_clients: {
           count: firebaseStats.active_clients,
           last_hour: firebaseStats.last_hour_orders,
           period: '30 días'
         },
         
-        // 📈 ESTADÍSTICAS DETALLADAS
         detailed_stats: {
           total_orders: firebaseStats.total_orders,
+          total_claims: firebaseStats.total_claims,
           today_orders: firebaseStats.today_orders,
+          today_claims: firebaseStats.today_claims,
           last_hour_orders: firebaseStats.last_hour_orders,
           firebase_connection: firebaseStats.connected ? 'CONECTADO' : 'DESCONECTADO'
         },
         
-        // 💳 MÉTODOS DE PAGO DISPONIBLES
         payment_methods: [
           {
             id: 'visa',
@@ -1254,7 +1963,6 @@ else {
           }
         ],
         
-        // 🖥️ ESTADÍSTICAS DEL SERVIDOR
         server_stats: {
           uptime: `${Math.floor(uptime)} segundos`,
           memory: {
@@ -1266,20 +1974,20 @@ else {
           node_version: process.version
         },
         
-        // 📊 ESTADÍSTICAS DEL CONTROLADOR
         controller_stats: this.stats,
         
-        // 🔗 SERVICIOS CONECTADOS
         services: {
           email: emailServiceAvailable ? 'ACTIVO' : 'FALLBACK',
           culqi: 'CONECTADO',
           firebase: firebaseStats.connected ? 'CONECTADO' : 'DESCONECTADO',
-          sendgrid: 'ACTIVO'
+          sendgrid: 'ACTIVO',
+          claims_system: 'ACTIVO'
         }
       };
       
       logger.info('✅ Estadísticas obtenidas exitosamente', {
         today_orders: firebaseStats.today_orders,
+        today_claims: firebaseStats.today_claims,
         today_amount: firebaseStats.today_amount,
         response_time: `${responseTime}ms`
       });
@@ -1289,7 +1997,6 @@ else {
     } catch (error) {
       logger.error('❌ Error obteniendo estadísticas', { error: error.message });
       
-      // RESPUESTA DE EMERGENCIA (pero con datos básicos)
       res.status(200).json({
         success: true,
         timestamp: new Date().toISOString(),
@@ -1305,6 +2012,12 @@ else {
           amount: 0,
           currency: 'PEN',
           formatted: 'S/ 0.00'
+        },
+        
+        claims_today: {
+          count: 0,
+          status: 'NO DISPONIBLE',
+          system: 'Libro de Reclamaciones INDECOPI'
         },
         
         active_clients: {
@@ -1324,9 +2037,6 @@ else {
     }
   }
   
-  /**
-   * GET /verify/:paymentId - Verifica un pago REAL
-   */
   async verifyPayment(req, res) {
     const startTime = Date.now();
     const { paymentId } = req.params;
@@ -1334,7 +2044,6 @@ else {
     try {
       logger.info(`🔍 Verificando pago REAL: ${paymentId}`);
       
-      // 1. INTENTAR CON FIREBASE PRIMERO
       let orderData = null;
       let firebaseConnected = false;
       
@@ -1345,7 +2054,6 @@ else {
         if (firestore) {
           firebaseConnected = true;
           
-          // Buscar por ID directo
           const docRef = firestore.collection('ordenes').doc(paymentId);
           const docSnap = await docRef.get();
           
@@ -1353,7 +2061,6 @@ else {
             orderData = docSnap.data();
             logger.info(`✅ Orden encontrada en Firebase: ${paymentId}`);
           } else {
-            // Buscar por metadata.orderId
             const querySnapshot = await firestore
               .collection('ordenes')
               .where('metadata.orderId', '==', paymentId)
@@ -1370,7 +2077,6 @@ else {
         logger.warn(`⚠️ Error Firebase para ${paymentId}`, { error: firebaseError.message });
       }
       
-      // 2. DETERMINAR ESTADO
       let paymentStatus = 'unknown';
       let verified = false;
       
@@ -1397,7 +2103,6 @@ else {
         }
       }
       
-      // 3. RESPUESTA DETALLADA
       const responseTime = Date.now() - startTime;
       
       const verificationResult = {
@@ -1408,7 +2113,6 @@ else {
         timestamp: new Date().toISOString(),
         response_time: `${responseTime}ms`,
         
-        // INFORMACIÓN DE LA ORDEN
         order_info: orderData ? {
           exists: true,
           id: orderData.id || paymentId,
@@ -1440,7 +2144,6 @@ else {
           message: 'Orden no encontrada en la base de datos'
         },
         
-        // METADATA
         metadata: {
           firebase_checked: firebaseConnected,
           source: orderData ? 'firebase' : 'verification_service',
@@ -1475,20 +2178,18 @@ else {
     }
   }
   
-  /**
-   * GET / - Info del servicio
-   */
   async getServiceInfo(req, res) {
     res.status(200).json({
       success: true,
-      service: 'Goldinfiniti Payment Gateway',
-      description: 'Sistema de procesamiento de pagos con Firebase + Culqi',
-      version: '2.0.0',
+      service: 'Goldinfiniti Payment Gateway + Sistema de Reclamos',
+      description: 'Sistema de procesamiento de pagos y reclamos con Firebase + Culqi',
+      version: '3.0.0',
       environment: process.env.NODE_ENV || 'production',
       timestamp: new Date().toISOString(),
       
       endpoints: {
         process_payment: 'POST /api/v1/payments',
+        process_claim: 'POST /api/v1/reclamos',
         get_stats: 'GET /api/v1/payments/stats',
         verify_payment: 'GET /api/v1/payments/verify/:paymentId',
         service_info: 'GET /api/v1/payments'
@@ -1496,15 +2197,24 @@ else {
       
       features: [
         'Procesamiento de pagos con Culqi',
+        'Sistema de reclamos INDECOPI completo',
         'Integración completa con Firebase',
         'Envío automático de emails con SendGrid',
         'Dashboard de administración en tiempo real',
-        'Verificación de pagos en tiempo real'
+        'Verificación de pagos en tiempo real',
+        'IDs secuenciales por mes'
       ],
       
       support: {
         email: 'contacto@goldinfiniti.com',
+        phone: '+51 968 786 648',
         dashboard: 'https://culqi-backend-pro.onrender.com/api/v1/payments/stats'
+      },
+      
+      compliance: {
+        indecopi: 'Libro de Reclamaciones Digital',
+        data_protection: 'Protección de datos del consumidor',
+        receipts: 'Comprobantes electrónicos'
       }
     });
   }
