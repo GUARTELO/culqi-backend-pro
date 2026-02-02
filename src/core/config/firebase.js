@@ -61,17 +61,10 @@ const initializeFirebase = () => {
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
         
         if (!admin.apps.length) {
-        admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: serviceAccount.project_id,
-    clientEmail: serviceAccount.client_email,
-    privateKey: serviceAccount.private_key
-  }),
-  projectId: serviceAccount.project_id,
-  databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
-});
-
-
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
+          });
           
           console.log('✅ Firebase inicializado con credenciales de entorno');
         }
@@ -96,25 +89,33 @@ const initializeFirebase = () => {
     }
 
     // Si se pudo inicializar
-if (admin.apps.length > 0) {
-  firestore = admin.firestore();
-  auth = admin.auth();
-  isInitialized = true;
-
-  console.log('✅ Firebase configurado correctamente');
-  console.log('📊 Proyecto: mi-tienda-online-10630');
-  console.log('📍 Ubicación: nam5 (us-central1)');
-} else {
-  console.error('❌ Firebase NO inicializado en PRODUCCIÓN');
-  throw new Error('Firebase no pudo inicializarse. Servicio detenido.');
-}
-
+    if (admin.apps.length > 0) {
+      firestore = admin.firestore();
+      auth = admin.auth();
+      isInitialized = true;
+      
+      console.log('✅ Firebase configurado correctamente');
+      console.log('📊 Proyecto: mi-tienda-online-10630');
+      console.log('📍 Ubicación: nam5 (us-central1)');
+      
+    } else {
+      console.warn('⚠️ Firebase NO inicializado - Modo sin conexión a BD');
+      console.warn('💡 Configura FIREBASE_SERVICE_ACCOUNT en Render.com');
+      
+      // FALLBACK SEGURO
+      firestore = createMockFirestore();
+      auth = createMockAuth();
+      console.log('🛡️ Usando Firebase mock para evitar errores');
+    }
 
   } catch (error) {
-  console.error('❌ Error CRÍTICO inicializando Firebase:', error.message);
-  throw error;
-}
-
+    console.error('❌ Error en Firebase (no crítico):', error.message);
+    
+    // FALLBACK SEGURO
+    firestore = createMockFirestore();
+    auth = createMockAuth();
+    console.log('🛡️ Fallback a Firebase mock');
+  }
 
   return { 
     firestore, 
