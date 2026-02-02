@@ -96,33 +96,25 @@ const initializeFirebase = () => {
     }
 
     // Si se pudo inicializar
-    if (admin.apps.length > 0) {
-      firestore = admin.firestore();
-      auth = admin.auth();
-      isInitialized = true;
-      
-      console.log('✅ Firebase configurado correctamente');
-      console.log('📊 Proyecto: mi-tienda-online-10630');
-      console.log('📍 Ubicación: nam5 (us-central1)');
-      
-    } else {
-      console.warn('⚠️ Firebase NO inicializado - Modo sin conexión a BD');
-      console.warn('💡 Configura FIREBASE_SERVICE_ACCOUNT en Render.com');
-      
-      // FALLBACK SEGURO
-      firestore = createMockFirestore();
-      auth = createMockAuth();
-      console.log('🛡️ Usando Firebase mock para evitar errores');
-    }
+if (admin.apps.length > 0) {
+  firestore = admin.firestore();
+  auth = admin.auth();
+  isInitialized = true;
+
+  console.log('✅ Firebase configurado correctamente');
+  console.log('📊 Proyecto: mi-tienda-online-10630');
+  console.log('📍 Ubicación: nam5 (us-central1)');
+} else {
+  console.error('❌ Firebase NO inicializado en PRODUCCIÓN');
+  throw new Error('Firebase no pudo inicializarse. Servicio detenido.');
+}
+
 
   } catch (error) {
-    console.error('❌ Error en Firebase (no crítico):', error.message);
-    
-    // FALLBACK SEGURO
-    firestore = createMockFirestore();
-    auth = createMockAuth();
-    console.log('🛡️ Fallback a Firebase mock');
-  }
+  console.error('❌ Error CRÍTICO inicializando Firebase:', error.message);
+  throw error;
+}
+
 
   return { 
     firestore, 
