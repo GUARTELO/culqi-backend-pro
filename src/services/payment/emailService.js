@@ -649,10 +649,10 @@ function _generateGoldenInfinityEmail(firebaseData) {
           </p>
           <p style="margin-bottom: 10px; font-size: 11px;">
             📧 contacto@goldinfiniti.com | 🌐 www.goldinfiniti.com<br>
-            📞 +51 968 786 648 | 🏢  Coo. Chancas de Andahuaylas Et. Santa Anita,Lima
+            📞 +51 968 786 648 | 🏢 Av. Principal 123, Lima, Perú
           </p>
           <p style="font-size: 10px; color: #999; margin-top: 15px;">
-            © ${new Date().getFullYear()} Goldinfiniti Tech Corp.<br>
+            © ${new Date().getFullYear()} Goldinfiniti. Todos los derechos reservados.<br>
             Este es un correo automático, por favor no responder.<br>
             ID de transacción: ${culqi_id || order_id}
           </p>

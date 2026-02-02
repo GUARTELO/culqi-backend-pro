@@ -94,114 +94,70 @@ class PaymentController {
   }
 
   /* ============================================================
-   * GENERAR ID SECUENCIAL POR MES - VERSIÓN CORREGIDA
+   * GENERAR ID SECUENCIAL POR MES
    * ============================================================
-  /* ============================================================
- * GENERAR ID SECUENCIAL POR MES - VERSIÓN PROFESIONAL FUNCIONAL
- * ============================================================
- */
-async _generarOrderIdSecuencial() {
-  try {
-    const firebase = require('../../../core/config/firebase');
-    const firestore = firebase.firestore;
-    
-    // Fecha actual (servidor ya en UTC-5)
-    const ahora = new Date();
-    const año = ahora.getFullYear();
-    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-    const prefijo = `ORD-${año}${mes}`;
-    
-    logger.info(`🔢 Generando ID para ${prefijo}...`);
-    
-    // OBTENER EL MÁXIMO CORRELATIVO DE ESTE MES
-    let maxNumero = 0;
-    
+   */
+  async _generarOrderIdSecuencial() {
     try {
-      // Método 1: Buscar órdenes de este mes
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
+      const hoy = new Date();
+      const año = hoy.getFullYear();
+      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+      const prefijo = `ORD-${año}${mes}`;
+      
+      logger.info(`🔢 Generando ID secuencial para ${prefijo}...`);
+      
+      // Buscar TODAS las órdenes del mes actual
+      const inicioMes = new Date(año, hoy.getMonth(), 1);
+      const finMes = new Date(año, hoy.getMonth() + 1, 0);
+      
       const snapshot = await firestore
         .collection('ordenes')
-        .where('id', '>=', `${prefijo}-0000`)
-        .where('id', '<=', `${prefijo}-9999`)
+        .where('fechaCreacion', '>=', inicioMes)
+        .where('fechaCreacion', '<=', finMes)
+        .orderBy('fechaCreacion', 'desc')
+        .limit(1)
         .get();
       
+      let siguienteNumero = 1;
+      
       if (!snapshot.empty) {
-        snapshot.docs.forEach(doc => {
-          const data = doc.data();
-          const id = data.id;
-          
-          if (id && id.startsWith(prefijo)) {
-            const partes = id.split('-');
-            if (partes.length === 3) {
-              const num = parseInt(partes[2]);
-              if (!isNaN(num) && num > maxNumero) {
-                maxNumero = num;
-              }
+        const ultimaOrden = snapshot.docs[0].data();
+        const ultimoNumero = ultimaOrden.numero || ultimaOrden.id;
+        
+        if (ultimoNumero && ultimoNumero.startsWith(prefijo)) {
+          const partes = ultimoNumero.split('-');
+          if (partes.length === 3) {
+            const ultimoNum = parseInt(partes[2]);
+            if (!isNaN(ultimoNum)) {
+              siguienteNumero = ultimoNum + 1;
             }
           }
-        });
-        
-        // SI ENCUENTRA ORDENES: maxNumero será > 0
-        // Ejemplo: Si encuentra ORD-202602-0005, maxNumero = 5
+          logger.info(`📊 Último número: ${ultimoNumero}, Siguiente: ${siguienteNumero}`);
+        }
+      } else {
+        logger.info(`📊 Primer orden del mes ${prefijo}`);
       }
+      
+      const orderId = `${prefijo}-${String(siguienteNumero).padStart(4, '0')}`;
+      logger.info(`✅ ID SECUENCIAL GENERADO: ${orderId}`);
+      return orderId;
       
     } catch (error) {
-      logger.warn('⚠️ Error en consulta, usando fallback simple', { error: error.message });
+      logger.error('❌ Error generando ID secuencial:', error);
       
-      // Método 2: Fallback simple
-      try {
-        const allSnapshot = await firestore
-          .collection('ordenes')
-          .orderBy('fechaCreacion', 'desc')
-          .limit(20)
-          .get();
-        
-        allSnapshot.docs.forEach(doc => {
-          const data = doc.data();
-          const id = data.id;
-          
-          if (id && id.startsWith(prefijo)) {
-            const partes = id.split('-');
-            if (partes.length === 3) {
-              const num = parseInt(partes[2]);
-              if (!isNaN(num) && num > maxNumero) {
-                maxNumero = num;
-              }
-            }
-          }
-        });
-      } catch (fallbackError) {
-        logger.error('❌ Error en fallback:', { error: fallbackError.message });
-      }
+      // Fallback
+      const hoy = new Date();
+      const año = hoy.getFullYear();
+      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+      const timestamp = Date.now().toString().slice(-6);
+      return `ORD-${año}${mes}-${timestamp}`;
     }
-    
-    // CALCULAR SIGUIENTE NÚMERO
-    const siguienteNumero = maxNumero + 1;
-    const orderId = `${prefijo}-${String(siguienteNumero).padStart(4, '0')}`;
-    
-    // LOG PARA VERIFICAR
-    logger.info(`📊 CORRELATIVO CALCULADO:`, {
-      prefijo: prefijo,
-      maxEncontrado: maxNumero,
-      siguiente: siguienteNumero,
-      idGenerado: orderId,
-      nota: maxNumero === 0 ? 'Primera orden del mes' : `Continuando desde ${maxNumero}`
-    });
-    
-    return orderId;
-    
-  } catch (error) {
-    logger.error('❌ Error en _generarOrderIdSecuencial:', error);
-    
-    // FALLBACK ABSOLUTO
-    const ahora = new Date();
-    const año = ahora.getFullYear();
-    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-    return `ORD-${año}${mes}-9999`;
   }
-}
 
   /* ============================================================
-   * PROCESAR PAGO CON DATOS DE FIREBASE - CORREGIDO PARA RESPETAR ID FIREBASE
+   * PROCESAR PAGO CON DATOS DE FIREBASE
    * ============================================================
    */
   async processPayment(req, res) {
@@ -230,62 +186,34 @@ async _generarOrderIdSecuencial() {
         id: ordenId 
       } = req.body;
 
-      // ========== CORRECCIÓN CRÍTICA: RESPETAR SIEMPRE EL ID DE FIREBASE ==========
-      let ordenIdFinal = ordenId;
+      // ========== CORREGIR O GENERAR ID SECUENCIAL ==========
+      let ordenIdCorregido = ordenId;
       
-      logger.info(`📋 ID RECIBIDO DE FIREBASE: ${ordenId}`, {
-        tipo: typeof ordenId,
-        longitud: ordenId ? ordenId.length : 0
-      });
-
-      // CASO 1: Si NO hay ID o es inválido → generar nuevo
-      if (!ordenId || !ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
-        logger.warn('🚨 ID INVÁLIDO O FALTANTE, GENERANDO NUEVO:', { 
-          ordenIdOriginal: ordenId 
-        });
+      // CASO 1: ID es automático (ORD-1769...)
+      if (ordenId && ordenId.includes('ORD-1769')) {
+        logger.warn('🚨 ID AUTOMÁTICO DETECTADO, CORRIGIENDO:', ordenId);
         
-        // Solo generar nuevo si realmente es inválido
-        ordenIdFinal = await this._generarOrderIdSecuencial();
-        logger.info('✅ NUEVO ID GENERADO:', ordenIdFinal);
-      }
-      // CASO 2: ID válido (ORD-202602-0004) → ¡USAR DIRECTAMENTE!
-      else {
-        logger.info('✅ ID VÁLIDO DE FIREBASE, USANDO:', ordenId);
-        ordenIdFinal = ordenId;
-        
-        // Verificar si ya está pagado (protección contra duplicados)
-        try {
-          const firebase = require('../../../core/config/firebase');
-          const firestore = firebase.firestore;
-          
-          const snapshot = await firestore
-            .collection('ordenes')
-            .where('id', '==', ordenId)
-            .limit(1)
-            .get();
-          
-          if (!snapshot.empty) {
-            const ordenExistente = snapshot.docs[0].data();
-            const estadoPago = ordenExistente.pago?.estado || 
-                             ordenExistente.metadata?.estado_pago ||
-                             ordenExistente.metadata?.procesado;
-            
-            // Si ya existe Y está completado → ERROR
-            if (estadoPago === 'completado' || estadoPago === true) {
-              throw this._error('ORDER_ALREADY_PAID', 
-                `La orden ${ordenId} ya fue procesada y pagada`, 409);
-            }
-            
-            // Si existe pero NO está pagado → continuar normalmente (puede ser reenvío)
-            logger.warn(`⚠️ Orden ${ordenId} ya existe pero no está pagada (estado: ${estadoPago})`);
-          }
-        } catch (firebaseError) {
-          // Si hay error en la consulta, continuar de todos modos
-          logger.warn('⚠️ Error verificando orden existente, continuando...', {
-            error: firebaseError.message
-          });
+        // Intentar usar metadata.orderId si es secuencial
+        if (metadata?.orderId && metadata.orderId.match(/^ORD-\d{6}-\d{4}$/)) {
+          ordenIdCorregido = metadata.orderId;
+          logger.info('✅ ID corregido del metadata:', ordenIdCorregido);
+        } else {
+          // Generar nuevo ID SECUENCIAL
+          ordenIdCorregido = await this._generarOrderIdSecuencial();
+          logger.info('✅ NUEVO ID SECUENCIAL:', ordenIdCorregido);
         }
       }
+      // CASO 2: ID ya es válido (ORD-202601-XXXX) → USARLO TAL CUAL
+else if (ordenId && ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
+  logger.info('✅ ID ya es válido, usando:', ordenId);
+  ordenIdCorregido = ordenId; // ← ¡NO generar nuevo!
+}
+// CASO 3: No hay ID o es incorrecto → Generar nuevo
+else {
+  ordenIdCorregido = await this._generarOrderIdSecuencial();
+  logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
+}
+      // ========== FIN CORRECCIÓN ==========
 
       // Validar datos mínimos
       if (!token) throw this._error('MISSING_TOKEN', 'Token de pago requerido', 400);
@@ -300,13 +228,12 @@ async _generarOrderIdSecuencial() {
         throw this._error('INCOMPLETE_DATA', 'Datos de Firebase incompletos', 400);
       }
 
-      logger.info(`📋 Procesando orden ${ordenIdFinal}`, {
+      logger.debug(`📋 Datos Firebase recibidos ${paymentId}`, {
         ordenIdOriginal: ordenId,
-        ordenIdFinal: ordenIdFinal,
+        ordenIdCorregido: ordenIdCorregido,
         cliente: cliente.nombre,
         productosCount: Array.isArray(productos) ? productos.length : 0,
-        total: resumen?.total,
-        coincide: ordenId === ordenIdFinal ? '✅ SÍ' : '⚠️ NO (se generó nuevo)'
+        total: resumen?.total
       });
 
       /* =======================
@@ -320,23 +247,22 @@ async _generarOrderIdSecuencial() {
         cliente,
         metadata,
         req,
-        ordenIdFinal
+        ordenIdCorregido
       );
 
       /* =======================
        * 3. PROCESAR CON CULQI
        * =======================
        */
-      logger.info(`⚡ Procesando pago Culqi para orden ${ordenIdFinal}`);
+      logger.info(`⚡ Procesando pago Culqi ${paymentId}`);
       const culqiResult = await culqiService.createCharge(culqiData);
       
       if (!culqiResult || !culqiResult.id) {
         throw this._error('CULQI_PROCESSING_FAILED', 'Error procesando pago con Culqi', 502);
       }
 
-      logger.info(`✅ Pago Culqi exitoso para orden ${ordenIdFinal}`, {
+      logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
         culqiId: culqiResult.id,
-        orderId: ordenIdFinal,
         amount: culqiResult.amount,
         status: culqiResult.status
       });
@@ -355,7 +281,7 @@ async _generarOrderIdSecuencial() {
           productos,
           resumen,
           metadata,
-          ordenId: ordenIdFinal
+          ordenId: ordenIdCorregido
         }
       );
 
@@ -384,19 +310,18 @@ async _generarOrderIdSecuencial() {
           cliente,
           productos,
           resumen,
-          ordenId: ordenIdFinal
+          ordenId: ordenIdCorregido
         },
         totalDuration
       );
 
-      logger.info(`🎉 PAGO COMPLETADO EXITOSAMENTE`, {
-        ordenId: ordenIdFinal,
+      logger.info(`🎉 Pago completado ${paymentId}`, {
+        paymentId,
+        ordenId: ordenIdCorregido,
         cliente: cliente.nombre,
-        email: this._maskEmail(cliente.email),
+        emailSent: emailResult.success,
         total: resumen.total,
-        duracion: `${totalDuration}ms`,
-        idFirebaseOriginal: ordenId,
-        idFinalUsado: ordenIdFinal
+        duration: `${totalDuration}ms`
       });
 
       /* =======================
@@ -409,7 +334,7 @@ async _generarOrderIdSecuencial() {
       res.status(200).json(response);
       
       /* =======================
-       * 9. TAREAS POST-PAGO
+       * 9. TAREAS POST-PAGO (OPCIONAL) - AQUÍ ESTÁ LA CORRECCIÓN
        * =======================
        */
       this._executePostPaymentTasks(
@@ -422,13 +347,11 @@ async _generarOrderIdSecuencial() {
           productos,
           resumen,
           metadata,
-          ordenId: ordenIdFinal
+          ordenId: ordenIdCorregido // ✅ ESTE ES EL ID CORRECTO: ORD-202601-0029
         },
         emailResult
       ).catch(err => {
-        logger.error(`🔥 Error crítico en tareas post-pago ${ordenIdFinal}`, { 
-          error: err.message 
-        });
+        logger.warn(`⚠️ Error en tareas post-pago ${paymentId}`, { error: err.message });
       });
 
     } catch (error) {
@@ -519,7 +442,7 @@ async _generarOrderIdSecuencial() {
       customer_name: `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim(),
       customer_phone: cliente.telefono || '',
       
-      // ✅ INFORMACIÓN DE LA ORDEN CON ID SECUENCIAL
+      // ✅✅✅ INFORMACIÓN DE LA ORDEN CON ID SECUENCIAL
       order_id: ordenId,
       firebase_doc_id: metadata?.firebaseDocId,
       fecha_creacion: metadata?.timestamp || new Date().toISOString(),
@@ -652,7 +575,7 @@ async _generarOrderIdSecuencial() {
   }
 
   /* ============================================================
-   * TAREAS POST-PAGO
+   * TAREAS POST-PAGO - CORREGIDO PARA USAR MISMO ID
    * ============================================================
    */
   async _executePostPaymentTasks(paymentId, culqiResult, firebaseData, emailResult) {
@@ -660,15 +583,17 @@ async _generarOrderIdSecuencial() {
     
     try {
       logger.info(`🔄 Ejecutando tareas post-pago ${paymentId}`, {
-        ordenId: firebaseData.ordenId,
+        ordenIdParaNotificacion: firebaseData.ordenId,
         cliente: firebaseData.cliente?.nombre
       });
       
       const tasks = [];
       
-      // 1. Notificación interna
+      // ✅✅✅ CORRECCIÓN CRÍTICA: Notificación interna con MISMO ID
       if (emailServiceAvailable && emailService.sendPaymentNotification) {
+        // PREPARAR DATOS EXACTOS PARA LA NOTIFICACIÓN
         const notificationData = {
+          // Información del pago
           id: paymentId,
           culqi_id: culqiResult.id,
           amount: culqiResult.amount,
@@ -676,15 +601,19 @@ async _generarOrderIdSecuencial() {
           status: culqiResult.status,
           created_at: culqiResult.created_at || new Date().toISOString(),
           
-          order_id: firebaseData.ordenId,
+          // ✅✅✅ AQUÍ ESTÁ LA CORRECCIÓN: MISMO ID QUE AL CLIENTE
+          order_id: firebaseData.ordenId, // ORD-202601-0029
           
+          // Información del cliente
           customer_email: firebaseData.cliente?.email,
           customer_name: `${firebaseData.cliente?.nombre || ''} ${firebaseData.cliente?.apellido || ''}`.trim(),
           customer_phone: firebaseData.cliente?.telefono || '',
           
+          // Productos
           productos: firebaseData.productos || [],
           productos_count: firebaseData.productos?.length || 0,
           
+          // Resumen
           resumen: {
             subtotal: firebaseData.resumen?.subtotal || 0,
             envio: firebaseData.resumen?.envio || 0,
@@ -692,40 +621,59 @@ async _generarOrderIdSecuencial() {
             cantidad_items: firebaseData.resumen?.cantidadItems || 0
           },
           
+          // Comprobante
           comprobante: firebaseData.comprobante || { tipo: 'boleta' },
+          
+          // Envío
           envio: firebaseData.envio || null,
           
+          // Resultado del email al cliente
           email_result: {
             success: emailResult.success,
             timestamp: emailResult.timestamp,
             customer: firebaseData.cliente?.email
           },
           
+          // Metadata
           metadata: {
             ...firebaseData.metadata,
             firebase_doc_id: firebaseData.metadata?.firebaseDocId,
             tipo_compra: firebaseData.metadata?.tipoCompra,
             procesado_en: new Date().toISOString(),
-            golden_infinity: true
+            golden_infinity: true,
+            // ✅ DEBUG IMPORTANTE
+            debug_nota: 'NOTIFICACIÓN INTERNA - MISMO ID QUE EMAIL AL CLIENTE',
+            order_id_verificado: firebaseData.ordenId
           }
         };
+        
+        // ✅ LOG EXPLÍCITO PARA VERIFICAR
+        logger.info(`📧 ENVIANDO NOTIFICACIÓN INTERNA CON ID: ${firebaseData.ordenId}`, {
+          payment_id: paymentId,
+          order_id_en_notification: notificationData.order_id,
+          igual_a_cliente: notificationData.order_id === firebaseData.ordenId
+        });
         
         tasks.push(
           emailService.sendPaymentNotification(notificationData)
             .then(result => {
-              logger.info(`✅ Notificación interna enviada para orden: ${firebaseData.ordenId}`);
+              logger.info(`✅ NOTIFICACIÓN INTERNA ENVIADA PARA ORDEN: ${firebaseData.ordenId}`, {
+                success: result.success,
+                order_id_confirmado: firebaseData.ordenId
+              });
               return result;
             })
             .catch(err => {
               logger.warn(`⚠️ Error notificación interna ${paymentId}`, { 
-                error: err.message
+                error: err.message,
+                ordenId_correcto: firebaseData.ordenId
               });
               return { success: false, error: err.message };
             })
         );
       }
       
-      // 2. Comprobante PDF
+      // 2. Comprobante PDF si hay productos
       if (emailServiceAvailable && emailService.enviarCorreoComprobante && 
           firebaseData.productos && firebaseData.productos.length > 0) {
         
@@ -744,13 +692,12 @@ async _generarOrderIdSecuencial() {
         );
       }
       
-      // 3. ACTUALIZAR FIREBASE CON EL ID CORRECTO
+      // 3. Actualizar Firebase (simulado)
       tasks.push(
         this._updateFirebaseDocument(
-          firebaseData.ordenId,
+          firebaseData.ordenId, // ✅ MISMO ID AQUÍ TAMBIÉN
           culqiResult,
-          emailResult,
-          firebaseData
+          emailResult
         ).then(result => {
           logger.info(`📝 Firebase actualizado para orden ${firebaseData.ordenId}`);
           return result;
@@ -778,7 +725,8 @@ async _generarOrderIdSecuencial() {
       logger.error(`🔥 Error en tareas post-pago ${paymentId}`, {
         error: error.message,
         ordenId: firebaseData.ordenId,
-        duration: `${Date.now() - tasksStartTime}ms`
+        duration: `${Date.now() - tasksStartTime}ms`,
+        critical: false
       });
     }
   }
@@ -947,124 +895,111 @@ async _generarOrderIdSecuencial() {
   }
 
   /* ============================================================
-   * ACTUALIZAR DOCUMENTO EN FIREBASE - VERSIÓN MEJORADA
+   * ACTUALIZAR DOCUMENTO EN FIREBASE
    * ============================================================
    */
-  async _updateFirebaseDocument(orderId, culqiResult, emailResult, firebaseData = null) {
-    try {
-      const firebase = require('../../../core/config/firebase');
-      const firestore = firebase.firestore;
+  async _updateFirebaseDocument(orderId, culqiResult, emailResult) {
+  try {
+    // 1. Cargar Firebase
+    const firebase = require('../../../core/config/firebase');
+    const firestore = firebase.firestore;
+    
+    // 2. Datos a actualizar
+    const updateData = {
+      'metadata.procesado': true,
+      'metadata.procesado_en': new Date().toISOString(),
+      'metadata.culqi_id': culqiResult.id,
+      'metadata.email_enviado': emailResult.success,
+      'metadata.email_timestamp': emailResult.timestamp || new Date().toISOString(),
+      'metadata.estado_pago': 'completado',
+      'metadata.metodo_pago': 'culqi',
+      'metadata.ultima_actualizacion': new Date().toISOString(),
       
-      // Datos de actualización
-      const updateData = {
-        'metadata.procesado': true,
-        'metadata.procesado_en': new Date().toISOString(),
-        'metadata.culqi_id': culqiResult.id,
-        'metadata.email_enviado': emailResult.success,
-        'metadata.email_timestamp': emailResult.timestamp || new Date().toISOString(),
-        'metadata.estado_pago': 'completado',
-        'metadata.metodo_pago': 'culqi',
-        'metadata.ultima_actualizacion': new Date().toISOString(),
-        
-        'pago.estado': 'completado',
-        'pago.metodo': 'culqi',
-        'pago.fecha_procesado': new Date().toISOString(),
-        'pago.monto': culqiResult.amount / 100,
-        'pago.currency': culqiResult.currency || 'PEN',
-        'pago.culqi_charge_id': culqiResult.id,
-        'pago.comprobante_url': culqiResult.receipt_url || 'pendiente'
+      'pago.estado': 'completado',
+      'pago.metodo': 'culqi',
+      'pago.fecha_procesado': new Date().toISOString(),
+      'pago.monto': culqiResult.amount / 100,
+      'pago.currency': culqiResult.currency || 'PEN',
+      'pago.culqi_charge_id': culqiResult.id,
+      'pago.comprobante_url': culqiResult.receipt_url
+    };
+    
+    logger.info(`📝 ACTUALIZANDO REALMENTE Firebase para orden ${orderId}`, {
+      orderId,
+      culqiId: culqiResult.id,
+      updateData
+    });
+    
+    // 3. Buscar documento por orderId (ID SECUENCIAL)
+    const querySnapshot = await firestore
+      .collection('ordenes')
+      .where('id', '==', orderId)  // Busca por tu ID secuencial
+      .limit(1)
+      .get();
+    
+    if (!querySnapshot.empty) {
+      const docRef = querySnapshot.docs[0].ref;
+      
+      // 4. Actualizar con merge (no sobrescribe otros campos)
+      await docRef.update(updateData);
+      
+      logger.info(`✅ Firebase ACTUALIZADO REALMENTE para orden ${orderId}`);
+      
+      return { 
+        success: true, 
+        updated: true, 
+        orderId,
+        realUpdate: true,
+        documentId: docRef.id
       };
       
-      logger.info(`📝 ACTUALIZANDO Firebase para orden ${orderId}`, {
-        orderId,
-        culqiId: culqiResult.id
-      });
-      
-      // Buscar por ID exacto
-      const querySnapshot = await firestore
+    } else {
+      // 5. Buscar alternativamente por metadata.orderId
+      const altQuerySnapshot = await firestore
         .collection('ordenes')
-        .where('id', '==', orderId)
+        .where('metadata.orderId', '==', orderId)
         .limit(1)
         .get();
       
-      if (!querySnapshot.empty) {
-        const docRef = querySnapshot.docs[0].ref;
-        await docRef.set(updateData, { merge: true });
+      if (!altQuerySnapshot.empty) {
+        const docRef = altQuerySnapshot.docs[0].ref;
+        await docRef.update(updateData);
         
-        logger.info(`✅ Firebase actualizado por id: ${orderId}`);
-        
-        // Si tenemos los datos completos, también actualizar el documento completo
-        if (firebaseData) {
-          const completeData = {
-            ...firebaseData,
-            id: orderId,
-            metadata: {
-              ...firebaseData.metadata,
-              ...updateData.metadata
-            },
-            pago: updateData.pago
-          };
-          
-          // Guardar como nuevo documento o actualizar existente
-          await firestore.collection('ordenes_completas').doc(orderId).set(completeData, { merge: true });
-          logger.info(`✅ Documento completo guardado en ordenes_completas: ${orderId}`);
-        }
+        logger.info(`✅ Firebase actualizado por metadata.orderId: ${orderId}`);
         
         return { 
           success: true, 
           updated: true, 
           orderId,
-          realUpdate: true
-        };
-      } else {
-        logger.warn(`⚠️ Orden ${orderId} no encontrada en Firebase por id`);
-        
-        // Intentar crear un nuevo documento si no existe
-        if (firebaseData) {
-          const newOrderData = {
-            ...firebaseData,
-            id: orderId,
-            fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
-            metadata: {
-              ...firebaseData.metadata,
-              ...updateData.metadata,
-              created_in_backend: true,
-              timestamp: new Date().toISOString()
-            },
-            pago: updateData.pago,
-            estado: 'completado'
-          };
-          
-          await firestore.collection('ordenes').doc(orderId).set(newOrderData);
-          logger.info(`✅ NUEVA ORDEN CREADA en Firebase: ${orderId}`);
-          
-          return { 
-            success: true, 
-            created: true, 
-            orderId,
-            newDocument: true
-          };
-        }
-        
-        return { 
-          success: false, 
-          error: 'Documento no encontrado y sin datos para crear', 
-          orderId
+          realUpdate: true,
+          viaMetadata: true
         };
       }
       
-    } catch (error) {
-      logger.error(`❌ Error actualizando Firebase para orden ${orderId}`, { 
-        error: error.message
-      });
-      
+      logger.warn(`⚠️ Orden ${orderId} no encontrada en Firebase`);
       return { 
         success: false, 
-        error: error.message, 
-        orderId
+        error: 'Documento no encontrado', 
+        orderId,
+        notFound: true 
       };
     }
+    
+  } catch (error) {
+    logger.error(`❌ Error actualizando Firebase para orden ${orderId}`, { 
+      error: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    
+    return { 
+      success: false, 
+      error: error.message, 
+      orderId,
+      updateFailed: true 
+    };
   }
+}
 
   /* ============================================================
    * MÉTODOS AUXILIARES
@@ -1128,27 +1063,31 @@ async _generarOrderIdSecuencial() {
       INVALID_AMOUNT: ['Verifica el monto ingresado'],
       MISSING_EMAIL: ['Proporciona un email válido'],
       INCOMPLETE_DATA: ['Faltan datos de Firebase. Contacta soporte.'],
-      CULQI_PROCESSING_FAILED: ['Intenta nuevamente o contacta soporte'],
-      ORDER_ALREADY_PAID: ['Esta orden ya fue procesada. Contacta soporte si necesitas ayuda.']
+      CULQI_PROCESSING_FAILED: ['Intenta nuevamente o contacta soporte']
     };
     
     return suggestions[code] || ['Intenta nuevamente', 'Contacta soporte'];
   }
 
   /* ============================================================
-   * ENDPOINTS ADICIONALES
+   * ENDPOINTS ADICIONALES - TODOS LOS MÉTODOS NECESARIOS
    * ============================================================
    */
   
+  /**
+   * GET /stats - Obtiene estadísticas REALES para el dashboard
+   */
   async getStats(req, res) {
     const startTime = Date.now();
     
     try {
       logger.info('📊 Obteniendo estadísticas REALES para dashboard...');
       
+      // 1. DATOS DEL SERVIDOR
       const memory = process.memoryUsage();
       const uptime = process.uptime();
       
+      // 2. DATOS DE FIREBASE (REALES)
       let firebaseStats = {
         connected: false,
         total_orders: 0,
@@ -1178,11 +1117,6 @@ async _generarOrderIdSecuencial() {
           const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
           const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           
-          const todayStart = firebase.firestore.Timestamp.fromDate(today);
-          const todayEnd = firebase.firestore.Timestamp.fromDate(tomorrow);
-          const hourAgoStamp = firebase.firestore.Timestamp.fromDate(oneHourAgo);
-          const monthAgoStamp = firebase.firestore.Timestamp.fromDate(thirtyDaysAgo);
-          
           // Total de órdenes
           const allOrdersSnapshot = await firestore.collection('ordenes').get();
           const totalOrders = allOrdersSnapshot.size;
@@ -1190,8 +1124,8 @@ async _generarOrderIdSecuencial() {
           // Órdenes de hoy
           const todayOrdersSnapshot = await firestore
             .collection('ordenes')
-            .where('fechaCreacion', '>=', todayStart)
-            .where('fechaCreacion', '<', todayEnd)
+            .where('fechaCreacion', '>=', today)
+            .where('fechaCreacion', '<', tomorrow)
             .get();
           
           const todayOrders = todayOrdersSnapshot.size;
@@ -1205,15 +1139,15 @@ async _generarOrderIdSecuencial() {
           // Órdenes última hora
           const lastHourSnapshot = await firestore
             .collection('ordenes')
-            .where('fechaCreacion', '>=', hourAgoStamp)
+            .where('fechaCreacion', '>=', oneHourAgo)
             .get();
           
           const lastHourOrders = lastHourSnapshot.size;
           
-          // Clientes activos
+          // Clientes activos (últimos 30 días)
           const activeClientsSnapshot = await firestore
             .collection('ordenes')
-            .where('fechaCreacion', '>=', monthAgoStamp)
+            .where('fechaCreacion', '>=', thirtyDaysAgo)
             .get();
           
           const uniqueEmails = new Set();
@@ -1228,18 +1162,33 @@ async _generarOrderIdSecuencial() {
             today_orders: todayOrders,
             today_amount: parseFloat(todayAmount.toFixed(2)),
             active_clients: uniqueEmails.size,
-            last_hour_orders: lastHourOrders
+            last_hour_orders: lastHourOrders,
+            location: 'nam5',
+            collection: 'ordenes'
           };
           
-          backendStatus.firebase_connected = true;
-          backendStatus.total_orders_in_db = totalOrders;
+          backendStatus = {
+            status: 'OK',
+            message: 'Backend funcionando correctamente con Firebase',
+            last_check: new Date().toISOString(),
+            uptime: `${Math.floor(uptime)}s`,
+            firebase_connected: true,
+            total_orders_in_db: totalOrders
+          };
         }
       } catch (firebaseError) {
         logger.warn('⚠️ Error conectando a Firebase', { error: firebaseError.message });
-        backendStatus.firebase_connected = false;
-        backendStatus.error = firebaseError.message;
+        backendStatus = {
+          status: 'WARNING',
+          message: 'Backend funcionando pero Firebase no disponible',
+          last_check: new Date().toISOString(),
+          uptime: `${Math.floor(uptime)}s`,
+          firebase_connected: false,
+          error: firebaseError.message
+        };
       }
       
+      // 3. CONSTRUIR RESPUESTA COMPLETA PARA EL DASHBOARD
       const responseTime = Date.now() - startTime;
       
       const response = {
@@ -1247,8 +1196,10 @@ async _generarOrderIdSecuencial() {
         timestamp: new Date().toISOString(),
         response_time: `${responseTime}ms`,
         
+        // ✅ ESTADO DEL BACKEND (para tu panel)
         backend_status: backendStatus,
         
+        // 📊 PAGOS HOY (para tu panel)
         payments_today: {
           count: firebaseStats.today_orders,
           amount: firebaseStats.today_amount,
@@ -1256,12 +1207,14 @@ async _generarOrderIdSecuencial() {
           formatted: `S/ ${firebaseStats.today_amount.toFixed(2)}`
         },
         
+        // 👥 CLIENTES ACTIVOS (para tu panel)
         active_clients: {
           count: firebaseStats.active_clients,
           last_hour: firebaseStats.last_hour_orders,
           period: '30 días'
         },
         
+        // 📈 ESTADÍSTICAS DETALLADAS
         detailed_stats: {
           total_orders: firebaseStats.total_orders,
           today_orders: firebaseStats.today_orders,
@@ -1269,13 +1222,39 @@ async _generarOrderIdSecuencial() {
           firebase_connection: firebaseStats.connected ? 'CONECTADO' : 'DESCONECTADO'
         },
         
+        // 💳 MÉTODOS DE PAGO DISPONIBLES
         payment_methods: [
-          { id: 'visa', name: 'Visa', available: true, type: 'card', status: 'Disponible' },
-          { id: 'mastercard', name: 'Mastercard', available: true, type: 'card', status: 'Disponible' },
-          { id: 'amex', name: 'American Express', available: true, type: 'card', status: 'Disponible' },
-          { id: 'diners', name: 'Diners Club', available: true, type: 'card', status: 'Disponible' }
+          {
+            id: 'visa',
+            name: 'Visa',
+            available: true,
+            type: 'card',
+            status: 'Disponible'
+          },
+          {
+            id: 'mastercard',
+            name: 'Mastercard',
+            available: true,
+            type: 'card',
+            status: 'Disponible'
+          },
+          {
+            id: 'amex',
+            name: 'American Express',
+            available: true,
+            type: 'card',
+            status: 'Disponible'
+          },
+          {
+            id: 'diners',
+            name: 'Diners Club',
+            available: true,
+            type: 'card',
+            status: 'Disponible'
+          }
         ],
         
+        // 🖥️ ESTADÍSTICAS DEL SERVIDOR
         server_stats: {
           uptime: `${Math.floor(uptime)} segundos`,
           memory: {
@@ -1287,8 +1266,10 @@ async _generarOrderIdSecuencial() {
           node_version: process.version
         },
         
+        // 📊 ESTADÍSTICAS DEL CONTROLADOR
         controller_stats: this.stats,
         
+        // 🔗 SERVICIOS CONECTADOS
         services: {
           email: emailServiceAvailable ? 'ACTIVO' : 'FALLBACK',
           culqi: 'CONECTADO',
@@ -1299,7 +1280,8 @@ async _generarOrderIdSecuencial() {
       
       logger.info('✅ Estadísticas obtenidas exitosamente', {
         today_orders: firebaseStats.today_orders,
-        today_amount: firebaseStats.today_amount
+        today_amount: firebaseStats.today_amount,
+        response_time: `${responseTime}ms`
       });
       
       res.status(200).json(response);
@@ -1307,6 +1289,7 @@ async _generarOrderIdSecuencial() {
     } catch (error) {
       logger.error('❌ Error obteniendo estadísticas', { error: error.message });
       
+      // RESPUESTA DE EMERGENCIA (pero con datos básicos)
       res.status(200).json({
         success: true,
         timestamp: new Date().toISOString(),
@@ -1324,12 +1307,26 @@ async _generarOrderIdSecuencial() {
           formatted: 'S/ 0.00'
         },
         
+        active_clients: {
+          count: 0,
+          last_hour: 0,
+          period: '30 días'
+        },
+        
+        payment_methods: [
+          { id: 'visa', name: 'Visa', available: true, type: 'card', status: 'Disponible' },
+          { id: 'mastercard', name: 'Mastercard', available: true, type: 'card', status: 'Disponible' }
+        ],
+        
         message: 'Modo de emergencia - Datos básicos',
         fallback_mode: true
       });
     }
   }
   
+  /**
+   * GET /verify/:paymentId - Verifica un pago REAL
+   */
   async verifyPayment(req, res) {
     const startTime = Date.now();
     const { paymentId } = req.params;
@@ -1337,6 +1334,7 @@ async _generarOrderIdSecuencial() {
     try {
       logger.info(`🔍 Verificando pago REAL: ${paymentId}`);
       
+      // 1. INTENTAR CON FIREBASE PRIMERO
       let orderData = null;
       let firebaseConnected = false;
       
@@ -1347,12 +1345,15 @@ async _generarOrderIdSecuencial() {
         if (firestore) {
           firebaseConnected = true;
           
+          // Buscar por ID directo
           const docRef = firestore.collection('ordenes').doc(paymentId);
           const docSnap = await docRef.get();
           
           if (docSnap.exists) {
             orderData = docSnap.data();
+            logger.info(`✅ Orden encontrada en Firebase: ${paymentId}`);
           } else {
+            // Buscar por metadata.orderId
             const querySnapshot = await firestore
               .collection('ordenes')
               .where('metadata.orderId', '==', paymentId)
@@ -1361,6 +1362,7 @@ async _generarOrderIdSecuencial() {
             
             if (!querySnapshot.empty) {
               orderData = querySnapshot.docs[0].data();
+              logger.info(`✅ Orden encontrada por orderId: ${paymentId}`);
             }
           }
         }
@@ -1368,27 +1370,34 @@ async _generarOrderIdSecuencial() {
         logger.warn(`⚠️ Error Firebase para ${paymentId}`, { error: firebaseError.message });
       }
       
+      // 2. DETERMINAR ESTADO
       let paymentStatus = 'unknown';
       let verified = false;
       
       if (orderData) {
         const procesado = orderData.metadata?.procesado;
-        const estadoPago = orderData.pago?.estado || orderData.metadata?.estado_pago;
         
-        if (procesado === true || estadoPago === 'completado') {
+        if (procesado === true) {
           paymentStatus = 'completed';
           verified = true;
-        } else if (procesado === false || estadoPago === 'pendiente') {
+        } else if (procesado === false) {
           paymentStatus = 'pending';
           verified = true;
+        } else {
+          paymentStatus = 'unknown';
+          verified = false;
         }
       } else {
         if (paymentId.startsWith('ORD-')) {
           paymentStatus = 'pending';
           verified = true;
+        } else {
+          paymentStatus = 'not_found';
+          verified = false;
         }
       }
       
+      // 3. RESPUESTA DETALLADA
       const responseTime = Date.now() - startTime;
       
       const verificationResult = {
@@ -1399,6 +1408,7 @@ async _generarOrderIdSecuencial() {
         timestamp: new Date().toISOString(),
         response_time: `${responseTime}ms`,
         
+        // INFORMACIÓN DE LA ORDEN
         order_info: orderData ? {
           exists: true,
           id: orderData.id || paymentId,
@@ -1420,21 +1430,28 @@ async _generarOrderIdSecuencial() {
             orderData.fechaCreacion.toDate().toISOString() : 
             new Date().toISOString(),
           processed: orderData.metadata?.procesado || false,
-          payment_status: orderData.pago?.estado || 'pendiente'
+          products: orderData.productos ? orderData.productos.map(p => ({
+            name: p.nombre || p.titulo,
+            quantity: p.cantidad || p.quantity,
+            price: p.precio || p.precioOriginal
+          })) : []
         } : {
           exists: false,
           message: 'Orden no encontrada en la base de datos'
         },
         
+        // METADATA
         metadata: {
           firebase_checked: firebaseConnected,
-          source: orderData ? 'firebase' : 'verification_service'
+          source: orderData ? 'firebase' : 'verification_service',
+          environment: process.env.NODE_ENV || 'production'
         }
       };
       
       logger.info(`✅ Verificación completada: ${paymentId}`, {
         status: paymentStatus,
-        verified: verified
+        verified: verified,
+        response_time: `${responseTime}ms`
       });
       
       res.status(200).json(verificationResult);
@@ -1458,6 +1475,9 @@ async _generarOrderIdSecuencial() {
     }
   }
   
+  /**
+   * GET / - Info del servicio
+   */
   async getServiceInfo(req, res) {
     res.status(200).json({
       success: true,
@@ -1477,9 +1497,9 @@ async _generarOrderIdSecuencial() {
       features: [
         'Procesamiento de pagos con Culqi',
         'Integración completa con Firebase',
-        'Envío automático de emails',
-        'IDs secuenciales por mes (ORD-YYYYMM-XXXX)',
-        'Dashboard de administración en tiempo real'
+        'Envío automático de emails con SendGrid',
+        'Dashboard de administración en tiempo real',
+        'Verificación de pagos en tiempo real'
       ],
       
       support: {
