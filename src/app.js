@@ -192,7 +192,22 @@ app.post('/api/v1/reclamos', paymentController.processClaim);
 app.get('/', (req, res) => {
   res.json({
     service: 'Culqi Payment Processor + Libro de Reclamaciones INDECOPI',
-    version: '2.0.0',
+    version: (() => {
+      try {
+        // 1. Intenta leer la versión automática
+        const autoVersion = require('./src/config/version.json');
+        return autoVersion.version;
+      } catch (e) {
+        try {
+          // 2. Si falla, usa package.json
+          const packageJson = require('./package.json');
+          return packageJson.version;
+        } catch (e2) {
+          // 3. Último recurso: valor por defecto (NO ROMPE NADA)
+          return '2.0.0';
+        }
+      }
+    })(),
     status: 'operational',
     environment: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),

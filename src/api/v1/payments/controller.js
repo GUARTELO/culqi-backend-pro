@@ -784,11 +784,23 @@ async _generarIdDiarioComoFrontend() {
           origen: 'sistema_backend_reclamos'
         },
         
-        sistema: {
-          version: '3.0.0',
-          fuente: 'API Goldinfiniti',
-          entorno: process.env.NODE_ENV || 'production'
-        }
+       sistema: {
+  version: (() => {
+    try {
+      const autoVersion = require('../../../../src/config/version.json');
+      return autoVersion.version;
+    } catch (e) {
+      try {
+        const packageJson = require('../../../../package.json');
+        return packageJson.version;
+      } catch (e2) {
+        return '3.0.0';
+      }
+    }
+  })(),
+  fuente: 'API Goldinfiniti',
+  entorno: process.env.NODE_ENV || 'production'
+}
       };
 
       logger.info(`💾 Guardando reclamo en Firebase: ${claimData.id}`);
@@ -942,14 +954,26 @@ async _generarIdDiarioComoFrontend() {
         timestamp: new Date().toISOString()
       },
       sistema: {
-        firebase: {
-          saved: firebaseResult.saved,
-          status: firebaseResult.saved ? 'GUARDADO' : 'FALLBACK',
-          collection: firebaseResult.collection || 'libro_reclamaciones_indecopi'
-        },
-        backend: 'Goldinfiniti Reclamos API',
-        version: '2.0.0'
-      },
+  firebase: {
+    saved: firebaseResult.saved,
+    status: firebaseResult.saved ? 'GUARDADO' : 'FALLBACK',
+    collection: firebaseResult.collection || 'libro_reclamaciones_indecopi'
+  },
+  backend: 'Goldinfiniti Reclamos API',
+  version: (() => {
+    try {
+      const autoVersion = require('../../../../src/config/version.json');
+      return autoVersion.version;
+    } catch (e) {
+      try {
+        const packageJson = require('../../../../package.json');
+        return packageJson.version;
+      } catch (e2) {
+        return '2.0.0';
+      }
+    }
+  })(),
+},
       informacionImportante: [
         `Su reclamo ha sido registrado con el número: ${claimId}`,
         `Recibirá una respuesta en un plazo máximo de ${claimData.legal.plazoDias} días hábiles`,
