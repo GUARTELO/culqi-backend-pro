@@ -785,7 +785,7 @@ async _generarIdDiarioComoFrontend() {
         },
         
         sistema: {
-          version: '2.0.0',
+          version: '3.0.0',
           fuente: 'API Goldinfiniti',
           entorno: process.env.NODE_ENV || 'production'
         }
