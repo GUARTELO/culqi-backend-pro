@@ -7,17 +7,29 @@ const logger = require('../../../core/utils/logger');
 class HealthController {
   // Health check básico
   async healthCheck(req, res) {
-    const health = {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      service: 'culqi-payment-processor',
-      version: process.env.npm_package_version || '1.0.0',
-      environment: process.env.NODE_ENV,
-      uptime: process.uptime(),
-    };
-    
-    res.json(health);
-  }
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    service: 'culqi-payment-processor',
+    version: (() => {
+      try {
+        const autoVersion = require('../../../../src/config/version.json');
+        return autoVersion.version;
+      } catch (e) {
+        try {
+          const packageJson = require('../../../../package.json');
+          return packageJson.version;
+        } catch (e2) {
+          return '2.0.0';
+        }
+      }
+    })(),
+    environment: process.env.NODE_ENV,
+    uptime: process.uptime(),
+  };
+  
+  res.json(health);
+}
   
   // Health check detallado
   async detailedHealthCheck(req, res) {
