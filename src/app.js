@@ -195,6 +195,9 @@ app.get('/', (req, res) => {
     version: (() => {
       try {
         // 1. Intenta leer la versión automática
+        // BORRA LA CACHE primero para forzar re-lectura
+        const versionPath = require.resolve('./src/config/version.json');
+        delete require.cache[versionPath];
         const autoVersion = require('./src/config/version.json');
         return autoVersion.version;
       } catch (e) {
@@ -237,7 +240,6 @@ app.get('/', (req, res) => {
     ]
   });
 });
-
 // ============================================
 // 4. MANEJO DE ERRORES (SISTEMA DE REPARACIÓN)
 // ============================================
