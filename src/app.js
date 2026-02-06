@@ -194,13 +194,27 @@ app.get('/', (req, res) => {
     service: 'Culqi Payment Processor + Libro de Reclamaciones INDECOPI',
     version: (() => {
       try {
-        // 1. Intenta leer la versión automática
-        delete require.cache[require.resolve('src/config/version.json')];
-        const autoVersion = require('src/config/version.json');
-        return autoVersion.version;
+        // MISMA LÓGICA QUE /health PERO CON RUTA CORRECTA
+        // 1. Ruta absoluta que funciona en producción
+        const fs = require('fs');
+        const path = require('path');
+        
+        // ESTA es la ruta que realmente funciona (la misma que debería usar /health)
+        const versionPath = path.join(process.cwd(), 'src/config/version.json');
+        
+        // Verificar si existe antes de requerir
+        if (fs.existsSync(versionPath)) {
+          const rawData = fs.readFileSync(versionPath, 'utf8');
+          const autoVersion = JSON.parse(rawData);
+          return autoVersion.version;
+        }
+        
+        // Si no existe, lanzar error para ir al catch
+        throw new Error('version.json no encontrado');
+        
       } catch (e) {
         try {
-          // 2. Si falla, usa package.json
+          // 2. Si falla, usa package.json (EXACTAMENTE como /health)
           const packageJson = require('./package.json');
           return packageJson.version;
         } catch (e2) {
