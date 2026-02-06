@@ -195,8 +195,8 @@ app.get('/', (req, res) => {
     version: (() => {
       try {
         // 1. Intenta leer la versión automática
-        delete require.cache[require.resolve('./src/config/version.json')];
-        const autoVersion = require('./src/config/version.json');
+        delete require.cache[require.resolve('src/config/version.json')];
+        const autoVersion = require('src/config/version.json');
         return autoVersion.version;
       } catch (e) {
         try {
