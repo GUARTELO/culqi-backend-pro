@@ -1398,3 +1398,7 @@
 [2026-02-05 20:45:41] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
 [2026-02-05 20:45:41] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
 [2026-02-05 20:45:41] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-02-06 16:54:10] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-02-06 16:54:10] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-02-06 16:54:10] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-02-06 16:54:10] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
