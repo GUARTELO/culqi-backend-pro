@@ -195,7 +195,7 @@ app.get('/', (req, res) => {
     version: (() => {
       try {
         // 1. Intenta leer la versión automática
-        const autoVersion = require('../config/version.json');
+        const autoVersion = require('../../../../src/config/version.json');
         return autoVersion.version;
       } catch (e) {
         try {
