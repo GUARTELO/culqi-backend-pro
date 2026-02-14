@@ -1,6 +1,6 @@
 {
   "name": "culqi-backend-pro",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "Backend profesional para procesamiento de pagos con Culqi",
   "main": "server.js",
   "scripts": {
