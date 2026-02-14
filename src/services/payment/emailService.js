@@ -646,7 +646,7 @@ function _generateGoldenInfinityEmail(firebaseData) {
           </p>
           <p style="margin-bottom: 10px; font-size: 11px;">
             📧 contacto@goldinfiniti.com | 🌐 www.goldinfiniti.com<br>
-            📞 +51 968 786 648 | 🏢 Av. Principal 123, Lima, Perú
+            📞 +51 968 786 648 | 🏢 Cal. Hermanos Ayar Nro. 549 Coo. Chancas de Andahuaylas Et. Santa Anita,Lima
           </p>
           <p style="font-size: 10px; color: #999; margin-top: 15px;">
             © ${new Date().getFullYear()} Goldinfiniti Tech Corp. Sistema Automatico de notificaciones.<br>
@@ -884,7 +884,7 @@ async function _generateOrderPDF(firebaseData) {
       
       doc.fillColor('#333333').font('Helvetica');
       doc.text('MÉTODO DE PAGO:', infoRight, currentY + 18);
-      doc.fillColor('#000000').text('Tarjeta de Crédito/Débito', infoRight + 110, currentY + 18);
+      doc.fillColor('#000000').text('Visa - Débito', infoRight + 110, currentY + 18);
       
       doc.fillColor('#333333').text('MONEDA:', infoRight, currentY + 36);
       doc.fillColor('#000000').text('Soles (PEN)', infoRight + 110, currentY + 36);
@@ -1221,26 +1221,34 @@ async function sendPaymentNotification(paymentData) {
 <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #6c757d;">
   <p style="margin: 0 0 10px 0; color: #495057; font-weight: bold;">📞 CONTACTO DEL CLIENTE:</p>
   
-  ${paymentData.cliente?.telefono ? `
+  <!-- Usar las variables que ya extrajiste -->
+  <p style="margin: 0 0 8px 0;">
+    <strong>👤 Nombre:</strong> ${customerFullName}
+  </p>
+  
+  <p style="margin: 0 0 8px 0;">
+    <strong>📧 Email:</strong> 
+    <a href="mailto:${customerEmail}" style="color: #007bff; text-decoration: none;">
+      ${customerEmail}
+    </a>
+  </p>
+  
+  <!-- Buscar teléfono en múltiples ubicaciones -->
+  ${paymentData.cliente?.telefono || paymentData.customer_phone || paymentData.telefono ? `
     <p style="margin: 0 0 8px 0;">
       <strong>📱 Teléfono:</strong> 
-      <a href="tel:${paymentData.cliente.telefono}" style="color: #007bff; text-decoration: none;">
-        ${paymentData.cliente.telefono}
-      </a>
-      ${paymentData.cliente?.operador ? `<small style="color: #6c757d;"> (${paymentData.cliente.operador})</small>` : ''}
-    </p>
-  ` : ''}
-  
-  ${paymentData.cliente?.email ? `
-    <p style="margin: 0 0 8px 0;">
-      <strong>📧 Email:</strong> 
-      <a href="mailto:${paymentData.cliente.email}" style="color: #007bff; text-decoration: none;">
-        ${paymentData.cliente.email}
+      <a href="tel:${paymentData.cliente?.telefono || paymentData.customer_phone || paymentData.telefono}" style="color: #007bff; text-decoration: none;">
+        ${paymentData.cliente?.telefono || paymentData.customer_phone || paymentData.telefono}
       </a>
     </p>
   ` : ''}
   
-  ${paymentData.cliente?.dni ? `<p style="margin: 0 0 5px 0;"><strong>🪪 DNI:</strong> ${paymentData.cliente.dni}</p>` : ''}
+  <!-- Buscar DNI en múltiples ubicaciones -->
+  ${paymentData.cliente?.dni || paymentData.dni || paymentData.documento ? `
+    <p style="margin: 0 0 5px 0;">
+      <strong>🪪 DNI/Documento:</strong> ${paymentData.cliente?.dni || paymentData.dni || paymentData.documento}
+    </p>
+  ` : ''}
   
   ${paymentData.envio?.notas ? `
     <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #dee2e6;">
