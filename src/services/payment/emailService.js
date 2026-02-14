@@ -729,10 +729,11 @@ www.goldinfiniti.com
 }
 
 // ========================
-// 6. GENERACIÓN DE PDF ADJUNTO PREMIUM (VERSIÓN ESTABLE - 1 SOLA HOJA)
+// 6. GENERACIÓN DE PDF ADJUNTO PREMIUM (OPTIMIZADO 1 SOLA HOJA)
 // ========================
 /**
- * Genera PDF profesional - UNA SOLA PÁGINA GARANTIZADA
+ * Genera PDF profesional estilo ecommerce premium
+ * Máximo 10 productos - 1 sola hoja
  */
 async function _generateOrderPDF(firebaseData) {
   return new Promise((resolve, reject) => {
@@ -743,254 +744,203 @@ async function _generateOrderPDF(firebaseData) {
         cliente,
         productos,
         resumen,
-        envio,
-        comprobante
+        envio
       } = firebaseData;
-      
-      // PROCESAR FECHA
-      let fechaOrden = new Date();
+
+      // ========================
+      // FORMATEO DE FECHA (RESPETADO)
+      // ========================
+      let fechaOrden;
+
       if (fecha_creacion) {
-        if (fecha_creacion.seconds) fechaOrden = new Date(fecha_creacion.seconds * 1000);
-        else if (fecha_creacion._seconds) fechaOrden = new Date(fecha_creacion._seconds * 1000);
-        else if (typeof fecha_creacion === 'string') fechaOrden = new Date(fecha_creacion);
-        else fechaOrden = new Date();
+        if (fecha_creacion.seconds !== undefined) {
+          fechaOrden = new Date(fecha_creacion.seconds * 1000);
+        }
+        else if (fecha_creacion._seconds !== undefined) {
+          fechaOrden = new Date(fecha_creacion._seconds * 1000);
+        }
+        else if (typeof fecha_creacion === 'string') {
+          fechaOrden = new Date(fecha_creacion);
+        }
+        else if (typeof fecha_creacion === 'number') {
+          fechaOrden = fecha_creacion < 10000000000
+            ? new Date(fecha_creacion * 1000)
+            : new Date(fecha_creacion);
+        }
+        else if (fecha_creacion instanceof Date) {
+          fechaOrden = fecha_creacion;
+        }
+        else {
+          fechaOrden = new Date();
+        }
+      } else {
+        fechaOrden = new Date();
       }
-      
-      // FORMATO FECHA
-      const fechaStr = fechaOrden.toLocaleString('es-PE', {
+
+      if (fechaOrden.getFullYear() === 1970) {
+        fechaOrden = new Date();
+      }
+
+      const fechaFormateada = new Intl.DateTimeFormat('es-PE', {
         year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'America/Lima'
+      }).format(fechaOrden);
+
+      const horaFormateada = new Intl.DateTimeFormat('es-PE', {
         hour: '2-digit',
         minute: '2-digit',
-        hour12: false
-      }).replace(/\//g, '-');
-      
-      // ============================================
-      // CONFIGURACIÓN - SIN BUFFER, MÁRGENES MÍNIMOS
-      // ============================================
+        hour12: true,
+        timeZone: 'America/Lima'
+      }).format(fechaOrden);
+
+      // ========================
+      // CONFIG PDF COMPACTO
+      // ========================
       const doc = new PDFDocument({
         size: 'A4',
-        margin: 30,
-        bufferPages: false,  // ⚡ CRÍTICO: Desactivar buffer
-        autoFirstPage: true,
-        info: {
-          Title: `BOUCHER-${order_id}`,
-          Author: 'GOLDINFINITI'
-        }
+        margin: 35, // más compacto
+        bufferPages: false
       });
-      
+
       const chunks = [];
       doc.on('data', chunk => chunks.push(chunk));
       doc.on('end', () => {
         const pdfBuffer = Buffer.concat(chunks);
-        const pdfBase64 = pdfBuffer.toString('base64');
         resolve({
-          filename: `boucher-${order_id}.pdf`,
-          content: pdfBase64,
+          filename: `comprobante-${order_id}.pdf`,
+          content: pdfBuffer.toString('base64'),
           contentType: 'application/pdf'
         });
       });
-      
-      // ============================================
-      // HEADER SIMPLE
-      // ============================================
-      doc.rect(0, 0, doc.page.width, 60)
-         .fillColor('#000000')
-         .fill();
-      
+
+      // ========================
+      // HEADER MÁS COMPACTO
+      // ========================
+      doc.rect(0, 0, doc.page.width, 80).fill('#000000');
+
       doc.fillColor('#FFFFFF')
-         .fontSize(16)
-         .font('Helvetica-Bold')
-         .text('GOLDINFINITI', 30, 15);
-      
-      doc.fillColor('#FFD700')
-         .fontSize(7)
-         .font('Helvetica')
-         .text('COMPROBANTE ELECTRÓNICO', 30, 38);
-      
-      doc.fillColor('#FFFFFF')
-         .fontSize(9)
-         .font('Helvetica-Bold')
-         .text(`#${order_id}`, doc.page.width - 130, 20, { width: 100, align: 'right' });
-      
-      doc.y = 75;
-      
-      // ============================================
-      // INFO CLIENTE COMPACTA
-      // ============================================
-      doc.rect(30, doc.y, doc.page.width - 60, 35)
-         .fillColor('#f5f5f5')
-         .fill();
-      
-      doc.fillColor('#333333')
-         .fontSize(6)
-         .font('Helvetica');
-      
-      doc.text(`Fecha: ${fechaStr}`, 40, doc.y + 5);
-      doc.text(`Cliente: ${cliente.nombre} ${cliente.apellido}`, 40, doc.y + 13);
-      doc.text(`Email: ${cliente.email}`, 40, doc.y + 21);
-      
-      doc.text(`Tel: ${cliente.telefono || '---'}`, doc.page.width - 200, doc.y + 5);
-      doc.text(`Doc: ${cliente.dni || '---'}`, doc.page.width - 200, doc.y + 13);
-      doc.text(`Método: VISA`, doc.page.width - 200, doc.y + 21);
-      
-      doc.y += 45;
-      
-      // ============================================
-      // TABLA DE PRODUCTOS - ULTRA COMPACTA
-      // ============================================
+        .fontSize(20)
+        .font('Helvetica-Bold')
+        .text('GOLDINFINITI', 0, 25, { align: 'center' });
+
+      doc.fontSize(10)
+        .fillColor('#CCCCCC')
+        .text('E-COMMERCE PREMIUM', 0, 50, { align: 'center' });
+
+      doc.moveDown(2);
+
+      // ========================
+      // INFO ORDEN + CLIENTE (compactado)
+      // ========================
       doc.fillColor('#000000')
-         .fontSize(8)
-         .font('Helvetica-Bold')
-         .text('PRODUCTOS', 30, doc.y);
-      
-      doc.y += 12;
-      
-      // Encabezados
-      doc.rect(30, doc.y, doc.page.width - 60, 14)
-         .fillColor('#FFD700')
-         .fill();
-      
-      doc.fillColor('#000000')
-         .fontSize(5.5)
-         .font('Helvetica-Bold');
-      
-      doc.text('PRODUCTO', 35, doc.y + 3);
-      doc.text('CANT', 340, doc.y + 3, { width: 25, align: 'center' });
-      doc.text('P/U', 380, doc.y + 3, { width: 40, align: 'right' });
-      doc.text('SUBTOTAL', 440, doc.y + 3, { width: 50, align: 'right' });
-      
-      doc.y += 18;
-      
-      // Productos - CADA FILA 15px de altura
-      productos.forEach((producto, index) => {
-        const nombre = (producto.nombre || producto.titulo || 'Producto').substring(0, 30);
-        const cantidad = producto.cantidad || 1;
-        const precio = producto.precio || 0;
-        const subtotal = cantidad * precio;
-        
-        // Variantes en UNA línea
-        const variantes = [];
-        if (producto.color) variantes.push(`${producto.color}`);
-        if (producto.talla) variantes.push(`T:${producto.talla}`);
-        const variantesStr = variantes.length ? ` · ${variantes.join(' ')}` : '';
-        
-        doc.fillColor('#000000')
-           .fontSize(5.5)
-           .font('Helvetica');
-        
-        doc.text(`${nombre}${variantesStr}`, 35, doc.y, { width: 280 });
-        
-        if (producto.sku) {
-          doc.fillColor('#888888')
-             .fontSize(4)
-             .text(`SKU: ${producto.sku.substring(0, 12)}`, 35, doc.y + 7, { width: 280 });
-        }
-        
-        doc.fillColor('#000000')
-           .fontSize(5.5)
-           .text(cantidad.toString(), 340, doc.y, { width: 25, align: 'center' })
-           .text(`S/${precio.toFixed(2)}`, 380, doc.y, { width: 40, align: 'right' })
-           .font('Helvetica-Bold')
-           .text(`S/${subtotal.toFixed(2)}`, 440, doc.y, { width: 50, align: 'right' });
-        
-        doc.y += (producto.sku) ? 15 : 12;
+        .fontSize(10)
+        .font('Helvetica');
+
+      let y = 95;
+
+      doc.text(`Orden: ${order_id}`, 40, y);
+      doc.text(`Fecha: ${fechaFormateada}`, 300, y);
+      y += 15;
+      doc.text(`Hora: ${horaFormateada}`, 300, y);
+      y += 15;
+
+      doc.text(`Cliente: ${cliente.nombre} ${cliente.apellido}`, 40, y);
+      y += 15;
+      doc.text(`Email: ${cliente.email}`, 40, y);
+      y += 15;
+      doc.text(`Teléfono: ${cliente.telefono || 'No especificado'}`, 40, y);
+
+      y += 25;
+
+      // ========================
+      // TABLA PRODUCTOS (MAX 10)
+      // ========================
+      const productosLimitados = productos.slice(0, 10);
+
+      const colX = [40, 310, 360, 440];
+      const rowHeight = 22;
+
+      doc.font('Helvetica-Bold').fontSize(9);
+      doc.text('Producto', colX[0], y);
+      doc.text('Cant.', colX[1], y);
+      doc.text('Precio', colX[2], y);
+      doc.text('Subtotal', colX[3], y);
+      y += 12;
+
+      doc.moveTo(40, y).lineTo(555, y).stroke();
+      y += 8;
+
+      doc.font('Helvetica').fontSize(9);
+
+      productosLimitados.forEach((producto, index) => {
+
+        const nombre = producto.nombre || producto.titulo || `Producto ${index + 1}`;
+        const cantidad = producto.cantidad || producto.quantity || 1;
+        const precio = producto.precio || producto.precioOriginal || 0;
+        const subtotal = producto.subtotal || (cantidad * precio);
+
+        doc.text(nombre.substring(0, 40), colX[0], y);
+        doc.text(cantidad.toString(), colX[1], y);
+        doc.text(`S/ ${precio.toFixed(2)}`, colX[2], y);
+        doc.text(`S/ ${subtotal.toFixed(2)}`, colX[3], y);
+
+        y += rowHeight;
       });
-      
-      doc.y += 5;
-      
-      // ============================================
-      // RESUMEN Y ENVÍO - SIN CÓDIGO DE BARRAS
-      // ============================================
-      const summaryY = doc.page.height - 85;
-      
-      // Columna izquierda - Envío
-      doc.rect(30, summaryY, 250, 50)
-         .fillColor('#f5f5f5')
-         .fill();
-      
-      doc.fillColor('#333333')
-         .fontSize(6)
-         .font('Helvetica-Bold')
-         .text('ENVÍO', 40, summaryY + 4);
-      
-      doc.fontSize(5.5)
-         .font('Helvetica');
-      
-      doc.text(`Dir: ${envio.direccion || 'No especificada'}`, 40, summaryY + 12);
-      doc.text(`Dist: ${envio.distrito || '---'}`, 40, summaryY + 19);
-      doc.text(`Ref: ${envio.referencia || '---'}`, 40, summaryY + 26);
-      doc.text(`Tipo: ${envio.tipo || 'Std'} · Costo: S/${envio.costo?.toFixed(2) || '0'}`, 40, summaryY + 33);
-      
-      // Columna derecha - Resumen (DESTACADO)
-      doc.roundedRect(320, summaryY - 3, 200, 55, 2)
-         .fillColor('#000000')
-         .fill();
-      
-      doc.fillColor('#FFD700')
-         .fontSize(7)
-         .font('Helvetica-Bold')
-         .text('TOTAL A PAGAR', 330, summaryY + 4);
-      
-      doc.fillColor('#FFFFFF')
-         .fontSize(5.5)
-         .font('Helvetica');
-      
-      let resY = summaryY + 14;
-      
-      doc.text('Subtotal:', 330, resY);
-      doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, 475, resY, { align: 'right', width: 40 });
-      
+
+      // ========================
+      // RESUMEN
+      // ========================
+      y += 10;
+      doc.moveTo(300, y).lineTo(555, y).stroke();
+      y += 10;
+
+      doc.font('Helvetica').fontSize(10);
+
+      doc.text('Subtotal:', 350, y);
+      doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, 450, y);
+
       if (envio.costo > 0) {
-        resY += 8;
-        doc.text('Envío:', 330, resY);
-        doc.text(`S/ ${envio.costo.toFixed(2)}`, 475, resY, { align: 'right', width: 40 });
+        y += 15;
+        doc.text(`Envío (${envio.tipo}):`, 350, y);
+        doc.text(`S/ ${envio.costo.toFixed(2)}`, 450, y);
       }
-      
-      resY += 12;
-      doc.strokeColor('#FFD700')
-         .lineWidth(0.3)
-         .moveTo(330, resY)
-         .lineTo(515, resY)
-         .stroke();
-      
-      resY += 6;
-      doc.fontSize(9)
-         .font('Helvetica-Bold')
-         .text('TOTAL:', 330, resY);
-      doc.fillColor('#FFD700')
-         .fontSize(11)
-         .text(`S/ ${resumen.total.toFixed(2)}`, 475, resY, { align: 'right', width: 40 });
-      
-      // ============================================
-      // FOOTER ÚNICO - UNA SOLA LÍNEA
-      // ============================================
-      const footY = doc.page.height - 20;
-      
-      doc.strokeColor('#DDDDDD')
-         .lineWidth(0.2)
-         .moveTo(30, footY - 5)
-         .lineTo(doc.page.width - 30, footY - 5)
-         .stroke();
-      
-      doc.fillColor('#888888')
-         .fontSize(4.5)
-         .font('Helvetica')
-         .text(`${order_id} · ${fechaStr} · Válido como boleta · www.goldinfiniti.com`, 
-           30, footY, { width: doc.page.width - 60, align: 'center' });
-      
-      // ============================================
-      // FIN - SIN CÓDIGO DE BARRAS, SIN BUCLES, SIN RECTÁNGULOS EXTRA
-      // ============================================
+
+      y += 20;
+      doc.font('Helvetica-Bold').fontSize(12);
+      doc.text('TOTAL:', 350, y);
+      doc.text(`S/ ${resumen.total.toFixed(2)}`, 450, y);
+
+      // ========================
+      // FOOTER FIJO EN MISMA HOJA
+      // ========================
+      doc.fontSize(8)
+        .font('Helvetica')
+        .fillColor('#555555')
+        .text(
+          'Gracias por su compra. Este documento es su comprobante oficial.',
+          0,
+          doc.page.height - 40,
+          { align: 'center' }
+        );
+
+      doc.text(
+        `ID de transacción: ${order_id}`,
+        0,
+        doc.page.height - 25,
+        { align: 'center' }
+      );
+
       doc.end();
-      
+
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error generando PDF profesional:', error);
       reject(error);
     }
   });
 }
+
 
 // ========================
 // 7. FUNCIÓN DE NOTIFICACIÓN INTERNA
