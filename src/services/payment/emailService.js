@@ -829,19 +829,19 @@ async function _generateOrderPDF(firebaseData) {
       });
       
       // Header
-      doc.rect(0, 0, doc.page.width, 60)
+      doc.rect(0, 0, doc.page.width, 120)
          .fillColor('#000000')
          .fill();
       
       doc.fillColor('#FFFFFF')
          .fontSize(28)
          .font('Helvetica-Bold')
-         .text('GOLDINFINITI', 0, 20, { align: 'center' });
+         .text('GOLDINFINITI', 0, 40, { align: 'center' });
       
       doc.fillColor('#CCCCCC')
          .fontSize(11)
          .font('Helvetica')
-         .text('E-COMMERCE PREMIUM', 0, 25, { align: 'center' });
+         .text('E-COMMERCE PREMIUM', 0, 70, { align: 'center' });
       
       doc.strokeColor('#FFD700')
          .lineWidth(2)
@@ -852,62 +852,62 @@ async function _generateOrderPDF(firebaseData) {
       doc.fillColor('#FFFFFF')
          .fontSize(18)
          .font('Helvetica-Bold')
-         .text('COMPROBANTE DE COMPRA', 0, 20, { align: 'center' });
+         .text('COMPROBANTE DE COMPRA', 0, 105, { align: 'center' });
       
-      doc.moveDown(1);
+      doc.moveDown(3);
       
       // Información de orden
-      doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
-      doc.text('INFORMACIÓN DE LA ORDEN', 20, 60);
+      doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
+      doc.text('INFORMACIÓN DE LA ORDEN', 50, 160);
       
       doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, 175).lineTo(doc.page.width - 50, 175).stroke();
-      doc.moveDown(1);
+      doc.moveDown(1.5);
       
       doc.fillColor('#333333').fontSize(10).font('Helvetica');
       
-      const infoLeft = 30;
+      const infoLeft = 50;
       const infoRight = doc.page.width / 2 + 30;
       let currentY = doc.y;
       
       doc.text('NÚMERO DE ORDEN:', infoLeft, currentY);
-      doc.fillColor('#000000').font('Helvetica-Bold').text(order_id, infoLeft + 60, currentY);
+      doc.fillColor('#000000').font('Helvetica-Bold').text(order_id, infoLeft + 110, currentY);
       
       doc.fillColor('#333333').font('Helvetica');
       doc.text('FECHA:', infoLeft, currentY + 18);
-      doc.fillColor('#000000').text(fechaFormateada, infoLeft + 60, currentY + 18);
+      doc.fillColor('#000000').text(fechaFormateada, infoLeft + 110, currentY + 18);
       
-      doc.fillColor('#333333').text('HORA:', infoLeft, currentY + 26);
-      doc.fillColor('#000000').text(horaFormateada, infoLeft + 60, currentY + 16);
+      doc.fillColor('#333333').text('HORA:', infoLeft, currentY + 36);
+      doc.fillColor('#000000').text(horaFormateada, infoLeft + 110, currentY + 36);
       
       doc.fillColor('#333333').text('ESTADO:', infoRight, currentY);
-      doc.fillColor('#27ae60').font('Helvetica-Bold').text('PAGO APROBADO', infoRight + 60, currentY);
+      doc.fillColor('#27ae60').font('Helvetica-Bold').text('PAGO APROBADO', infoRight + 110, currentY);
       
       doc.fillColor('#333333').font('Helvetica');
       doc.text('MÉTODO DE PAGO:', infoRight, currentY + 18);
-      doc.fillColor('#000000').text('Visa - Débito', infoRight + 60, currentY + 18);
+      doc.fillColor('#000000').text('Visa - Débito', infoRight + 110, currentY + 18);
       
       doc.fillColor('#333333').text('MONEDA:', infoRight, currentY + 36);
-      doc.fillColor('#000000').text('Soles (PEN)', infoRight + 60, currentY + 16);
+      doc.fillColor('#000000').text('Soles (PEN)', infoRight + 110, currentY + 36);
       
       doc.moveDown(4);
       
       // Información del cliente
-      doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
-      doc.text('INFORMACIÓN DEL CLIENTE', 25, doc.y);
-      doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, doc.y + 5).lineTo(doc.page.width - 20, doc.y + 5).stroke();
+      doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
+      doc.text('INFORMACIÓN DEL CLIENTE', 50, doc.y);
+      doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, doc.y + 5).lineTo(doc.page.width - 50, doc.y + 5).stroke();
       doc.moveDown(1.5);
       
       currentY = doc.y;
       
       doc.fillColor('#333333').fontSize(10).font('Helvetica');
       doc.text('NOMBRE COMPLETO:', infoLeft, currentY);
-      doc.fillColor('#000000').text(`${cliente.nombre} ${cliente.apellido}`, infoLeft + 60, currentY);
+      doc.fillColor('#000000').text(`${cliente.nombre} ${cliente.apellido}`, infoLeft + 110, currentY);
       
       doc.fillColor('#333333').text('EMAIL:', infoLeft, currentY + 18);
-      doc.fillColor('#000000').text(cliente.email, infoLeft + 60, currentY + 18);
+      doc.fillColor('#000000').text(cliente.email, infoLeft + 110, currentY + 18);
       
       doc.fillColor('#333333').text('TELÉFONO:', infoLeft, currentY + 36);
-      doc.fillColor('#000000').text(cliente.telefono || 'No especificado', infoLeft + 60, currentY + 16);
+      doc.fillColor('#000000').text(cliente.telefono || 'No especificado', infoLeft + 110, currentY + 36);
       
       doc.moveDown(4);
       
@@ -915,7 +915,7 @@ async function _generateOrderPDF(firebaseData) {
       doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
       doc.text('DETALLE DE PRODUCTOS', 50, doc.y);
       doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, doc.y + 5).lineTo(doc.page.width - 50, doc.y + 5).stroke();
-      doc.moveDown(1);
+      doc.moveDown(1.5);
       
       const tableTop = doc.y;
       const colWidths = [270, 60, 90, 90];
@@ -945,7 +945,7 @@ async function _generateOrderPDF(firebaseData) {
          .lineTo(colPositions[3] + colWidths[3], tableTop + 25)
          .stroke();
       
-      let currentTableY = tableTop + 10;
+      let currentTableY = tableTop + 30;
       
       productos.forEach((producto, index) => {
         const nombre = producto.nombre || producto.titulo || `Producto ${index + 1}`;
@@ -954,7 +954,7 @@ async function _generateOrderPDF(firebaseData) {
         const subtotal = producto.subtotal || (cantidad * precio);
         
         if (index % 2 === 0) {
-          doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), 15)
+          doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), 35)
              .fillColor('#fafafa')
              .fill();
         }
@@ -1001,21 +1001,18 @@ async function _generateOrderPDF(firebaseData) {
         currentTableY += 35;
       });
       
-      // >>> ÚNICA LÍNEA MODIFICADA <<<
-      // ANTES: doc.y = currentTableY + 20;
-      // DESPUÉS: 
-      doc.y = currentTableY;
+      doc.y = currentTableY + 20;
       
       // Resumen de pago
       const summaryBoxTop = doc.y;
       const summaryBoxWidth = 300;
       const summaryBoxLeft = doc.page.width - summaryBoxWidth - 50;
       
-      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 60, 5)
+      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 150, 5)
          .fillColor('#f8f9fa')
          .fill();
       
-      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 60, 5)
+      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 150, 5)
          .strokeColor('#FFD700')
          .lineWidth(1)
          .stroke();
@@ -1033,14 +1030,14 @@ async function _generateOrderPDF(firebaseData) {
       
       doc.fillColor('#333333').fontSize(10).font('Helvetica');
       doc.text('Subtotal:', summaryBoxLeft + 15, summaryY);
-      doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 60, summaryY, {
+      doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 115, summaryY, {
         align: 'right'
       });
       
       if (envio.costo > 0) {
         summaryY += lineHeight;
         doc.text(`Envío (${envio.tipo}):`, summaryBoxLeft + 15, summaryY);
-        doc.text(`S/ ${envio.costo.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 60, summaryY, {
+        doc.text(`S/ ${envio.costo.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 115, summaryY, {
           align: 'right'
         });
       }
@@ -1055,19 +1052,19 @@ async function _generateOrderPDF(firebaseData) {
       doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
       doc.text('TOTAL:', summaryBoxLeft + 15, summaryY);
       doc.fillColor('#27ae60');
-      doc.text(`S/ ${resumen.total.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 60, summaryY, {
+      doc.text(`S/ ${resumen.total.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 115, summaryY, {
         align: 'right'
       });
       
       // Footer
-      doc.moveDown(0);
+      doc.moveDown(4);
       
       doc.fillColor('#333333').fontSize(8).font('Helvetica');
       doc.text('Gracias por su compra. Este documento es su comprobante oficial.', 
-        50, doc.page.height - 40, { width: doc.page.width - 60, align: 'center' });
+        50, doc.page.height - 40, { width: doc.page.width - 100, align: 'center' });
       
       doc.fillColor('#666666').fontSize(7);
-      doc.text(`ID de transacción: ${order_id}`, 50, doc.page.height - 25, { width: doc.page.width - 60, align: 'center' });
+      doc.text(`ID de transacción: ${order_id}`, 50, doc.page.height - 25, { width: doc.page.width - 100, align: 'center' });
       
       doc.end();
       
@@ -1077,6 +1074,7 @@ async function _generateOrderPDF(firebaseData) {
     }
   });
 }
+
 
 
 // ========================
