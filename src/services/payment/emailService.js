@@ -912,41 +912,40 @@ async function _generateOrderPDF(firebaseData) {
       // TABLA DE PRODUCTOS - MEDIDAS AJUSTADAS
       // ===========================================
       doc.moveDown(3);
+      doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
+      doc.text('DETALLE DE PRODUCTOS', 50, doc.y);
+      doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, doc.y + 5).lineTo(doc.page.width - 50, doc.y + 5).stroke();
+      doc.moveDown(1.5);
       
-      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold');
-      doc.text('DETALLE DE PRODUCTOS', 35, clientY + 45);
-      doc.strokeColor('#FFD700').lineWidth(1).moveTo(35, clientY + 60).lineTo(doc.page.width - 35, clientY + 60).stroke();
-      
-      const tableTop = clientY + 70;
-      // Columnas más angostas para ahorrar espacio
-      const colWidths = [220, 45, 75, 75]; // Reducidas
-      const colPositions = [35];
+      const tableTop = doc.y;
+      const colWidths = [270, 60, 90, 90];
+      const colPositions = [50];
       
       for (let i = 1; i < colWidths.length; i++) {
         colPositions[i] = colPositions[i - 1] + colWidths[i - 1];
       }
       
-      doc.rect(colPositions[0], tableTop, colWidths.reduce((a, b) => a + b, 0), 22) // Reducido de 25 a 22
+      doc.rect(colPositions[0], tableTop, colWidths.reduce((a, b) => a + b, 0), 25)
          .fillColor('#f8f9fa')
          .fill();
       
-      doc.fillColor('#000000').fontSize(8).font('Helvetica-Bold'); // Reducido de 9 a 8
+      doc.fillColor('#000000').fontSize(9).font('Helvetica-Bold');
       const headers = ['PRODUCTO', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL'];
       
       headers.forEach((header, i) => {
-        const xPos = colPositions[i] + (i === 0 ? 8 : 4); // Padding reducido
-        doc.text(header, xPos, tableTop + 7, { // Ajustado Y
-          width: colWidths[i] - 8,
+        const xPos = colPositions[i] + (i === 0 ? 10 : 5);
+        doc.text(header, xPos, tableTop + 8, {
+          width: colWidths[i] - 10,
           align: i >= 2 ? 'right' : 'left'
         });
       });
       
       doc.strokeColor('#FFD700').lineWidth(1)
-         .moveTo(colPositions[0], tableTop + 22)
-         .lineTo(colPositions[3] + colWidths[3], tableTop + 22)
+         .moveTo(colPositions[0], tableTop + 25)
+         .lineTo(colPositions[3] + colWidths[3], tableTop + 25)
          .stroke();
       
-      let currentTableY = tableTop + 27; // Reducido de 30 a 27
+      let currentTableY = tableTop + 30;
       
       productos.forEach((producto, index) => {
         const nombre = producto.nombre || producto.titulo || `Producto ${index + 1}`;
@@ -955,14 +954,14 @@ async function _generateOrderPDF(firebaseData) {
         const subtotal = producto.subtotal || (cantidad * precio);
         
         if (index % 2 === 0) {
-          doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), 32) // Reducido de 35 a 32
+          doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), 35)
              .fillColor('#fafafa')
              .fill();
         }
         
-        doc.fillColor('#000000').fontSize(8).font('Helvetica'); // Reducido de 9 a 8
-        doc.text(nombre, colPositions[0] + 8, currentTableY + 6, { // Padding reducido
-          width: colWidths[0] - 16
+        doc.fillColor('#000000').fontSize(9).font('Helvetica');
+        doc.text(nombre, colPositions[0] + 10, currentTableY + 8, {
+          width: colWidths[0] - 20
         });
         
         if (producto.color || producto.talla || producto.sku) {
@@ -971,36 +970,39 @@ async function _generateOrderPDF(firebaseData) {
           if (producto.talla) detalles.push(`Talla: ${producto.talla}`);
           if (producto.sku) detalles.push(`SKU: ${producto.sku}`);
           
-          doc.fillColor('#666666').fontSize(6); // Reducido de 7 a 6
-          doc.text(detalles.join(' | '), colPositions[0] + 8, currentTableY + 18, { // Ajustado
-            width: colWidths[0] - 16
+          doc.fillColor('#666666').fontSize(7);
+          doc.text(detalles.join(' | '), colPositions[0] + 10, currentTableY + 22, {
+            width: colWidths[0] - 20
           });
         }
         
-        doc.fillColor('#000000').fontSize(8);
-        doc.text(cantidad.toString(), colPositions[1] + 4, currentTableY + 10, { // Ajustado
-          width: colWidths[1] - 8,
+        doc.fillColor('#000000').fontSize(9);
+        doc.text(cantidad.toString(), colPositions[1] + 5, currentTableY + 12, {
+          width: colWidths[1] - 10,
           align: 'center'
         });
         
-        doc.text(`S/ ${precio.toFixed(2)}`, colPositions[2] + 4, currentTableY + 10, {
-          width: colWidths[2] - 8,
+        doc.text(`S/ ${precio.toFixed(2)}`, colPositions[2] + 5, currentTableY + 12, {
+          width: colWidths[2] - 10,
           align: 'right'
         });
         
         doc.font('Helvetica-Bold');
-        doc.text(`S/ ${subtotal.toFixed(2)}`, colPositions[3] + 4, currentTableY + 10, {
-          width: colWidths[3] - 8,
+        doc.text(`S/ ${subtotal.toFixed(2)}`, colPositions[3] + 5, currentTableY + 12, {
+          width: colWidths[3] - 10,
           align: 'right'
         });
         
         doc.strokeColor('#e0e0e0').lineWidth(0.3)
-           .moveTo(colPositions[0], currentTableY + 32)
-           .lineTo(colPositions[3] + colWidths[3], currentTableY + 32)
+           .moveTo(colPositions[0], currentTableY + 35)
+           .lineTo(colPositions[3] + colWidths[3], currentTableY + 35)
            .stroke();
         
-        currentTableY += 32;
+        currentTableY += 35;
       });
+      
+      doc.y = currentTableY + 20;
+
       
       // ===========================================
       // RESUMEN DE PAGO - MEDIDAS AJUSTADAS
