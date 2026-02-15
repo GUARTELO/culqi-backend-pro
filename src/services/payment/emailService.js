@@ -729,8 +729,13 @@ www.goldinfiniti.com
 }
 
 // ========================
-// 6. GENERACIÓN DE PDF - DISEÑO SIMÉTRICO PREMIUM
+// 6. GENERACIÓN DE PDF ADJUNTO PREMIUM (CON FECHA CORREGIDA)
 // ========================
+/**
+ * Genera PDF profesional estilo ecommerce premium
+ * @param {Object} firebaseData - Datos de Firebase
+ * @returns {Object} Adjunto de PDF
+ */
 async function _generateOrderPDF(firebaseData) {
   return new Promise((resolve, reject) => {
     try {
@@ -744,24 +749,29 @@ async function _generateOrderPDF(firebaseData) {
         comprobante
       } = firebaseData;
       
-      // Procesar fecha
       let fechaOrden;
+      
       if (fecha_creacion) {
         if (fecha_creacion.seconds !== undefined) {
           fechaOrden = new Date(fecha_creacion.seconds * 1000);
-        } else if (fecha_creacion._seconds !== undefined) {
+        }
+        else if (fecha_creacion._seconds !== undefined) {
           fechaOrden = new Date(fecha_creacion._seconds * 1000);
-        } else if (typeof fecha_creacion === 'string') {
+        }
+        else if (typeof fecha_creacion === 'string') {
           fechaOrden = new Date(fecha_creacion);
-        } else if (typeof fecha_creacion === 'number') {
+        }
+        else if (typeof fecha_creacion === 'number') {
           if (fecha_creacion < 10000000000) {
             fechaOrden = new Date(fecha_creacion * 1000);
           } else {
             fechaOrden = new Date(fecha_creacion);
           }
-        } else if (fecha_creacion instanceof Date) {
+        }
+        else if (fecha_creacion instanceof Date) {
           fechaOrden = fecha_creacion;
-        } else {
+        }
+        else {
           fechaOrden = new Date();
         }
       } else {
@@ -793,15 +803,15 @@ async function _generateOrderPDF(firebaseData) {
       const fechaFormateada = formateadorFecha.format(fechaOrden);
       const horaFormateada = formateadorHora.format(fechaOrden);
       
-      // ✅ CONFIGURACIÓN SIMÉTRICA - MÁRGENES PERFECTOS
+      // ✅ CONFIGURACIÓN CON MÁRGENES REDUCIDOS
       const doc = new PDFDocument({ 
         size: 'A4', 
-        margin: 35, // Margen simétrico perfecto
+        margin: 35, // Reducido de 50 a 35
         info: {
-          Title: `Orden ${order_id}`,
-          Author: 'Goldinfiniti',
-          Subject: 'Detalle de orden',
-          Keywords: 'orden, factura'
+          Title: `Comprobante ${order_id} - Goldinfiniti`,
+          Author: 'Goldinfiniti E-commerce',
+          Subject: 'Comprobante de compra',
+          Keywords: 'comprobante, factura, orden, ecommerce'
         }
       });
       
@@ -813,471 +823,254 @@ async function _generateOrderPDF(firebaseData) {
         const pdfBase64 = pdfBuffer.toString('base64');
         
         resolve({
-          filename: `orden-${order_id}.pdf`,
+          filename: `comprobante-${order_id}.pdf`,
           content: pdfBase64,
           contentType: 'application/pdf'
         });
       });
       
       // ===========================================
-      // ESTILOS GLOBALES (SISTEMA DE DISEÑO)
+      // NUEVO HEADER - SOLO "BOUCHERE DE COMPRA"
       // ===========================================
-      const styles = {
-        // Colores
-        colors: {
-          primary: '#000000',
-          secondary: '#333333',
-          accent: '#FFD700',
-          light: '#f8f9fa',
-          border: '#e0e0e0',
-          success: '#27ae60',
-          text: '#333333',
-          textLight: '#666666'
-        },
-        // Fuentes
-        fonts: {
-          title: 16,
-          subtitle: 12,
-          body: 8,
-          small: 7,
-          xsmall: 6
-        },
-        // Espaciados (todos múltiplos de 5 para simetría)
-        spacing: {
-          xs: 5,
-          sm: 10,
-          md: 15,
-          lg: 20,
-          xl: 25,
-          xxl: 30
-        },
-        // Dimensiones
-        dimensions: {
-          headerHeight: 45,
-          footerHeight: 25,
-          tableRowHeight: 26,
-          tableHeaderHeight: 16,
-          summaryWidth: 240
-        }
-      };
+      // Header más compacto (altura reducida de 120 a 70)
+      doc.rect(0, 0, doc.page.width, 70)
+         .fillColor('#000000')
+         .fill();
       
-      // ===========================================
-      // FUNCIÓN HEADER MINIMALISTA
-      // ===========================================
-      function drawHeader(pageY = 0) {
-        // Barra superior delgada
-        doc.rect(0, pageY, doc.page.width, styles.dimensions.headerHeight)
-           .fillColor(styles.colors.primary)
-           .fill();
-        
-        // Solo la frase principal
-        doc.fillColor('#FFFFFF')
-           .fontSize(14)
-           .font('Helvetica-Bold')
-           .text('BOUCHERE DE COMPRA', 0, pageY + 14, { 
-             align: 'center',
-             width: doc.page.width,
-             characterSpacing: 1
-           });
-        
-        // Línea decorativa muy sutil
-        doc.strokeColor(styles.colors.accent)
-           .lineWidth(0.5)
-           .moveTo(120, pageY + 35)
-           .lineTo(doc.page.width - 120, pageY + 35)
-           .stroke();
-      }
-      
-      // ===========================================
-      // FUNCIÓN FOOTER LIMPIO
-      // ===========================================
-      function drawFooter(pageY) {
-        // Línea separadora
-        doc.strokeColor(styles.colors.border)
-           .lineWidth(0.3)
-           .moveTo(35, pageY - 22)
-           .lineTo(doc.page.width - 35, pageY - 22)
-           .stroke();
-        
-        doc.fillColor(styles.colors.textLight)
-           .fontSize(styles.fonts.xsmall)
-           .font('Helvetica')
-           .text('Gracias por su compra', 35, pageY - 15, { 
-             width: doc.page.width - 70, 
-             align: 'center' 
-           });
-        
-        doc.fontSize(5)
-           .text(`ID: ${order_id} · Página ${doc.page}`, 35, pageY - 8, { 
-             width: doc.page.width - 70, 
-             align: 'center' 
-           });
-      }
-      
-      // ===========================================
-      // FUNCIÓN SECCIÓN CLIENTE SIMÉTRICA
-      // ===========================================
-      function drawClienteSection(startY) {
-        const leftX = 35;
-        const rightX = doc.page.width / 2 + 15;
-        
-        // Título con línea decorativa
-        doc.fillColor(styles.colors.primary)
-           .fontSize(styles.fonts.subtitle)
-           .font('Helvetica-Bold')
-           .text('INFORMACIÓN DEL CLIENTE', leftX, startY);
-        
-        doc.strokeColor(styles.colors.accent)
-           .lineWidth(0.8)
-           .moveTo(leftX, startY + 12)
-           .lineTo(doc.page.width - leftX, startY + 12)
-           .stroke();
-        
-        let currentY = startY + 20;
-        
-        // Distribución en dos columnas simétricas
-        doc.fillColor(styles.colors.text)
-           .fontSize(styles.fonts.body)
-           .font('Helvetica');
-        
-        // Columna izquierda
-        doc.text('Nombre completo:', leftX, currentY);
-        doc.fillColor(styles.colors.primary)
-           .font('Helvetica-Bold')
-           .text(`${cliente.nombre} ${cliente.apellido}`, leftX + 85, currentY);
-        
-        doc.fillColor(styles.colors.text)
-           .font('Helvetica')
-           .text('Email:', leftX, currentY + 14);
-        doc.fillColor(styles.colors.primary)
-           .font('Helvetica-Bold')
-           .text(cliente.email, leftX + 85, currentY + 14);
-        
-        doc.fillColor(styles.colors.text)
-           .font('Helvetica')
-           .text('Teléfono:', leftX, currentY + 28);
-        doc.fillColor(styles.colors.primary)
-           .font('Helvetica-Bold')
-           .text(cliente.telefono || 'No especificado', leftX + 85, currentY + 28);
-        
-        return currentY + 45;
-      }
-      
-      // ===========================================
-      // FUNCIÓN TABLA PRODUCTOS OPTIMIZADA
-      // ===========================================
-      function drawTablaProductos(startY, productosArray, inicioIndex = 0) {
-        const tableTop = startY;
-        // Columnas perfectamente proporcionadas
-        const colWidths = [180, 38, 63, 63];
-        const colPositions = [35];
-        
-        for (let i = 1; i < colWidths.length; i++) {
-          colPositions[i] = colPositions[i - 1] + colWidths[i - 1];
-        }
-        
-        const tableWidth = colWidths.reduce((a, b) => a + b, 0);
-        
-        // Encabezados con fondo muy suave
-        doc.rect(colPositions[0], tableTop, tableWidth, styles.dimensions.tableHeaderHeight)
-           .fillColor(styles.colors.light)
-           .fill();
-        
-        doc.fillColor(styles.colors.primary)
-           .fontSize(styles.fonts.small)
-           .font('Helvetica-Bold');
-        
-        const headers = ['PRODUCTO', 'CANT', 'P.UNIT', 'SUBTOTAL'];
-        
-        headers.forEach((header, i) => {
-          const xPos = colPositions[i] + (i === 0 ? 8 : 4);
-          doc.text(header, xPos, tableTop + 4, {
-            width: colWidths[i] - 8,
-            align: i >= 2 ? 'right' : 'left'
-          });
-        });
-        
-        // Línea dorada debajo del encabezado
-        doc.strokeColor(styles.colors.accent)
-           .lineWidth(0.8)
-           .moveTo(colPositions[0], tableTop + styles.dimensions.tableHeaderHeight)
-           .lineTo(colPositions[3] + colWidths[3], tableTop + styles.dimensions.tableHeaderHeight)
-           .stroke();
-        
-        let currentY = tableTop + styles.dimensions.tableHeaderHeight + 3;
-        let ultimaY = currentY;
-        const rowHeight = styles.dimensions.tableRowHeight;
-        
-        for (let i = inicioIndex; i < productosArray.length; i++) {
-          const producto = productosArray[i];
-          const nombre = producto.nombre || producto.titulo || `Producto ${i + 1}`;
-          const cantidad = producto.cantidad || producto.quantity || 1;
-          const precio = producto.precio || producto.precioOriginal || 0;
-          const subtotal = producto.subtotal || (cantidad * precio);
-          
-          // Filas zebra muy sutiles
-          if (i % 2 === 0) {
-            doc.rect(colPositions[0], currentY, tableWidth, rowHeight)
-               .fillColor('#fcfcfc')
-               .fill();
-          }
-          
-          // Nombre producto
-          doc.fillColor(styles.colors.primary)
-             .fontSize(styles.fonts.small)
-             .font('Helvetica')
-             .text(nombre, colPositions[0] + 8, currentY + 4, {
-               width: colWidths[0] - 16,
-               lineBreak: true
-             });
-          
-          // Detalles (color/talla/sku)
-          if (producto.color || producto.talla || producto.sku) {
-            const detalles = [];
-            if (producto.color) detalles.push(`${producto.color}`);
-            if (producto.talla) detalles.push(`T:${producto.talla}`);
-            if (producto.sku) detalles.push(`${producto.sku}`);
-            
-            doc.fillColor(styles.colors.textLight)
-               .fontSize(styles.fonts.xsmall)
-               .text(detalles.join(' · '), colPositions[0] + 8, currentY + 15, {
-                 width: colWidths[0] - 16
-               });
-          }
-          
-          // Cantidad
-          doc.fillColor(styles.colors.primary)
-             .fontSize(styles.fonts.small)
-             .font('Helvetica')
-             .text(cantidad.toString(), colPositions[1] + 4, currentY + 8, {
-               width: colWidths[1] - 8,
-               align: 'center'
-             });
-          
-          // Precio unitario
-          doc.text(`S/${precio.toFixed(2)}`, colPositions[2] + 4, currentY + 8, {
-            width: colWidths[2] - 8,
-            align: 'right'
-          });
-          
-          // Subtotal (bold)
-          doc.font('Helvetica-Bold')
-             .text(`S/${subtotal.toFixed(2)}`, colPositions[3] + 4, currentY + 8, {
-               width: colWidths[3] - 8,
-               align: 'right'
-             });
-          
-          // Línea separadora muy tenue
-          doc.strokeColor(styles.colors.border)
-             .lineWidth(0.2)
-             .moveTo(colPositions[0], currentY + rowHeight)
-             .lineTo(colPositions[3] + colWidths[3], currentY + rowHeight)
-             .stroke();
-          
-          currentY += rowHeight;
-          ultimaY = currentY;
-          
-          // Control de salto de página
-          if (i < productosArray.length - 1 && currentY > 670) {
-            doc.addPage();
-            drawHeader(0);
-            return { 
-              nuevaPagina: true, 
-              ultimoIndex: i + 1,
-              startY: 55
-            };
-          }
-        }
-        
-        return { 
-          nuevaPagina: false, 
-          ultimoIndex: productosArray.length,
-          finalY: ultimaY + styles.spacing.sm
-        };
-      }
-      
-      // ===========================================
-      // FUNCIÓN RESUMEN DE PAGO SIMÉTRICO
-      // ===========================================
-      function drawResumenPago(startX, startY) {
-        const width = styles.dimensions.summaryWidth;
-        
-        // Fondo suave
-        doc.roundedRect(startX, startY, width, 100, 4)
-           .fillColor(styles.colors.light)
-           .fill();
-        
-        // Borde dorado
-        doc.roundedRect(startX, startY, width, 100, 4)
-           .strokeColor(styles.colors.accent)
-           .lineWidth(0.8)
-           .stroke();
-        
-        doc.fillColor(styles.colors.primary)
-           .fontSize(styles.fonts.subtitle - 1)
-           .font('Helvetica-Bold')
-           .text('RESUMEN', startX + 15, startY + 8);
-        
-        // Línea divisoria
-        doc.strokeColor(styles.colors.border)
-           .lineWidth(0.3)
-           .moveTo(startX + 15, startY + 23)
-           .lineTo(startX + width - 15, startY + 23)
-           .stroke();
-        
-        let y = startY + 30;
-        const lineH = 16;
-        
-        // Subtotal
-        doc.fillColor(styles.colors.text)
-           .fontSize(styles.fonts.body)
-           .font('Helvetica')
-           .text('Subtotal', startX + 15, y);
-        doc.fillColor(styles.colors.primary)
-           .font('Helvetica-Bold')
-           .text(`S/ ${resumen.subtotal.toFixed(2)}`, startX + width - 60, y, { align: 'right' });
-        
-        y += lineH;
-        
-        // Envío
-        doc.fillColor(styles.colors.text)
-           .font('Helvetica')
-           .text('Envío', startX + 15, y);
-        doc.fillColor(styles.colors.primary)
-           .font('Helvetica')
-           .text(envio.costo > 0 ? `S/ ${envio.costo.toFixed(2)}` : 'Gratis', 
-                 startX + width - 60, y, { align: 'right' });
-        
-        y += lineH;
-        
-        // Línea dorada
-        doc.strokeColor(styles.colors.accent)
-           .lineWidth(0.8)
-           .moveTo(startX + 15, y - 2)
-           .lineTo(startX + width - 15, y - 2)
-           .stroke();
-        
-        y += 6;
-        
-        // Total
-        doc.fillColor(styles.colors.primary)
-           .fontSize(styles.fonts.subtitle)
-           .font('Helvetica-Bold')
-           .text('TOTAL', startX + 15, y);
-        doc.fillColor(styles.colors.success)
-           .text(`S/ ${resumen.total.toFixed(2)}`, startX + width - 60, y, { align: 'right' });
-        
-        // Método de pago
-        y += 18;
-        doc.fillColor(styles.colors.textLight)
-           .fontSize(styles.fonts.xsmall)
-           .font('Helvetica')
-           .text('Visa · Débito', startX + 15, y);
-      }
-      
-      // ===========================================
-      // FUNCIÓN INFORMACIÓN DE ORDEN
-      // ===========================================
-      function drawOrderInfo(startY) {
-        const leftX = 35;
-        const rightX = doc.page.width / 2 + 15;
-        
-        doc.fillColor(styles.colors.primary)
-           .fontSize(styles.fonts.subtitle)
-           .font('Helvetica-Bold')
-           .text('INFORMACIÓN DE LA ORDEN', leftX, startY);
-        
-        doc.strokeColor(styles.colors.accent)
-           .lineWidth(0.8)
-           .moveTo(leftX, startY + 12)
-           .lineTo(doc.page.width - leftX, startY + 12)
-           .stroke();
-        
-        let y = startY + 20;
-        
-        // Estilos para textos
-        const textColor = styles.colors.text;
-        const boldColor = styles.colors.primary;
-        const fontSize = styles.fonts.body;
-        
-        // Columna izquierda
-        doc.fillColor(textColor).fontSize(fontSize).font('Helvetica');
-        doc.text('Orden:', leftX, y);
-        doc.fillColor(boldColor).font('Helvetica-Bold').text(order_id, leftX + 60, y);
-        
-        doc.fillColor(textColor).font('Helvetica');
-        doc.text('Fecha:', leftX, y + 14);
-        doc.fillColor(boldColor).text(fechaFormateada, leftX + 60, y + 14);
-        
-        doc.fillColor(textColor).text('Hora:', leftX, y + 28);
-        doc.fillColor(boldColor).text(horaFormateada, leftX + 60, y + 28);
-        
-        // Columna derecha
-        doc.fillColor(textColor).text('Estado:', rightX, y);
-        doc.fillColor(styles.colors.success).font('Helvetica-Bold').text('PAGO APROBADO', rightX + 60, y);
-        
-        doc.fillColor(textColor).font('Helvetica');
-        doc.text('Pago:', rightX, y + 14);
-        doc.fillColor(boldColor).text('Visa · Débito', rightX + 60, y + 14);
-        
-        doc.fillColor(textColor).text('Moneda:', rightX, y + 28);
-        doc.fillColor(boldColor).text('Soles (PEN)', rightX + 60, y + 28);
-        
-        return y + 45;
-      }
-      
-      // ===========================================
-      // CONSTRUCCIÓN PRINCIPAL
-      // ===========================================
-      
-      // Header
-      drawHeader(0);
-      
-      // Información de orden
-      const orderEndY = drawOrderInfo(55);
-      
-      // Cliente
-      const clientEndY = drawClienteSection(orderEndY + 5);
-      
-      // Título productos
-      doc.fillColor(styles.colors.primary)
-         .fontSize(styles.fonts.subtitle)
+      // Solo la frase BOUCHERE DE COMPRA
+      doc.fillColor('#FFFFFF')
+         .fontSize(22) // Reducido de 28 a 22
          .font('Helvetica-Bold')
-         .text('PRODUCTOS', 35, clientEndY + 5);
+         .text('BOUCHERE DE COMPRA', 0, 25, { align: 'center' }); // Posición ajustada
       
-      doc.strokeColor(styles.colors.accent)
-         .lineWidth(0.8)
-         .moveTo(35, clientEndY + 17)
-         .lineTo(doc.page.width - 35, clientEndY + 17)
+      // Línea dorada decorativa (más delgada)
+      doc.strokeColor('#FFD700')
+         .lineWidth(1.5) // Reducido de 2 a 1.5
+         .moveTo(120, 55)
+         .lineTo(doc.page.width - 120, 55)
          .stroke();
       
-      // Tabla productos
-      const result = drawTablaProductos(clientEndY + 25, productos, 0);
+      doc.moveDown(2); // Reducido de 3 a 2
       
-      // Resumen de pago
-      if (!result.nuevaPagina) {
-        const finalY = result.finalY || clientEndY + 25 + (productos.length * styles.dimensions.tableRowHeight);
-        
-        if (finalY < 680) {
-          drawResumenPago(doc.page.width - styles.dimensions.summaryWidth - 35, finalY + 5);
-        } else {
-          doc.addPage();
-          drawHeader(0);
-          drawResumenPago(doc.page.width - styles.dimensions.summaryWidth - 35, 70);
-        }
-      } else {
-        if (result.ultimoIndex >= productos.length) {
-          drawResumenPago(doc.page.width - styles.dimensions.summaryWidth - 35, doc.y + 10);
-        }
+      // ===========================================
+      // INFORMACIÓN DE LA ORDEN - MEDIDAS AJUSTADAS
+      // ===========================================
+      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold'); // Reducido de 16 a 14
+      doc.text('INFORMACIÓN DE LA ORDEN', 35, 100); // Ajustado Y de 160 a 100, X de 50 a 35
+      
+      doc.strokeColor('#FFD700').lineWidth(1).moveTo(35, 115).lineTo(doc.page.width - 35, 115).stroke(); // Ajustado
+      doc.moveDown(1);
+      
+      doc.fillColor('#333333').fontSize(9).font('Helvetica'); // Reducido de 10 a 9
+      
+      const infoLeft = 35; // Ajustado de 50 a 35
+      const infoRight = doc.page.width / 2 + 20; // Ajustado
+      let currentY = 125; // Valor fijo en lugar de doc.y
+      
+      doc.text('NÚMERO DE ORDEN:', infoLeft, currentY);
+      doc.fillColor('#000000').font('Helvetica-Bold').text(order_id, infoLeft + 100, currentY); // Reducido de 110 a 100
+      
+      doc.fillColor('#333333').font('Helvetica');
+      doc.text('FECHA:', infoLeft, currentY + 16); // Reducido de 18 a 16
+      doc.fillColor('#000000').text(fechaFormateada, infoLeft + 100, currentY + 16);
+      
+      doc.fillColor('#333333').text('HORA:', infoLeft, currentY + 32); // Reducido de 36 a 32
+      doc.fillColor('#000000').text(horaFormateada, infoLeft + 100, currentY + 32);
+      
+      doc.fillColor('#333333').text('ESTADO:', infoRight, currentY);
+      doc.fillColor('#27ae60').font('Helvetica-Bold').text('PAGO APROBADO', infoRight + 100, currentY); // Reducido de 110 a 100
+      
+      doc.fillColor('#333333').font('Helvetica');
+      doc.text('MÉTODO DE PAGO:', infoRight, currentY + 16);
+      doc.fillColor('#000000').text('Visa - Débito', infoRight + 100, currentY + 16);
+      
+      doc.fillColor('#333333').text('MONEDA:', infoRight, currentY + 32);
+      doc.fillColor('#000000').text('Soles (PEN)', infoRight + 100, currentY + 32);
+      
+      // ===========================================
+      // INFORMACIÓN DEL CLIENTE - MEDIDAS AJUSTADAS
+      // ===========================================
+      doc.moveDown(3); // Reducido de 4 a 3
+      
+      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold'); // Reducido de 16 a 14
+      doc.text('INFORMACIÓN DEL CLIENTE', 35, currentY + 50); // Posición fija
+      doc.strokeColor('#FFD700').lineWidth(1).moveTo(35, currentY + 65).lineTo(doc.page.width - 35, currentY + 65).stroke();
+      
+      let clientY = currentY + 75;
+      
+      doc.fillColor('#333333').fontSize(9).font('Helvetica');
+      doc.text('NOMBRE COMPLETO:', infoLeft, clientY);
+      doc.fillColor('#000000').text(`${cliente.nombre} ${cliente.apellido}`, infoLeft + 100, clientY);
+      
+      doc.fillColor('#333333').text('EMAIL:', infoLeft, clientY + 16);
+      doc.fillColor('#000000').text(cliente.email, infoLeft + 100, clientY + 16);
+      
+      doc.fillColor('#333333').text('TELÉFONO:', infoLeft, clientY + 32);
+      doc.fillColor('#000000').text(cliente.telefono || 'No especificado', infoLeft + 100, clientY + 32);
+      
+      // ===========================================
+      // TABLA DE PRODUCTOS - MEDIDAS AJUSTADAS
+      // ===========================================
+      doc.moveDown(3);
+      
+      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold');
+      doc.text('DETALLE DE PRODUCTOS', 35, clientY + 45);
+      doc.strokeColor('#FFD700').lineWidth(1).moveTo(35, clientY + 60).lineTo(doc.page.width - 35, clientY + 60).stroke();
+      
+      const tableTop = clientY + 70;
+      // Columnas más angostas para ahorrar espacio
+      const colWidths = [220, 45, 75, 75]; // Reducidas
+      const colPositions = [35];
+      
+      for (let i = 1; i < colWidths.length; i++) {
+        colPositions[i] = colPositions[i - 1] + colWidths[i - 1];
       }
       
-      // Footer
-      drawFooter(doc.page.height - 15);
+      doc.rect(colPositions[0], tableTop, colWidths.reduce((a, b) => a + b, 0), 22) // Reducido de 25 a 22
+         .fillColor('#f8f9fa')
+         .fill();
+      
+      doc.fillColor('#000000').fontSize(8).font('Helvetica-Bold'); // Reducido de 9 a 8
+      const headers = ['PRODUCTO', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL'];
+      
+      headers.forEach((header, i) => {
+        const xPos = colPositions[i] + (i === 0 ? 8 : 4); // Padding reducido
+        doc.text(header, xPos, tableTop + 7, { // Ajustado Y
+          width: colWidths[i] - 8,
+          align: i >= 2 ? 'right' : 'left'
+        });
+      });
+      
+      doc.strokeColor('#FFD700').lineWidth(1)
+         .moveTo(colPositions[0], tableTop + 22)
+         .lineTo(colPositions[3] + colWidths[3], tableTop + 22)
+         .stroke();
+      
+      let currentTableY = tableTop + 27; // Reducido de 30 a 27
+      
+      productos.forEach((producto, index) => {
+        const nombre = producto.nombre || producto.titulo || `Producto ${index + 1}`;
+        const cantidad = producto.cantidad || producto.quantity || 1;
+        const precio = producto.precio || producto.precioOriginal || 0;
+        const subtotal = producto.subtotal || (cantidad * precio);
+        
+        if (index % 2 === 0) {
+          doc.rect(colPositions[0], currentTableY, colWidths.reduce((a, b) => a + b, 0), 32) // Reducido de 35 a 32
+             .fillColor('#fafafa')
+             .fill();
+        }
+        
+        doc.fillColor('#000000').fontSize(8).font('Helvetica'); // Reducido de 9 a 8
+        doc.text(nombre, colPositions[0] + 8, currentTableY + 6, { // Padding reducido
+          width: colWidths[0] - 16
+        });
+        
+        if (producto.color || producto.talla || producto.sku) {
+          const detalles = [];
+          if (producto.color) detalles.push(`Color: ${producto.color}`);
+          if (producto.talla) detalles.push(`Talla: ${producto.talla}`);
+          if (producto.sku) detalles.push(`SKU: ${producto.sku}`);
+          
+          doc.fillColor('#666666').fontSize(6); // Reducido de 7 a 6
+          doc.text(detalles.join(' | '), colPositions[0] + 8, currentTableY + 18, { // Ajustado
+            width: colWidths[0] - 16
+          });
+        }
+        
+        doc.fillColor('#000000').fontSize(8);
+        doc.text(cantidad.toString(), colPositions[1] + 4, currentTableY + 10, { // Ajustado
+          width: colWidths[1] - 8,
+          align: 'center'
+        });
+        
+        doc.text(`S/ ${precio.toFixed(2)}`, colPositions[2] + 4, currentTableY + 10, {
+          width: colWidths[2] - 8,
+          align: 'right'
+        });
+        
+        doc.font('Helvetica-Bold');
+        doc.text(`S/ ${subtotal.toFixed(2)}`, colPositions[3] + 4, currentTableY + 10, {
+          width: colWidths[3] - 8,
+          align: 'right'
+        });
+        
+        doc.strokeColor('#e0e0e0').lineWidth(0.3)
+           .moveTo(colPositions[0], currentTableY + 32)
+           .lineTo(colPositions[3] + colWidths[3], currentTableY + 32)
+           .stroke();
+        
+        currentTableY += 32;
+      });
+      
+      // ===========================================
+      // RESUMEN DE PAGO - MEDIDAS AJUSTADAS
+      // ===========================================
+      const summaryBoxTop = currentTableY + 15; // Reducido de +20 a +15
+      const summaryBoxWidth = 270; // Reducido de 300 a 270
+      const summaryBoxLeft = doc.page.width - summaryBoxWidth - 35;
+      
+      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 140, 5) // Reducido de 150 a 140
+         .fillColor('#f8f9fa')
+         .fill();
+      
+      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 140, 5)
+         .strokeColor('#FFD700')
+         .lineWidth(1)
+         .stroke();
+      
+      doc.fillColor('#000000').fontSize(13).font('Helvetica-Bold'); // Reducido de 14 a 13
+      doc.text('RESUMEN DE PAGO', summaryBoxLeft + 12, summaryBoxTop + 12); // Padding reducido
+      
+      doc.strokeColor('#e0e0e0').lineWidth(0.5)
+         .moveTo(summaryBoxLeft + 12, summaryBoxTop + 35) // Ajustado de 40 a 35
+         .lineTo(summaryBoxLeft + summaryBoxWidth - 12, summaryBoxTop + 35)
+         .stroke();
+      
+      let summaryY = summaryBoxTop + 45; // Ajustado de 50 a 45
+      const lineHeight = 20; // Reducido de 22 a 20
+      
+      doc.fillColor('#333333').fontSize(9).font('Helvetica'); // Reducido de 10 a 9
+      doc.text('Subtotal:', summaryBoxLeft + 12, summaryY);
+      doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 100, summaryY, { // Ajustado
+        align: 'right'
+      });
+      
+      if (envio.costo > 0) {
+        summaryY += lineHeight;
+        doc.text(`Envío (${envio.tipo}):`, summaryBoxLeft + 12, summaryY);
+        doc.text(`S/ ${envio.costo.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 100, summaryY, {
+          align: 'right'
+        });
+      }
+      
+      summaryY += lineHeight + 3; // Reducido de +5 a +3
+      doc.strokeColor('#FFD700').lineWidth(1)
+         .moveTo(summaryBoxLeft + 12, summaryY)
+         .lineTo(summaryBoxLeft + summaryBoxWidth - 12, summaryY)
+         .stroke();
+      
+      summaryY += 8; // Reducido de 10 a 8
+      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold'); // Reducido de 16 a 14
+      doc.text('TOTAL:', summaryBoxLeft + 12, summaryY);
+      doc.fillColor('#27ae60');
+      doc.text(`S/ ${resumen.total.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 100, summaryY, {
+        align: 'right'
+      });
+      
+      // ===========================================
+      // FOOTER - MEDIDAS AJUSTADAS
+      // ===========================================
+      doc.fillColor('#333333').fontSize(7).font('Helvetica'); // Reducido de 8 a 7
+      doc.text('Gracias por su compra. Este documento es su comprobante oficial.', 
+        35, doc.page.height - 35, { width: doc.page.width - 70, align: 'center' }); // Ajustado
+      
+      doc.fillColor('#666666').fontSize(6); // Reducido de 7 a 6
+      doc.text(`ID de transacción: ${order_id}`, 35, doc.page.height - 22, { width: doc.page.width - 70, align: 'center' });
       
       doc.end();
       
     } catch (error) {
-      console.error('Error generando PDF:', error);
+      console.error('Error generando PDF profesional:', error);
       reject(error);
     }
   });
