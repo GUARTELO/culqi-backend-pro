@@ -670,9 +670,9 @@ GOLDINFINITI - CONFIRMACIÓN DE COMPRA
 ---------------------------
 Número de Orden: ${order_id}
 Fecha: ${fecha}
-Cliente: ${cliente.nombre}  # ← Esto ya contiene nombres y apellidos completos
-DNI: ${cliente.apellido}     # ← Esto es el DNI
+Cliente: ${cliente.nombre}
 Email: ${cliente.email}
+DNI: ${cliente.dni}  # ← Ahora usa dni en lugar de apellido
 ID Transacción: ${culqi_id || 'N/A'}
 Estado: ✅ PAGO APROBADO
 
