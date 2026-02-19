@@ -619,15 +619,20 @@ function _generateGoldenInfinityEmail(firebaseData) {
           </div>
           
           <!-- Información importante -->
-          <div class="info-box">
-            <h3 style="color: #856404; margin-bottom: 10px;">📌 Información Importante</h3>
-            <ul style="padding-left: 20px;">
-              <li>Tu pedido está siendo procesado y preparado para el envío.</li>
-              <li>Recibirás actualizaciones por email sobre el estado de tu pedido.</li>
-              <li>Para consultas sobre tu orden, contáctanos a: contacto@goldinfiniti.com</li>
-              <li>El tiempo de entrega estimado es de 2-4 días hábiles.</li>
-            </ul>
-          </div>
+<div class="info-box">
+  <h3 style="color: #856404; margin-bottom: 10px;">📌 Información Importante</h3>
+  <ul style="padding-left: 20px;">
+    <li>Tu pedido está siendo procesado y preparado para el envío.</li>
+    <li>Recibirás actualizaciones por email sobre el estado de tu pedido.</li>
+    <li>Para consultas sobre tu orden, contáctanos a: contacto@goldinfiniti.com</li>
+    <li>
+      <strong>Tiempo de entrega:</strong> 
+      ${envio.tipo?.toLowerCase() === 'lima' || envio.tipo?.toLowerCase() === 'lima metropolitana' 
+        ? '🚚 24 horas (Lima)' 
+        : '📦 2-4 días hábiles (Provincia)'}
+    </li>
+  </ul>
+</div>
           
           <!-- Pasos siguientes -->
           <div style="margin-top: 30px; text-align: center;">
