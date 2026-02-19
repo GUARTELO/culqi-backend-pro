@@ -521,7 +521,7 @@ function _generateGoldenInfinityEmail(firebaseData) {
           <p style="margin-top: 10px; font-size: 16px;"> ${cliente.nombre}</p>
         </div>
         
-        <!-- Contenido -->
+           <!-- Contenido -->
 <div class="content">
   <!-- Información de la orden -->
   <div class="section">
@@ -537,15 +537,14 @@ function _generateGoldenInfinityEmail(firebaseData) {
           </div>
         </div>
         
-        <!-- DERECHA: Cliente, DNI, Email, Teléfono -->
-        <div>
-          <p><strong>👤 Cliente:</strong><br>${cliente.nombre}</p>
-          <p><strong>🪪 DNI:</strong><br>${cliente.dni || 'No especificado'}</p>
-          <p><strong>📧 Email:</strong><br>${cliente.email}</p>
-          <p><strong>📱 Teléfono:</strong><br>${cliente.telefono || 'No especificado'}</p>
+        <!-- DERECHA: Cliente, DNI, Email, Teléfono - MÁS PEGADA A LA DERECHA -->
+        <div style="text-align: right; margin-left: auto;">
+          <p style="margin: 0 0 8px 0;"><strong>👤 Cliente:</strong><br>${cliente.nombre}</p>
+          <p style="margin: 0 0 8px 0;"><strong>🪪 DNI:</strong><br>${cliente.dni || 'No especificado'}</p>
+          <p style="margin: 0 0 8px 0;"><strong>📧 Email:</strong><br>${cliente.email}</p>
+          <p style="margin: 0 0 8px 0;"><strong>📱 Teléfono:</strong><br>${cliente.telefono || 'No especificado'}</p>
         </div>
       </div>
-      <!-- NOTA: El ID Transacción y Status Badge ahora están dentro de la columna izquierda -->
     </div>
   </div>
           
