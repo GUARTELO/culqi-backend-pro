@@ -440,24 +440,27 @@ async _generarIdDiarioComoFrontend() {
         }
       );
 
-      // NOTA: El email se enviará después de guardar en Firebase en _executePostPaymentTasks
-      // El email inicial se ha eliminado para evitar el envío prematuro
-
       /* =======================
-       * 5. ACTUALIZAR ESTADÍSTICAS
+       * 5. ENVIAR EMAIL DE CONFIRMACIÓN
        * =======================
        */
-      this._updateStats(true, culqiResult.amount, false);
+      const emailResult = await this._sendFirebaseEmail(emailData);
 
       /* =======================
-       * 6. CONSTRUIR RESPUESTA
+       * 6. ACTUALIZAR ESTADÍSTICAS
+       * =======================
+       */
+      this._updateStats(true, culqiResult.amount, emailResult.success);
+
+      /* =======================
+       * 7. CONSTRUIR RESPUESTA
        * =======================
        */
       const totalDuration = Date.now() - startTime;
       const response = this._buildFirebaseResponse(
         paymentId,
         culqiResult,
-        { success: false, pending: true }, // Email pendiente, se enviará después
+        emailResult,
         {
           cliente,
           productos,
@@ -471,14 +474,13 @@ async _generarIdDiarioComoFrontend() {
         paymentId,
         ordenId: ordenIdCorregido,
         cliente: cliente.nombre,
-        emailSent: false,
-        emailPendiente: true,
+        emailSent: emailResult.success,
         total: resumen.total,
         duration: `${totalDuration}ms`
       });
 
       /* =======================
-       * 7. ENVIAR RESPUESTA
+       * 8. ENVIAR RESPUESTA
        * =======================
        */
       response.charge_id = culqiResult.id;
@@ -487,7 +489,7 @@ async _generarIdDiarioComoFrontend() {
       res.status(200).json(response);
       
       /* =======================
-       * 8. TAREAS POST-PAGO (INCLUYE ENVÍO DE EMAIL)
+       * 9. TAREAS POST-PAGO
        * =======================
        */
       this._executePostPaymentTasks(
@@ -502,7 +504,7 @@ async _generarIdDiarioComoFrontend() {
           metadata,
           ordenId: ordenIdCorregido
         },
-        null // emailResult será null inicialmente
+        emailResult
       ).catch(err => {
         logger.warn(`⚠️ Error en tareas post-pago ${paymentId}`, { error: err.message });
       });
@@ -1430,69 +1432,7 @@ async _generarIdDiarioComoFrontend() {
       });
       
       const tasks = [];
-      let firebaseUpdateSuccess = false;
-      let firebaseDocumentId = null;
       
-      // PRIMERO: Actualizar Firebase (guardar la orden)
-      const firebaseUpdatePromise = this._updateFirebaseDocument(
-        firebaseData.ordenId,
-        culqiResult,
-        { success: false, pending: true } // Email aún no enviado
-      ).then(result => {
-        logger.info(`📝 Firebase actualizado para orden ${firebaseData.ordenId}`);
-        if (result.success) {
-          firebaseUpdateSuccess = true;
-          firebaseDocumentId = result.documentId || firebaseData.ordenId;
-        }
-        return result;
-      }).catch(err => {
-        logger.warn(`⚠️ Error actualizando Firebase ${paymentId}`, { error: err.message });
-        return { success: false, error: err.message };
-      });
-      
-      tasks.push(firebaseUpdatePromise);
-      
-      // Esperar a que Firebase se actualice
-      await firebaseUpdatePromise;
-      
-      // SEGUNDO: Ahora que Firebase tiene los datos, enviar el email
-      if (firebaseUpdateSuccess) {
-        logger.info(`📧 Enviando email con datos completos de Firebase para orden ${firebaseData.ordenId}`);
-        
-        // Preparar datos completos incluyendo confirmación de Firebase
-        const emailDataCompleto = {
-          ...this._prepareEmailData(paymentId, culqiResult, firebaseData),
-          firebase_actualizado: true,
-          timestamp_firebase: new Date().toISOString(),
-          firebase_documento: firebaseDocumentId,
-          firebase_doc_id: firebaseDocumentId
-        };
-        
-        // Enviar email
-        const emailPostFirebase = await this._sendFirebaseEmail(emailDataCompleto);
-        
-        if (emailPostFirebase.success) {
-          logger.info(`✅ Email enviado con datos Firebase para orden ${firebaseData.ordenId}`);
-          
-          // Actualizar Firebase con el resultado del email
-          await this._updateFirebaseDocument(
-            firebaseData.ordenId,
-            culqiResult,
-            emailPostFirebase
-          );
-          
-          // Actualizar la variable para la notificación
-          emailResult = emailPostFirebase;
-        } else {
-          logger.warn(`⚠️ Error enviando email para orden ${firebaseData.ordenId}`);
-          emailResult = { success: false, error: 'Email falló después de guardar en Firebase' };
-        }
-      } else {
-        logger.warn(`⚠️ No se pudo enviar email porque Firebase no se actualizó correctamente`);
-        emailResult = { success: false, error: 'Firebase no actualizado' };
-      }
-      
-      // TERCERO: Enviar notificación interna al administrador
       if (emailServiceAvailable && emailService.sendPaymentNotification) {
         const notificationData = {
           id: paymentId,
@@ -1523,14 +1463,14 @@ async _generarIdDiarioComoFrontend() {
           envio: firebaseData.envio || null,
           
           email_result: {
-            success: emailResult?.success || false,
-            timestamp: emailResult?.timestamp || new Date().toISOString(),
+            success: emailResult.success,
+            timestamp: emailResult.timestamp,
             customer: firebaseData.cliente?.email
           },
           
           metadata: {
             ...firebaseData.metadata,
-            firebase_doc_id: firebaseDocumentId || firebaseData.metadata?.firebaseDocId,
+            firebase_doc_id: firebaseData.metadata?.firebaseDocId,
             tipo_compra: firebaseData.metadata?.tipoCompra,
             procesado_en: new Date().toISOString(),
             golden_infinity: true,
@@ -1564,7 +1504,6 @@ async _generarIdDiarioComoFrontend() {
         );
       }
       
-      // CUARTO: Generar comprobante si es necesario
       if (emailServiceAvailable && emailService.enviarCorreoComprobante && 
           firebaseData.productos && firebaseData.productos.length > 0) {
         
@@ -1583,7 +1522,20 @@ async _generarIdDiarioComoFrontend() {
         );
       }
       
-      // Ejecutar todas las tareas
+      tasks.push(
+        this._updateFirebaseDocument(
+          firebaseData.ordenId,
+          culqiResult,
+          emailResult
+        ).then(result => {
+          logger.info(`📝 Firebase actualizado para orden ${firebaseData.ordenId}`);
+          return result;
+        }).catch(err => {
+          logger.warn(`⚠️ Error actualizando Firebase ${paymentId}`, { error: err.message });
+          return { success: false, error: err.message };
+        })
+      );
+      
       const results = await Promise.allSettled(tasks);
       
       const tasksDuration = Date.now() - tasksStartTime;
@@ -1594,8 +1546,7 @@ async _generarIdDiarioComoFrontend() {
         totalTasks: tasks.length,
         successfulTasks,
         duration: `${tasksDuration}ms`,
-        emailSent: emailResult?.success || false,
-        firebaseUpdated: firebaseUpdateSuccess
+        emailSent: emailResult.success
       });
       
     } catch (error) {
@@ -1743,11 +1694,10 @@ async _generarIdDiarioComoFrontend() {
         }))
       },
       email: {
-        sent: emailResult?.success || false,
-        status: emailResult?.success ? 'delivered' : (emailResult?.pending ? 'pending' : 'queued'),
+        sent: emailResult.success,
+        status: emailResult.success ? 'delivered' : 'queued',
         customer_email: cliente.email,
-        timestamp: emailResult?.timestamp || new Date().toISOString(),
-        message: emailResult?.pending ? 'El email será enviado después de guardar la orden' : undefined
+        timestamp: emailResult.timestamp
       },
       next_steps: [
         'Revisa tu correo electrónico para la confirmación detallada',
@@ -1772,8 +1722,8 @@ async _generarIdDiarioComoFrontend() {
         'metadata.procesado': true,
         'metadata.procesado_en': new Date().toISOString(),
         'metadata.culqi_id': culqiResult.id,
-        'metadata.email_enviado': emailResult?.success || false,
-        'metadata.email_timestamp': emailResult?.timestamp || new Date().toISOString(),
+        'metadata.email_enviado': emailResult.success,
+        'metadata.email_timestamp': emailResult.timestamp || new Date().toISOString(),
         'metadata.estado_pago': 'completado',
         'metadata.metodo_pago': 'culqi',
         'metadata.ultima_actualizacion': new Date().toISOString(),
@@ -1832,8 +1782,7 @@ async _generarIdDiarioComoFrontend() {
             updated: true, 
             orderId,
             realUpdate: true,
-            viaMetadata: true,
-            documentId: docRef.id
+            viaMetadata: true
           };
         }
         
