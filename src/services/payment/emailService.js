@@ -350,7 +350,7 @@ async function sendPaymentConfirmation(paymentData) {
 }
 
 // ========================
-// 4. EXTRACCIÓN DE DATOS DE FIREBASE - 🔴 CAMBIO 1 APLICADO
+// 4. EXTRACCIÓN DE DATOS DE FIREBASE 
 // ========================
 /**
  * Extrae y estructura datos de Firebase
@@ -358,10 +358,15 @@ async function sendPaymentConfirmation(paymentData) {
  * @returns {Object} Datos estructurados para email
  */
 function _extractFirebaseData(paymentData) {
-  // Datos del cliente
-  const cliente = paymentData.cliente || {
+  // Datos del cliente - CORREGIDO
+  const cliente = paymentData.cliente ? {
+    nombre: paymentData.cliente.nombre || paymentData.customer_name || 'Cliente',
+    dni: paymentData.cliente.dni || paymentData.customer_dni || paymentData.dni || '',
+    email: paymentData.cliente.email || paymentData.customer_email,
+    telefono: paymentData.cliente.telefono || paymentData.customer_phone || ''
+  } : {
     nombre: paymentData.customer_name || 'Cliente',
-    dni: paymentData.customer_dni || paymentData.dni || '',  // ← CAMBIADO: apellido por dni
+    dni: paymentData.customer_dni || paymentData.dni || '',
     email: paymentData.customer_email,
     telefono: paymentData.customer_phone || ''
   };
@@ -395,14 +400,6 @@ function _extractFirebaseData(paymentData) {
   
   // Metadata
   const metadata = paymentData.metadata || {};
-   
-  console.log('🔥 VERIFICACIÓN DNI:', {
-  existe_cliente: !!paymentData.cliente,
-  dni_dentro_de_cliente: paymentData.cliente?.dni,
-  customer_dni: paymentData.customer_dni,
-  dni_directo: paymentData.dni,
-  metadata_dni: paymentData.metadata?.dni
-});
 
   return {
     order_id: paymentData.order_id || paymentData.id || metadata.orderId || `ORD-${Date.now()}`,
