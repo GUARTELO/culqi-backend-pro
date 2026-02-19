@@ -350,7 +350,7 @@ async function sendPaymentConfirmation(paymentData) {
 }
 
 // ========================
-// 4. EXTRACCIÓN DE DATOS DE FIREBASE
+// 4. EXTRACCIÓN DE DATOS DE FIREBASE - 🔴 CAMBIO 1 APLICADO
 // ========================
 /**
  * Extrae y estructura datos de Firebase
@@ -361,7 +361,7 @@ function _extractFirebaseData(paymentData) {
   // Datos del cliente
   const cliente = paymentData.cliente || {
     nombre: paymentData.customer_name || 'Cliente',
-    apellido: '',
+    dni: paymentData.customer_dni || paymentData.dni || '',  // ← CAMBIADO: apellido por dni
     email: paymentData.customer_email,
     telefono: paymentData.customer_phone || ''
   };
@@ -410,7 +410,7 @@ function _extractFirebaseData(paymentData) {
 }
 
 // ========================
-// 5. GENERACIÓN DE EMAIL HTML PROFESIONAL
+// 5. GENERACIÓN DE EMAIL HTML PROFESIONAL - 🔴 CAMBIO 2 APLICADO
 // ========================
 /**
  * Genera contenido HTML del email
@@ -527,8 +527,10 @@ function _generateGoldenInfinityEmail(firebaseData) {
                   <p><strong>📅 Fecha:</strong><br>${fecha}</p>
                 </div>
                 <div>
-                  <p><strong>👤 Cliente:</strong><br>${cliente.nombre} ${cliente.apellido}</p>
+                  <p><strong>👤 Cliente:</strong><br>${cliente.nombre}</p>
+                  <p><strong>🪪 DNI:</strong><br>${cliente.dni || 'No especificado'}</p>
                   <p><strong>📧 Email:</strong><br>${cliente.email}</p>
+                  <p><strong>📱 Teléfono:</strong><br>${cliente.telefono || 'No especificado'}</p>
                 </div>
               </div>
               ${culqi_id ? `<p style="margin-top: 10px;"><strong>🔗 ID Transacción:</strong><br><code>${culqi_id}</code></p>` : ''}
@@ -670,8 +672,10 @@ GOLDINFINITI - CONFIRMACIÓN DE COMPRA
 ---------------------------
 Número de Orden: ${order_id}
 Fecha: ${fecha}
-Cliente: ${cliente.nombre} ${cliente.apellido}
+Cliente: ${cliente.nombre}
+DNI: ${cliente.dni || 'No especificado'}
 Email: ${cliente.email}
+Teléfono: ${cliente.telefono || 'No especificado'}
 ID Transacción: ${culqi_id || 'N/A'}
 Estado: ✅ PAGO APROBADO
 
@@ -900,18 +904,21 @@ async function _generateOrderPDF(firebaseData) {
       
       doc.fillColor('#333333').fontSize(9).font('Helvetica');
       doc.text('NOMBRE COMPLETO:', infoLeft, clientY);
-      doc.fillColor('#000000').text(`${cliente.nombre} ${cliente.apellido}`, infoLeft + 100, clientY);
+      doc.fillColor('#000000').text(cliente.nombre, infoLeft + 100, clientY);
       
-      doc.fillColor('#333333').text('EMAIL:', infoLeft, clientY + 16);
-      doc.fillColor('#000000').text(cliente.email, infoLeft + 100, clientY + 16);
+      doc.fillColor('#333333').text('DNI:', infoLeft, clientY + 16);
+      doc.fillColor('#000000').text(cliente.dni || 'No especificado', infoLeft + 100, clientY + 16);
       
-      doc.fillColor('#333333').text('TELÉFONO:', infoLeft, clientY + 32);
-      doc.fillColor('#000000').text(cliente.telefono || 'No especificado', infoLeft + 100, clientY + 32);
+      doc.fillColor('#333333').text('EMAIL:', infoLeft, clientY + 32);
+      doc.fillColor('#000000').text(cliente.email, infoLeft + 100, clientY + 32);
+      
+      doc.fillColor('#333333').text('TELÉFONO:', infoLeft, clientY + 48);
+      doc.fillColor('#000000').text(cliente.telefono || 'No especificado', infoLeft + 100, clientY + 48);
       
       // ===========================================
       // TABLA DE PRODUCTOS - MEDIDAS AJUSTADAS
       // ===========================================
-      doc.moveDown(3);
+      doc.moveDown(4);
       doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
       doc.text('DETALLE DE PRODUCTOS', 50, doc.y);
       doc.strokeColor('#FFD700').lineWidth(1).moveTo(50, doc.y + 5).lineTo(doc.page.width - 50, doc.y + 5).stroke();
@@ -1080,7 +1087,7 @@ async function _generateOrderPDF(firebaseData) {
 
 
 // ========================
-// 7. FUNCIÓN DE NOTIFICACIÓN INTERNA
+// 7. FUNCIÓN DE NOTIFICACIÓN INTERNA - 🔴 CAMBIO 3 APLICADO
 // ========================
 async function sendPaymentNotification(paymentData) {
   try {
@@ -1096,8 +1103,8 @@ async function sendPaymentNotification(paymentData) {
     const customerName = paymentData.cliente?.nombre || 
                          paymentData.customer_name || 
                          'Cliente';
-    const customerLastName = paymentData.cliente?.apellido || '';
-    const customerFullName = `${customerName} ${customerLastName}`.trim();
+    // ELIMINADO: customerLastName ya no se usa
+    const customerFullName = customerName;  // ← AHORA SOLO EL NOMBRE
     
     let productosHtml = '';
     if (paymentData.productos && Array.isArray(paymentData.productos)) {
