@@ -7,6 +7,7 @@
  * - Febrero: ORD-202602-0001, ORD-202602-0002...
  * - Marzo: ORD-202603-0001... (se reinicia cada mes)
  * - Sistema de Reclamos Completo: CLAIM-202602-0001...
+ * - CORREGIDO: Captura de DNI en todo el flujo
  * ============================================================
  */
 
@@ -341,6 +342,32 @@ async _generarIdDiarioComoFrontend() {
         id: ordenId 
       } = req.body;
 
+      // 🔍 DEBUG: Verificar que el DNI llegó
+      logger.info('🔍 DNI RECIBIDO - VERIFICACIÓN:', {
+        cliente_dni: cliente?.dni,
+        cliente_documento: cliente?.documento,
+        body_dni: req.body.dni,
+        metadata_dni: metadata?.dni,
+        metadata_documento: metadata?.documento
+      });
+
+      // ✅ CORRECCIÓN: Normalizar DNI si viene en diferentes ubicaciones
+      if (cliente) {
+        // Si no hay dni en cliente pero hay en req.body o metadata, asignarlo
+        if (!cliente.dni) {
+          if (req.body.dni) {
+            cliente.dni = req.body.dni;
+            logger.info('✅ DNI normalizado desde req.body:', cliente.dni);
+          } else if (metadata?.dni) {
+            cliente.dni = metadata.dni;
+            logger.info('✅ DNI normalizado desde metadata:', cliente.dni);
+          } else if (metadata?.documento) {
+            cliente.dni = metadata.documento;
+            logger.info('✅ DNI normalizado desde metadata.documento:', cliente.dni);
+          }
+        }
+      }
+
       // ========== CORREGIR O GENERAR ID SECUENCIAL ==========
       let ordenIdCorregido = ordenId;
       
@@ -387,6 +414,7 @@ async _generarIdDiarioComoFrontend() {
         ordenIdOriginal: ordenId,
         ordenIdCorregido: ordenIdCorregido,
         cliente: cliente.nombre,
+        cliente_dni: cliente.dni, // ✅ AHORA DEBERÍA ESTAR
         productosCount: Array.isArray(productos) ? productos.length : 0,
         total: resumen?.total
       });
@@ -423,7 +451,7 @@ async _generarIdDiarioComoFrontend() {
       });
 
       /* =======================
-       * 4. PREPARAR DATOS PARA EMAIL (CON TODA LA INFO FIREBASE)
+       * 4. PREPARAR DATOS PARA EMAIL (CON TODA LA INFO FIREBASE Y DNI CORREGIDO)
        * =======================
        */
       const emailData = this._prepareEmailData(
@@ -440,27 +468,24 @@ async _generarIdDiarioComoFrontend() {
         }
       );
 
-      /* =======================
-       * 5. ENVIAR EMAIL DE CONFIRMACIÓN
-       * =======================
-       */
-      const emailResult = await this._sendFirebaseEmail(emailData);
+      // NOTA: El email se enviará después de guardar en Firebase en _executePostPaymentTasks
+      // El email inicial se ha eliminado para evitar el envío prematuro
 
       /* =======================
-       * 6. ACTUALIZAR ESTADÍSTICAS
+       * 5. ACTUALIZAR ESTADÍSTICAS
        * =======================
        */
-      this._updateStats(true, culqiResult.amount, emailResult.success);
+      this._updateStats(true, culqiResult.amount, false);
 
       /* =======================
-       * 7. CONSTRUIR RESPUESTA
+       * 6. CONSTRUIR RESPUESTA
        * =======================
        */
       const totalDuration = Date.now() - startTime;
       const response = this._buildFirebaseResponse(
         paymentId,
         culqiResult,
-        emailResult,
+        { success: false, pending: true }, // Email pendiente, se enviará después
         {
           cliente,
           productos,
@@ -474,13 +499,15 @@ async _generarIdDiarioComoFrontend() {
         paymentId,
         ordenId: ordenIdCorregido,
         cliente: cliente.nombre,
-        emailSent: emailResult.success,
+        cliente_dni: cliente.dni, // ✅ REGISTRAR DNI EN LOG
+        emailSent: false,
+        emailPendiente: true,
         total: resumen.total,
         duration: `${totalDuration}ms`
       });
 
       /* =======================
-       * 8. ENVIAR RESPUESTA
+       * 7. ENVIAR RESPUESTA
        * =======================
        */
       response.charge_id = culqiResult.id;
@@ -489,7 +516,7 @@ async _generarIdDiarioComoFrontend() {
       res.status(200).json(response);
       
       /* =======================
-       * 9. TAREAS POST-PAGO
+       * 8. TAREAS POST-PAGO (INCLUYE ENVÍO DE EMAIL)
        * =======================
        */
       this._executePostPaymentTasks(
@@ -504,7 +531,7 @@ async _generarIdDiarioComoFrontend() {
           metadata,
           ordenId: ordenIdCorregido
         },
-        emailResult
+        null // emailResult será null inicialmente
       ).catch(err => {
         logger.warn(`⚠️ Error en tareas post-pago ${paymentId}`, { error: err.message });
       });
@@ -524,10 +551,6 @@ async _generarIdDiarioComoFrontend() {
   }
 
   /* ============================================================
-   * 🆕 PROCESAR RECLAMO - SISTEMA COMPLETO PROFESIONAL
-   * ============================================================
-   */
-   /* ============================================================
    * 🆕 PROCESAR RECLAMO - SISTEMA COMPLETO PROFESIONAL
    * ============================================================
    */
@@ -604,7 +627,7 @@ async _generarIdDiarioComoFrontend() {
           email: consumidor.email,
           telefono: consumidor.telefono || '',
           tipoDocumento: consumidor.tipoDocumento || '',
-          numeroDocumento: consumidor.numeroDocumento || '',
+          numeroDocumento: consumidor.numeroDocumento || '', // ✅ DNI DEL RECLAMO
           direccion: consumidor.direccion || ''
         },
         
@@ -657,6 +680,7 @@ async _generarIdDiarioComoFrontend() {
       logger.debug(`📋 Datos reclamo preparados ${claimId}`, {
         consumidor: claimData.consumidor.nombreCompleto,
         email: claimData.consumidor.email,
+        documento: claimData.consumidor.numeroDocumento, // ✅ REGISTRAR DNI
         tipo: claimData.tipoSolicitud,
         descripcionLength: claimData.reclamo.descripcion?.length,
         monto: claimData.reclamo.montoReclamado,
@@ -702,6 +726,7 @@ async _generarIdDiarioComoFrontend() {
       logger.info(`🎉 Reclamo procesado exitosamente ${claimId}`, {
         claimId,
         cliente: claimData.consumidor.nombreCompleto,
+        documento: claimData.consumidor.numeroDocumento, // ✅ REGISTRAR DNI
         idOrigen: claimData.metadata.id_proveniente,
         emailUsuario: emailResults.usuario.success,
         emailAdmin: emailResults.admin.success,
@@ -1083,7 +1108,8 @@ async _generarIdDiarioComoFrontend() {
         data: {
           consumidor: {
             nombre: claimData.consumidor.nombreCompleto,
-            email: claimData.consumidor.email
+            email: claimData.consumidor.email,
+            documento: claimData.consumidor.numeroDocumento // ✅ DNI EN AUDITORÍA
           },
           reclamo: {
             tipo: claimData.tipoSolicitud,
@@ -1193,7 +1219,8 @@ async _generarIdDiarioComoFrontend() {
         consumidor: {
           nombreCompleto: claimData.consumidor?.nombreCompleto || 'Consumidor',
           email: claimData.consumidor?.email || 'no-email',
-          telefono: claimData.consumidor?.telefono || ''
+          telefono: claimData.consumidor?.telefono || '',
+          numeroDocumento: claimData.consumidor?.numeroDocumento || '' // ✅ DNI EN FALLBACK
         },
         reclamo: {
           descripcion: claimData.reclamo?.descripcion || 'Sin descripción',
@@ -1236,7 +1263,7 @@ async _generarIdDiarioComoFrontend() {
   }
 
   /* ============================================================
-   * MÉTODOS ORIGINALES DE PAYMENT CONTROLLER (NO MODIFICADOS)
+   * MÉTODOS ORIGINALES DE PAYMENT CONTROLLER
    * ============================================================
    */
 
@@ -1259,6 +1286,7 @@ async _generarIdDiarioComoFrontend() {
         order_id: orderId,
         cliente_id: cliente.id,
         cliente_nombre: nombreCompleto,
+        cliente_dni: cliente.dni || '', // ✅ AÑADIR DNI A METADATA DE CULQI
         cliente_telefono: cliente.telefono || '',
         firebase_doc_id: metadata?.firebaseDocId,
         productos_count: metadata?.productosCount || 0,
@@ -1269,6 +1297,9 @@ async _generarIdDiarioComoFrontend() {
     };
   }
 
+  /**
+   * PREPARAR DATOS PARA EMAIL - CORREGIDO CON DNI
+   */
   _prepareEmailData(paymentId, culqiResult, firebaseData) {
     const { cliente, comprobante, envio, productos, resumen, metadata, ordenId } = firebaseData;
     
@@ -1286,8 +1317,26 @@ async _generarIdDiarioComoFrontend() {
     const infoEnvio = envio ? {
       tipo: envio.tipo || 'estándar',
       costo: envio.costo || 0,
-      estado: envio.estado || 'pendiente'
+      estado: envio.estado || 'pendiente',
+      direccion: envio.direccion || '',
+      distrito: envio.distrito || '',
+      provincia: envio.provincia || '',
+      referencia: envio.referencia || ''
     } : null;
+    
+    // ✅ CORRECCIÓN: Capturar DNI de todas las fuentes posibles
+    const customerDni = cliente.dni || 
+                        cliente.documento || 
+                        cliente.numeroDocumento || 
+                        metadata?.dni || 
+                        metadata?.documento || 
+                        '';
+    
+    logger.info('📝 DNI capturado para email:', {
+      fuente: 'cliente.dni',
+      valor: customerDni,
+      original: cliente.dni
+    });
     
     return {
       id: paymentId,
@@ -1301,6 +1350,7 @@ async _generarIdDiarioComoFrontend() {
       customer_email: cliente.email,
       customer_name: `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim(),
       customer_phone: cliente.telefono || '',
+      customer_dni: customerDni, // ✅ NUEVO: DNI explícito
       
       order_id: ordenId,
       firebase_doc_id: metadata?.firebaseDocId,
@@ -1339,6 +1389,7 @@ async _generarIdDiarioComoFrontend() {
     try {
       logger.info(`📧 Preparando email para ${emailData.customer_email}`, {
         orderId: emailData.order_id,
+        customer_dni: emailData.customer_dni, // ✅ LOG DEL DNI
         productosCount: emailData.productos.length,
         total: emailData.resumen.total
       });
@@ -1428,11 +1479,74 @@ async _generarIdDiarioComoFrontend() {
     try {
       logger.info(`🔄 Ejecutando tareas post-pago ${paymentId}`, {
         ordenIdParaNotificacion: firebaseData.ordenId,
-        cliente: firebaseData.cliente?.nombre
+        cliente: firebaseData.cliente?.nombre,
+        cliente_dni: firebaseData.cliente?.dni // ✅ LOG DEL DNI
       });
       
       const tasks = [];
+      let firebaseUpdateSuccess = false;
+      let firebaseDocumentId = null;
       
+      // PRIMERO: Actualizar Firebase (guardar la orden)
+      const firebaseUpdatePromise = this._updateFirebaseDocument(
+        firebaseData.ordenId,
+        culqiResult,
+        { success: false, pending: true } // Email aún no enviado
+      ).then(result => {
+        logger.info(`📝 Firebase actualizado para orden ${firebaseData.ordenId}`);
+        if (result.success) {
+          firebaseUpdateSuccess = true;
+          firebaseDocumentId = result.documentId || firebaseData.ordenId;
+        }
+        return result;
+      }).catch(err => {
+        logger.warn(`⚠️ Error actualizando Firebase ${paymentId}`, { error: err.message });
+        return { success: false, error: err.message };
+      });
+      
+      tasks.push(firebaseUpdatePromise);
+      
+      // Esperar a que Firebase se actualice
+      await firebaseUpdatePromise;
+      
+      // SEGUNDO: Ahora que Firebase tiene los datos, enviar el email
+      if (firebaseUpdateSuccess) {
+        logger.info(`📧 Enviando email con datos completos de Firebase para orden ${firebaseData.ordenId}`);
+        
+        // Preparar datos completos incluyendo confirmación de Firebase
+        const emailDataCompleto = {
+          ...this._prepareEmailData(paymentId, culqiResult, firebaseData),
+          firebase_actualizado: true,
+          timestamp_firebase: new Date().toISOString(),
+          firebase_documento: firebaseDocumentId,
+          firebase_doc_id: firebaseDocumentId
+        };
+        
+        // Enviar email
+        const emailPostFirebase = await this._sendFirebaseEmail(emailDataCompleto);
+        
+        if (emailPostFirebase.success) {
+          logger.info(`✅ Email enviado con datos Firebase para orden ${firebaseData.ordenId}`);
+          
+          // Actualizar Firebase con el resultado del email
+          await this._updateFirebaseDocument(
+            firebaseData.ordenId,
+            culqiResult,
+            emailPostFirebase
+          );
+          
+          // Actualizar la variable para la notificación
+          emailResult = emailPostFirebase;
+        } else {
+          logger.warn(`⚠️ Error enviando email para orden ${firebaseData.ordenId}`);
+          emailResult = { success: false, error: 'Email falló después de guardar en Firebase' };
+        }
+      } else {
+        logger.warn(`⚠️ No se pudo enviar email porque Firebase no se actualizó correctamente`);
+        emailResult = { success: false, error: 'Firebase no actualizado' };
+      }
+      
+      // TERCERO: Enviar notificación interna al administrador
       if (emailServiceAvailable && emailService.sendPaymentNotification) {
         const notificationData = {
           id: paymentId,
@@ -1447,6 +1561,7 @@ async _generarIdDiarioComoFrontend() {
           customer_email: firebaseData.cliente?.email,
           customer_name: `${firebaseData.cliente?.nombre || ''} ${firebaseData.cliente?.apellido || ''}`.trim(),
           customer_phone: firebaseData.cliente?.telefono || '',
+          customer_dni: firebaseData.cliente?.dni || '', // ✅ DNI EN NOTIFICACIÓN
           
           productos: firebaseData.productos || [],
           productos_count: firebaseData.productos?.length || 0,
@@ -1463,14 +1578,14 @@ async _generarIdDiarioComoFrontend() {
           envio: firebaseData.envio || null,
           
           email_result: {
-            success: emailResult.success,
-            timestamp: emailResult.timestamp,
+            success: emailResult?.success || false,
+            timestamp: emailResult?.timestamp || new Date().toISOString(),
             customer: firebaseData.cliente?.email
           },
           
           metadata: {
             ...firebaseData.metadata,
-            firebase_doc_id: firebaseData.metadata?.firebaseDocId,
+            firebase_doc_id: firebaseDocumentId || firebaseData.metadata?.firebaseDocId,
             tipo_compra: firebaseData.metadata?.tipoCompra,
             procesado_en: new Date().toISOString(),
             golden_infinity: true,
@@ -1504,6 +1619,7 @@ async _generarIdDiarioComoFrontend() {
         );
       }
       
+      // CUARTO: Generar comprobante si es necesario
       if (emailServiceAvailable && emailService.enviarCorreoComprobante && 
           firebaseData.productos && firebaseData.productos.length > 0) {
         
@@ -1522,20 +1638,7 @@ async _generarIdDiarioComoFrontend() {
         );
       }
       
-      tasks.push(
-        this._updateFirebaseDocument(
-          firebaseData.ordenId,
-          culqiResult,
-          emailResult
-        ).then(result => {
-          logger.info(`📝 Firebase actualizado para orden ${firebaseData.ordenId}`);
-          return result;
-        }).catch(err => {
-          logger.warn(`⚠️ Error actualizando Firebase ${paymentId}`, { error: err.message });
-          return { success: false, error: err.message };
-        })
-      );
-      
+      // Ejecutar todas las tareas
       const results = await Promise.allSettled(tasks);
       
       const tasksDuration = Date.now() - tasksStartTime;
@@ -1546,7 +1649,8 @@ async _generarIdDiarioComoFrontend() {
         totalTasks: tasks.length,
         successfulTasks,
         duration: `${tasksDuration}ms`,
-        emailSent: emailResult.success
+        emailSent: emailResult?.success || false,
+        firebaseUpdated: firebaseUpdateSuccess
       });
       
     } catch (error) {
@@ -1560,7 +1664,7 @@ async _generarIdDiarioComoFrontend() {
   }
 
   _generateEmailHtml(emailData) {
-    const { customer_name, customer_email, order_id, productos, resumen, envio } = emailData;
+    const { customer_name, customer_email, customer_dni, order_id, productos, resumen, envio } = emailData;
     const fecha = new Date().toLocaleDateString('es-PE', {
       weekday: 'long',
       year: 'numeric',
@@ -1610,6 +1714,12 @@ async _generarIdDiarioComoFrontend() {
           <div class="content">
             <h2>¡Gracias por tu compra, ${customer_name || 'Cliente'}!</h2>
             <p>Tu orden <strong>#${order_id}</strong> ha sido procesada exitosamente.</p>
+            
+            <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+              <p><strong>👤 Cliente:</strong> ${customer_name}</p>
+              <p><strong>🪪 DNI:</strong> ${customer_dni || 'No especificado'}</p> <!-- ✅ DNI AQUÍ -->
+              <p><strong>📧 Email:</strong> ${customer_email}</p>
+            </div>
             
             <h3>📦 Resumen de tu pedido:</h3>
             <table>
@@ -1680,7 +1790,8 @@ async _generarIdDiarioComoFrontend() {
       customer: {
         name: `${cliente.nombre} ${cliente.apellido}`,
         email: cliente.email,
-        phone: cliente.telefono
+        phone: cliente.telefono,
+        dni: cliente.dni || '' // ✅ DNI EN RESPUESTA
       },
       order_summary: {
         items_count: productos.length,
@@ -1694,10 +1805,11 @@ async _generarIdDiarioComoFrontend() {
         }))
       },
       email: {
-        sent: emailResult.success,
-        status: emailResult.success ? 'delivered' : 'queued',
+        sent: emailResult?.success || false,
+        status: emailResult?.success ? 'delivered' : (emailResult?.pending ? 'pending' : 'queued'),
         customer_email: cliente.email,
-        timestamp: emailResult.timestamp
+        timestamp: emailResult?.timestamp || new Date().toISOString(),
+        message: emailResult?.pending ? 'El email será enviado después de guardar la orden' : undefined
       },
       next_steps: [
         'Revisa tu correo electrónico para la confirmación detallada',
@@ -1722,8 +1834,8 @@ async _generarIdDiarioComoFrontend() {
         'metadata.procesado': true,
         'metadata.procesado_en': new Date().toISOString(),
         'metadata.culqi_id': culqiResult.id,
-        'metadata.email_enviado': emailResult.success,
-        'metadata.email_timestamp': emailResult.timestamp || new Date().toISOString(),
+        'metadata.email_enviado': emailResult?.success || false,
+        'metadata.email_timestamp': emailResult?.timestamp || new Date().toISOString(),
         'metadata.estado_pago': 'completado',
         'metadata.metodo_pago': 'culqi',
         'metadata.ultima_actualizacion': new Date().toISOString(),
@@ -1782,7 +1894,8 @@ async _generarIdDiarioComoFrontend() {
             updated: true, 
             orderId,
             realUpdate: true,
-            viaMetadata: true
+            viaMetadata: true,
+            documentId: docRef.id
           };
         }
         
@@ -2228,7 +2341,8 @@ async _generarIdDiarioComoFrontend() {
               `${orderData.cliente.nombre} ${orderData.cliente.apellido || ''}`.trim() : 
               'Cliente',
             email: orderData.cliente?.email || 'No disponible',
-            phone: orderData.cliente?.telefono || 'No disponible'
+            phone: orderData.cliente?.telefono || 'No disponible',
+            dni: orderData.cliente?.dni || '' // ✅ DNI EN VERIFICACIÓN
           },
           amount: {
             subtotal: orderData.resumen?.subtotal || 0,
