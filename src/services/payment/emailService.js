@@ -395,7 +395,15 @@ function _extractFirebaseData(paymentData) {
   
   // Metadata
   const metadata = paymentData.metadata || {};
-  
+   
+  console.log('🔥 VERIFICACIÓN DNI:', {
+  existe_cliente: !!paymentData.cliente,
+  dni_dentro_de_cliente: paymentData.cliente?.dni,
+  customer_dni: paymentData.customer_dni,
+  dni_directo: paymentData.dni,
+  metadata_dni: paymentData.metadata?.dni
+});
+
   return {
     order_id: paymentData.order_id || paymentData.id || metadata.orderId || `ORD-${Date.now()}`,
     fecha_creacion: paymentData.created_at || metadata.timestamp || new Date().toISOString(),
