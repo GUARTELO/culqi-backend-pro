@@ -7,7 +7,7 @@
  * - Febrero: ORD-202602-0001, ORD-202602-0002...
  * - Marzo: ORD-202603-0001... (se reinicia cada mes)
  * - Sistema de Reclamos Completo: CLAIM-202602-0001...
- * - CORREGIDO: Captura de DNI en todo el flujo y uso correcto del ID de Firebase
+ * - CORREGIDO: Captura de DNI en todo el flujo
  * ============================================================
  */
 
@@ -361,32 +361,34 @@ async _generarIdDiarioComoFrontend() {
         }
       }
 
-      // ========== 🎯 CORRECCIÓN DEFINITIVA: USAR EL ID DE FIREBASE SIEMPRE ==========
+      // ========== CORREGIR O GENERAR ID SECUENCIAL ==========
       let ordenIdCorregido = ordenId;
       
-      // 🚨 PRIORIDAD 1: SIEMPRE usar el ID que viene de Firebase si es válido
-      if (ordenId && ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
-        logger.info('✅ Usando ID existente de Firebase:', ordenId);
-        ordenIdCorregido = ordenId;
-      }
-      // 🚨 PRIORIDAD 2: ID automático (ORD-1769...), corregir con metadata
-      else if (ordenId && ordenId.includes('ORD-1769')) {
+      // CASO 1: ID es automático (ORD-1769...)
+      if (ordenId && ordenId.includes('ORD-1769')) {
         logger.warn('🚨 ID AUTOMÁTICO DETECTADO, CORRIGIENDO:', ordenId);
         
+        // Intentar usar metadata.orderId si es secuencial
         if (metadata?.orderId && metadata.orderId.match(/^ORD-\d{6}-\d{4}$/)) {
           ordenIdCorregido = metadata.orderId;
           logger.info('✅ ID corregido del metadata:', ordenIdCorregido);
         } else {
+          // Generar nuevo ID SECUENCIAL
           ordenIdCorregido = await this._generarOrderIdSecuencial();
-          logger.info('✅ NUEVO ID SECUENCIAL GENERADO:', ordenIdCorregido);
+          logger.info('✅ NUEVO ID SECUENCIAL:', ordenIdCorregido);
         }
       }
-      // 🚨 PRIORIDAD 3: No hay ID válido, generar nuevo
+      // CASO 2: ID ya es válido (ORD-202601-XXXX) → USARLO TAL CUAL
+      else if (ordenId && ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
+        logger.info('✅ ID ya es válido, usando:', ordenId);
+        ordenIdCorregido = ordenId; // ← ¡NO generar nuevo!
+      }
+      // CASO 3: No hay ID o es incorrecto → Generar nuevo
       else {
         ordenIdCorregido = await this._generarOrderIdSecuencial();
-        logger.info('🆕 ID GENERADO (no había ID en Firebase):', ordenIdCorregido);
+        logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
       }
-      // ========== FIN DE LA CORRECCIÓN ==========
+      // ========== FIN CORRECCIÓN ==========
 
       // Validar datos mínimos
       if (!token) throw this._error('MISSING_TOKEN', 'Token de pago requerido', 400);
@@ -405,7 +407,7 @@ async _generarIdDiarioComoFrontend() {
         ordenIdOriginal: ordenId,
         ordenIdCorregido: ordenIdCorregido,
         cliente: cliente.nombre,
-        cliente_dni: cliente.dni,
+        cliente_dni: cliente.dni, // ✅ LOG DEL DNI
         productosCount: Array.isArray(productos) ? productos.length : 0,
         total: resumen?.total
       });
@@ -493,7 +495,7 @@ async _generarIdDiarioComoFrontend() {
         paymentId,
         ordenId: ordenIdCorregido,
         cliente: cliente.nombre,
-        cliente_dni: cliente.dni,
+        cliente_dni: cliente.dni, // ✅ LOG DEL DNI
         emailSent: emailResult.success,
         total: resumen.total,
         duration: `${totalDuration}ms`
@@ -544,6 +546,10 @@ async _generarIdDiarioComoFrontend() {
   }
 
   /* ============================================================
+   * 🆕 PROCESAR RECLAMO - SISTEMA COMPLETO PROFESIONAL
+   * ============================================================
+   */
+   /* ============================================================
    * 🆕 PROCESAR RECLAMO - SISTEMA COMPLETO PROFESIONAL
    * ============================================================
    */
@@ -658,6 +664,7 @@ async _generarIdDiarioComoFrontend() {
           dispositivo: req.get('User-Agent') || 'Desconocido',
           ip: req.ip || '127.0.0.1',
           timestamp: Date.now(),
+          // ✅ IMPORTANTE: Registrar de dónde vino el ID
           id_proveniente: req.body.id ? 'frontend' : 'backend',
           id_original_frontend: req.body.id || null
         },
@@ -672,7 +679,7 @@ async _generarIdDiarioComoFrontend() {
       logger.debug(`📋 Datos reclamo preparados ${claimId}`, {
         consumidor: claimData.consumidor.nombreCompleto,
         email: claimData.consumidor.email,
-        documento: claimData.consumidor.numeroDocumento,
+        documento: claimData.consumidor.numeroDocumento, // ✅ DNI DEL RECLAMO
         tipo: claimData.tipoSolicitud,
         descripcionLength: claimData.reclamo.descripcion?.length,
         monto: claimData.reclamo.montoReclamado,
@@ -718,7 +725,7 @@ async _generarIdDiarioComoFrontend() {
       logger.info(`🎉 Reclamo procesado exitosamente ${claimId}`, {
         claimId,
         cliente: claimData.consumidor.nombreCompleto,
-        documento: claimData.consumidor.numeroDocumento,
+        documento: claimData.consumidor.numeroDocumento, // ✅ DNI DEL RECLAMO
         idOrigen: claimData.metadata.id_proveniente,
         emailUsuario: emailResults.usuario.success,
         emailAdmin: emailResults.admin.success,
@@ -801,27 +808,28 @@ async _generarIdDiarioComoFrontend() {
           origen: 'sistema_backend_reclamos'
         },
         
-        sistema: {
-          version: (() => {
-            try {
-              const autoVersion = require('../../../../src/config/version.json');
-              return autoVersion.version;
-            } catch (e) {
-              try {
-                const packageJson = require('../../../../package.json');
-                return packageJson.version;
-              } catch (e2) {
-                return '3.0.0';
-              }
-            }
-          })(),
-          fuente: 'API Goldinfiniti',
-          entorno: process.env.NODE_ENV || 'production'
-        }
+       sistema: {
+  version: (() => {
+    try {
+      const autoVersion = require('../../../../src/config/version.json');
+      return autoVersion.version;
+    } catch (e) {
+      try {
+        const packageJson = require('../../../../package.json');
+        return packageJson.version;
+      } catch (e2) {
+        return '3.0.0';
+      }
+    }
+  })(),
+  fuente: 'API Goldinfiniti',
+  entorno: process.env.NODE_ENV || 'production'
+}
       };
 
       logger.info(`💾 Guardando reclamo en Firebase: ${claimData.id}`);
       
+      // Guardar en la colección correcta
       await firestore
         .collection('libro_reclamaciones_indecopi')
         .doc(claimData.id)
@@ -970,26 +978,26 @@ async _generarIdDiarioComoFrontend() {
         timestamp: new Date().toISOString()
       },
       sistema: {
-        firebase: {
-          saved: firebaseResult.saved,
-          status: firebaseResult.saved ? 'GUARDADO' : 'FALLBACK',
-          collection: firebaseResult.collection || 'libro_reclamaciones_indecopi'
-        },
-        backend: 'Goldinfiniti Reclamos API',
-        version: (() => {
-          try {
-            const autoVersion = require('../../../../src/config/version.json');
-            return autoVersion.version;
-          } catch (e) {
-            try {
-              const packageJson = require('../../../../package.json');
-              return packageJson.version;
-            } catch (e2) {
-              return '2.0.0';
-            }
-          }
-        })(),
-      },
+  firebase: {
+    saved: firebaseResult.saved,
+    status: firebaseResult.saved ? 'GUARDADO' : 'FALLBACK',
+    collection: firebaseResult.collection || 'libro_reclamaciones_indecopi'
+  },
+  backend: 'Goldinfiniti Reclamos API',
+  version: (() => {
+    try {
+      const autoVersion = require('../../../../src/config/version.json');
+      return autoVersion.version;
+    } catch (e) {
+      try {
+        const packageJson = require('../../../../package.json');
+        return packageJson.version;
+      } catch (e2) {
+        return '2.0.0';
+      }
+    }
+  })(),
+},
       informacionImportante: [
         `Su reclamo ha sido registrado con el número: ${claimId}`,
         `Recibirá una respuesta en un plazo máximo de ${claimData.legal.plazoDias} días hábiles`,
@@ -1126,6 +1134,7 @@ async _generarIdDiarioComoFrontend() {
       return { success: true, logged: true, claimId };
 
     } catch (error) {
+      // No es crítico si falla la auditoría
       logger.warn(`⚠️ Error en auditoría (no crítico): ${claimId}`, {
         error: error.message
       });
@@ -1140,7 +1149,7 @@ async _generarIdDiarioComoFrontend() {
     while (diasHabiles < 30) {
       fecha.setDate(fecha.getDate() + 1);
       const dia = fecha.getDay();
-      if (dia !== 0 && dia !== 6) {
+      if (dia !== 0 && dia !== 6) { // No sábado ni domingo
         diasHabiles++;
       }
     }
@@ -1180,10 +1189,12 @@ async _generarIdDiarioComoFrontend() {
       }
     };
     
+    // Si es error de validación, intentar guardar igual en modo fallback
     if (error.statusCode === 400 && req.body.consumidor?.email) {
       response.warning = 'Datos incompletos, pero se intentará procesar';
       response.fallback_mode = true;
       
+      // Ejecutar en segundo plano
       this._processClaimFallback(req.body, claimId).catch(() => {});
     }
     
@@ -1194,6 +1205,7 @@ async _generarIdDiarioComoFrontend() {
     try {
       logger.warn(`🔄 Procesando reclamo en modo fallback: ${claimId}`);
       
+      // Guardar mínimo en Firebase
       const firebase = require('../../../core/config/firebase');
       const firestore = firebase.firestore;
       
@@ -1248,7 +1260,7 @@ async _generarIdDiarioComoFrontend() {
   }
 
   /* ============================================================
-   * MÉTODOS ORIGINALES DE PAYMENT CONTROLLER
+   * MÉTODOS ORIGINALES DE PAYMENT CONTROLLER (NO MODIFICADOS)
    * ============================================================
    */
 
@@ -1271,7 +1283,7 @@ async _generarIdDiarioComoFrontend() {
         order_id: orderId,
         cliente_id: cliente.id,
         cliente_nombre: nombreCompleto,
-        cliente_dni: cliente.dni || '',
+        cliente_dni: cliente.dni || '', // ✅ AÑADIR DNI A METADATA DE CULQI
         cliente_telefono: cliente.telefono || '',
         firebase_doc_id: metadata?.firebaseDocId,
         productos_count: metadata?.productosCount || 0,
@@ -1302,6 +1314,7 @@ async _generarIdDiarioComoFrontend() {
       estado: envio.estado || 'pendiente'
     } : null;
     
+    // ========== 🔥 CAMBIO 3: AÑADIR DNI A LOS DATOS DEL EMAIL ==========
     return {
       id: paymentId,
       culqi_id: culqiResult.id,
@@ -1314,7 +1327,7 @@ async _generarIdDiarioComoFrontend() {
       customer_email: cliente.email,
       customer_name: `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim(),
       customer_phone: cliente.telefono || '',
-      customer_dni: cliente.dni || '',
+      customer_dni: cliente.dni || '', // ✅ NUEVO: DNI explícito
       
       order_id: ordenId,
       firebase_doc_id: metadata?.firebaseDocId,
@@ -1353,7 +1366,7 @@ async _generarIdDiarioComoFrontend() {
     try {
       logger.info(`📧 Preparando email para ${emailData.customer_email}`, {
         orderId: emailData.order_id,
-        customer_dni: emailData.customer_dni,
+        customer_dni: emailData.customer_dni, // ✅ LOG DEL DNI
         productosCount: emailData.productos.length,
         total: emailData.resumen.total
       });
@@ -1444,7 +1457,7 @@ async _generarIdDiarioComoFrontend() {
       logger.info(`🔄 Ejecutando tareas post-pago ${paymentId}`, {
         ordenIdParaNotificacion: firebaseData.ordenId,
         cliente: firebaseData.cliente?.nombre,
-        cliente_dni: firebaseData.cliente?.dni
+        cliente_dni: firebaseData.cliente?.dni // ✅ LOG DEL DNI
       });
       
       const tasks = [];
@@ -1463,7 +1476,7 @@ async _generarIdDiarioComoFrontend() {
           customer_email: firebaseData.cliente?.email,
           customer_name: `${firebaseData.cliente?.nombre || ''} ${firebaseData.cliente?.apellido || ''}`.trim(),
           customer_phone: firebaseData.cliente?.telefono || '',
-          customer_dni: firebaseData.cliente?.dni || '',
+          customer_dni: firebaseData.cliente?.dni || '', // ✅ DNI EN NOTIFICACIÓN
           
           productos: firebaseData.productos || [],
           productos_count: firebaseData.productos?.length || 0,
@@ -1628,6 +1641,7 @@ async _generarIdDiarioComoFrontend() {
             <h2>¡Gracias por tu compra, ${customer_name || 'Cliente'}!</h2>
             <p>Tu orden <strong>#${order_id}</strong> ha sido procesada exitosamente.</p>
             
+            <!-- ✅ DNI AÑADIDO AQUÍ -->
             <div style="background: #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
               <p><strong>🪪 DNI:</strong> ${customer_dni || 'No especificado'}</p>
             </div>
@@ -1702,7 +1716,7 @@ async _generarIdDiarioComoFrontend() {
         name: `${cliente.nombre} ${cliente.apellido}`,
         email: cliente.email,
         phone: cliente.telefono,
-        dni: cliente.dni || ''
+        dni: cliente.dni || '' // ✅ DNI EN RESPUESTA
       },
       order_summary: {
         items_count: productos.length,
@@ -1936,12 +1950,15 @@ async _generarIdDiarioComoFrontend() {
           const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
           const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           
+          // Total de órdenes
           const allOrdersSnapshot = await firestore.collection('ordenes').get();
           const totalOrders = allOrdersSnapshot.size;
           
+          // Total de reclamos
           const allClaimsSnapshot = await firestore.collection('libro_reclamaciones_indecopi').get();
           const totalClaims = allClaimsSnapshot.size;
           
+          // Órdenes de hoy
           const todayOrdersSnapshot = await firestore
             .collection('ordenes')
             .where('fechaCreacion', '>=', today)
@@ -1956,6 +1973,7 @@ async _generarIdDiarioComoFrontend() {
             todayAmount += Number(data.resumen?.total) || 0;
           });
           
+          // Reclamos de hoy
           const todayClaimsSnapshot = await firestore
             .collection('libro_reclamaciones_indecopi')
             .where('fechaRegistro', '>=', today.toISOString())
@@ -1964,6 +1982,7 @@ async _generarIdDiarioComoFrontend() {
           
           const todayClaims = todayClaimsSnapshot.size;
           
+          // Órdenes última hora
           const lastHourSnapshot = await firestore
             .collection('ordenes')
             .where('fechaCreacion', '>=', oneHourAgo)
@@ -1971,6 +1990,7 @@ async _generarIdDiarioComoFrontend() {
           
           const lastHourOrders = lastHourSnapshot.size;
           
+          // Clientes activos (últimos 30 días)
           const activeClientsSnapshot = await firestore
             .collection('ordenes')
             .where('fechaCreacion', '>=', thirtyDaysAgo)
@@ -2245,7 +2265,7 @@ async _generarIdDiarioComoFrontend() {
               'Cliente',
             email: orderData.cliente?.email || 'No disponible',
             phone: orderData.cliente?.telefono || 'No disponible',
-            dni: orderData.cliente?.dni || ''
+            dni: orderData.cliente?.dni || '' // ✅ DNI EN VERIFICACIÓN
           },
           amount: {
             subtotal: orderData.resumen?.subtotal || 0,
