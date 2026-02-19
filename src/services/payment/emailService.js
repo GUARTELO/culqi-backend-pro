@@ -522,28 +522,32 @@ function _generateGoldenInfinityEmail(firebaseData) {
         </div>
         
         <!-- Contenido -->
-        <div class="content">
-          <!-- Información de la orden -->
-          <div class="section">
-            <div class="customer-info">
-              <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-                <div>
-                  <p><strong>📋 Número de Orden:</strong><br>${order_id}</p>
-                  <p><strong>📅 Fecha:</strong><br>${fecha}</p>
-                </div>
-                <div>
-                  <p><strong>👤 Cliente:</strong><br>${cliente.nombre}</p>
-                  <p><strong>🪪 DNI:</strong><br>${cliente.dni || 'No especificado'}</p>
-                  <p><strong>📧 Email:</strong><br>${cliente.email}</p>
-                  <p><strong>📱 Teléfono:</strong><br>${cliente.telefono || 'No especificado'}</p>
-                </div>
-              </div>
-              ${culqi_id ? `<p style="margin-top: 10px;"><strong>🔗 ID Transacción:</strong><br><code>${culqi_id}</code></p>` : ''}
-              <div style="margin-top: 10px;">
-                <span class="status-badge">✅ PAGO APROBADO</span>
-              </div>
-            </div>
+<div class="content">
+  <!-- Información de la orden -->
+  <div class="section">
+    <div class="customer-info">
+      <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+        <!-- IZQUIERDA: Número de Orden, Fecha, ID Transacción, Pago Aprobado -->
+        <div>
+          <p><strong>📋 Número de Orden:</strong><br>${order_id}</p>
+          <p><strong>📅 Fecha:</strong><br>${fecha}</p>
+          ${culqi_id ? `<p style="margin-top: 10px;"><strong>🔗 ID Transacción:</strong><br><code>${culqi_id}</code></p>` : ''}
+          <div style="margin-top: 10px;">
+            <span class="status-badge">✅ PAGO APROBADO</span>
           </div>
+        </div>
+        
+        <!-- DERECHA: Cliente, DNI, Email, Teléfono -->
+        <div>
+          <p><strong>👤 Cliente:</strong><br>${cliente.nombre}</p>
+          <p><strong>🪪 DNI:</strong><br>${cliente.dni || 'No especificado'}</p>
+          <p><strong>📧 Email:</strong><br>${cliente.email}</p>
+          <p><strong>📱 Teléfono:</strong><br>${cliente.telefono || 'No especificado'}</p>
+        </div>
+      </div>
+      <!-- NOTA: El ID Transacción y Status Badge ahora están dentro de la columna izquierda -->
+    </div>
+  </div>
           
           <!-- Productos -->
           <div class="section">
