@@ -540,7 +540,7 @@ function _generateGoldenInfinityEmail(firebaseData) {
         <!-- DERECHA: Cliente, DNI, Email, Teléfono - MÁS PEGADA A LA DERECHA -->
         <div style="text-align: right; margin-left: auto;">
           <p style="margin: 0 0 8px 0;"><strong>👤 Cliente:</strong><br>${cliente.nombre}</p>
-          <p style="margin: 0 0 8px 0;"><strong>🪪 DNI:</strong><br>${cliente.dni || 'No especificado'}</p>
+          <p style="margin: 0 0 8px 0;"><strong>🪪 DNI:</strong><br>${cliente.DNI || 'No especificado'}</p>
           <p style="margin: 0 0 8px 0;"><strong>📧 Email:</strong><br>${cliente.email}</p>
           <p style="margin: 0 0 8px 0;"><strong>📱 Teléfono:</strong><br>${cliente.telefono || 'No especificado'}</p>
         </div>
@@ -686,7 +686,7 @@ GOLDINFINITI - CONFIRMACIÓN DE COMPRA
 Número de Orden: ${order_id}
 Fecha: ${fecha}
 Cliente: ${cliente.nombre}
-DNI: ${cliente.dni || 'No especificado'}
+DNI: ${cliente.DNI || 'No especificado'}
 Email: ${cliente.email}
 Teléfono: ${cliente.telefono || 'No especificado'}
 ID Transacción: ${culqi_id || 'N/A'}
@@ -1619,7 +1619,7 @@ function _generateClaimEmail(claimData) {
           </p>
           <p style="margin-bottom: 10px; font-size: 11px;">
             📧 contacto@goldinfiniti.com | 🌐 www.goldinfiniti.com<br>
-            📞 +51 968 786 648 | 🏢 Av. Principal 123, Lima, Perú
+            📞 +51 968 786 648 | 🏢 Cal. Hermanos Ayar Nro. 549 Coo. Chancas de Andahuaylas Et. Santa Anita.Lima, Perú
           </p>
           <p style="font-size: 10px; color: #999; margin-top: 15px;">
             © ${new Date().getFullYear()} Goldinfiniti Tech Corp. Sistema Automatico de Notificaciones.<br>
