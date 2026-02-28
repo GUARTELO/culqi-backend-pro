@@ -540,7 +540,7 @@ function _generateGoldenInfinityEmail(firebaseData) {
         <!-- DERECHA: Cliente, DNI, Email, Teléfono - MÁS PEGADA A LA DERECHA -->
         <div style="text-align: right; margin-left: auto;">
           <p style="margin: 0 0 8px 0;"><strong>👤 Cliente:</strong><br>${cliente.nombre}</p>
-          <p style="margin: 0 0 8px 0;"><strong>🪪 DNI:</strong><br>${cliente.DNI || 'No especificado'}</p>
+          <p style="margin: 0 0 8px 0;"><strong>🪪 DNI:</strong><br>${cliente.dni || 'No especificado'}</p>
           <p style="margin: 0 0 8px 0;"><strong>📧 Email:</strong><br>${cliente.email}</p>
           <p style="margin: 0 0 8px 0;"><strong>📱 Teléfono:</strong><br>${cliente.telefono || 'No especificado'}</p>
         </div>
@@ -686,7 +686,7 @@ GOLDINFINITI - CONFIRMACIÓN DE COMPRA
 Número de Orden: ${order_id}
 Fecha: ${fecha}
 Cliente: ${cliente.nombre}
-DNI: ${cliente.DNI || 'No especificado'}
+DNI: ${cliente.dni || 'No especificado'}
 Email: ${cliente.email}
 Teléfono: ${cliente.telefono || 'No especificado'}
 ID Transacción: ${culqi_id || 'N/A'}
