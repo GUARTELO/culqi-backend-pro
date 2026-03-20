@@ -34,20 +34,49 @@ const app = express();
 // 2. MIDDLEWARES
 // ============================================
 
-// A. SEGURIDAD - Helmet
+
+// A. SEGURIDAD - Helmet (VERSIÓN CORREGIDA - CULQI PROTEGIDO)
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
-      scriptSrc: ["'self'", "https://checkout.culqi.com", "https://www.googletagmanager.com"],
-      imgSrc: ["'self'", "data:", "https:", "https://goldinfiniti.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
+      styleSrc: [
+        "'self'", 
+        "'unsafe-inline'", 
+        "https://fonts.googleapis.com", 
+        "https://cdnjs.cloudflare.com",
+        "https://goldinfiniti.com"      // ← AGREGADO (para tus estilos)
+      ],
+      scriptSrc: [
+        "'self'", 
+        "'unsafe-inline'",              // ← AGREGADO (para scripts inline)
+        "https://checkout.culqi.com",    // ✅ CULQI PROTEGIDO
+        "https://www.googletagmanager.com",
+        "https://goldinfiniti.com"       // ← AGREGADO (para tus scripts)
+      ],
+      imgSrc: [
+        "'self'", 
+        "data:", 
+        "https:", 
+        "https://goldinfiniti.com",
+        "https://cdn.jsdelivr.net"       // ← AGREGADO (para iconos redes)
+      ],
+      fontSrc: [
+        "'self'", 
+        "https://fonts.gstatic.com", 
+        "https://cdnjs.cloudflare.com"
+      ],
+      connectSrc: [
+        "'self'", 
+        "https://goldinfiniti.com",
+        "https://api.culqi.com"           // ✅ PARA PETICIONES DE CULQI
+      ],
+      scriptSrcAttr: ["'unsafe-inline'"], // ← AGREGADO (para onclick)
     },
   },
-  crossOriginEmbedderPolicy: true,
-  crossOriginOpenerPolicy: true,
-  crossOriginResourcePolicy: { policy: "same-site" },
+  crossOriginEmbedderPolicy: false,       // ← CAMBIADO para permitir recursos cruzados
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 
 // B. CORS
