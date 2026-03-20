@@ -36,49 +36,45 @@ const app = express();
 
 
 // A. SEGURIDAD - Helmet (VERSIÓN CORREGIDA - CULQI PROTEGIDO)
+// A. SEGURIDAD - Helmet (VERSIÓN FINAL Y FUNCIONAL)
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: [
-        "'self'", 
-        "'unsafe-inline'", 
-        "https://fonts.googleapis.com", 
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com",
         "https://cdnjs.cloudflare.com",
-        "https://goldinfiniti.com"      // ← AGREGADO (para tus estilos)
+        "https://goldinfiniti.com"      // ← ESENCIAL
       ],
       scriptSrc: [
-        "'self'", 
-        "'unsafe-inline'",              // ← AGREGADO (para scripts inline)
-        "https://checkout.culqi.com",    // ✅ CULQI PROTEGIDO
+        "'self'",
+        "'unsafe-inline'",                // ← ESENCIAL
+        "https://checkout.culqi.com",
         "https://www.googletagmanager.com",
-        "https://goldinfiniti.com"       // ← AGREGADO (para tus scripts)
+        "https://goldinfiniti.com"        // ← ESENCIAL
       ],
       imgSrc: [
-        "'self'", 
-        "data:", 
-        "https:", 
+        "'self'",
+        "data:",
+        "https:",
         "https://goldinfiniti.com",
-        "https://cdn.jsdelivr.net"       // ← AGREGADO (para iconos redes)
+        "https://cdn.jsdelivr.net"
       ],
       fontSrc: [
-        "'self'", 
-        "https://fonts.gstatic.com", 
+        "'self'",
+        "https://fonts.gstatic.com",
         "https://cdnjs.cloudflare.com"
       ],
-      connectSrc: [
-        "'self'", 
-        "https://goldinfiniti.com",
-        "https://api.culqi.com"           // ✅ PARA PETICIONES DE CULQI
-      ],
-      scriptSrcAttr: ["'unsafe-inline'"], // ← AGREGADO (para onclick)
+      connectSrc: ["'self'", "https://goldinfiniti.com", "https://api.culqi.com"],
+      scriptSrcAttr: ["'unsafe-inline'"],  // ← ESENCIAL para onclick
     },
   },
-  crossOriginEmbedderPolicy: false,       // ← CAMBIADO para permitir recursos cruzados
+  crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: { policy: "unsafe-none" },
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
-
 // B. CORS
 const corsOptions = {
   origin: function (origin, callback) {
