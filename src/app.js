@@ -33,9 +33,6 @@ const app = express();
 // ============================================
 // 2. MIDDLEWARES
 // ============================================
-
-
-// A. SEGURIDAD - Helmet (VERSIÓN CORREGIDA - CULQI PROTEGIDO)
 // A. SEGURIDAD - Helmet (VERSIÓN FINAL Y FUNCIONAL)
 app.use(helmet({
   contentSecurityPolicy: {
@@ -355,7 +352,9 @@ cargarProductosDesdeFirebase();
 // 5. RUTAS SEO - PRODUCTOS Y CATEGORÍAS
 // ============================================
 
-// RUTA PARA PRODUCTO INDIVIDUAL
+// ============================================
+// RUTA PARA PRODUCTO INDIVIDUAL (CON MODAL ABIERTO Y DATOS COMPLETOS)
+// ============================================
 app.get('/producto/:slug', (req, res) => {
     const slug = req.params.slug;
     const producto = TODOS_LOS_PRODUCTOS.find(p => p.slug === slug);
@@ -364,86 +363,178 @@ app.get('/producto/:slug', (req, res) => {
         return res.status(404).send('Producto no encontrado');
     }
     
+    // Schema específico del producto para Google
     const schema = {
         "@context": "https://schema.org",
         "@type": "Product",
         "name": producto.titulo,
-        "image": `https://goldinfiniti.com/${producto.imagenes[0]}`,
-        "description": producto.descripcion?.substring(0, 160) || '',
+        "image": producto.imagenes.map(img => `https://goldinfiniti.com/${img}`),
+        "description": producto.descripcion?.substring(0, 500) || '',
+        "sku": `PROD-${producto.id}`,
+        "brand": {
+            "@type": "Brand",
+            "name": "Goldinfiniti"
+        },
         "offers": {
             "@type": "Offer",
+            "url": `https://goldinfiniti.com/producto/${producto.slug}`,
+            "priceCurrency": "PEN",
             "price": producto.precioActual,
-            "priceCurrency": "PEN"
+            "availability": "https://schema.org/InStock",
+            "seller": {
+                "@type": "Organization",
+                "name": "Goldinfiniti"
+            }
         }
     };
     
-    const fullStars = Math.floor(producto.rating || 4.5);
-    const halfStar = (producto.rating || 4.5) % 1 >= 0.5;
+    // Agregar rating si existe
+    if (producto.rating && producto.reseñas) {
+        schema.aggregateRating = {
+            "@type": "AggregateRating",
+            "ratingValue": producto.rating,
+            "reviewCount": producto.reseñas
+        };
+    }
+    
+    // Generar estrellas para mostrar
+    const fullStars = Math.floor(producto.rating || 0);
+    const halfStar = (producto.rating || 0) % 1 >= 0.5;
     let starsHtml = '';
     for (let i = 0; i < fullStars; i++) starsHtml += '<i class="fas fa-star"></i>';
     if (halfStar) starsHtml += '<i class="fas fa-star-half-alt"></i>';
     for (let i = fullStars + (halfStar ? 1 : 0); i < 5; i++) starsHtml += '<i class="far fa-star"></i>';
     
+    // Generar miniaturas
+    const thumbnailsHtml = producto.imagenes.map(img => 
+        `<img src="https://goldinfiniti.com/${img}" class="thumbnail" onclick="document.getElementById('modalMainImage').src='https://goldinfiniti.com/${img}'">`
+    ).join('');
+    
+    // Generar opciones de color
+    let colorOptionsHtml = '<option value="">Seleccione color</option>';
+    if (producto.colores) {
+        producto.colores.forEach(color => {
+            colorOptionsHtml += `<option value="${color.nombre}">${color.nombre}</option>`;
+        });
+    }
+    
+    // Generar opciones de talla
+    let tallaOptionsHtml = '<option value="">Seleccione talla</option>';
+    if (producto.tallas) {
+        producto.tallas.forEach(talla => {
+            tallaOptionsHtml += `<option value="${talla}">${talla}</option>`;
+        });
+    }
+    
+    // Precio anterior y descuento
+    const precioAnteriorHtml = producto.precioAnterior ? 
+        `<span class="old-price" id="modalOldPrice">S/${producto.precioAnterior.toFixed(2)}</span>` : '';
+    const descuentoHtml = producto.descuento ? 
+        `<span class="discount-badge" id="modalDiscount">${producto.descuento}</span>` : '';
+    
+    // Enviar el HTML completo (igual a tu index.html pero con modal abierto y datos del producto)
     res.send(`<!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${producto.titulo} - Goldinfiniti</title>
-    
-    <!-- Open Graph -->
-    <meta property="og:title" content="${producto.titulo}" />
-    <meta property="og:description" content="${producto.descripcion?.substring(0, 160) || ''}" />
-    <meta property="og:image" content="https://goldinfiniti.com/${producto.imagenes[0]}" />
-    <meta property="og:url" content="https://api.goldinfiniti.com/producto/${producto.slug}" />
-    
-    <!-- Schema.org -->
-    <script type="application/ld+json">${JSON.stringify(schema)}</script>
-    
-    <!-- Fuentes y CSS -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="https://goldinfiniti.com/styles.css">
-    <link rel="shortcut icon" href="https://goldinfiniti.com/images/logos/faviconn.png" type="image/x-icon">
-    
-    <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-2B3M2969SW"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-2B3M2969SW');
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Título y meta description optimizados para SEO -->
+  <title>${producto.titulo} | Goldinfiniti</title>
+  <meta name="description" content="${producto.descripcion?.substring(0, 160)}">
+  
+  <link rel="canonical" href="https://www.goldinfiniti.com/producto/${producto.slug}" />
+
+  <!-- Open Graph (Facebook, LinkedIn) -->
+  <meta property="og:title" content="${producto.titulo}" />
+  <meta property="og:description" content="${producto.descripcion?.substring(0, 200)}" />
+  <meta property="og:image" content="https://www.goldinfiniti.com/${producto.imagenes[0]}" />
+  <meta property="og:url" content="https://www.goldinfiniti.com/producto/${producto.slug}" />
+  <meta property="og:type" content="product" />
+  <meta property="og:site_name" content="Goldinfiniti" />
+  <meta property="product:price:amount" content="${producto.precioActual}" />
+  <meta property="product:price:currency" content="PEN" />
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${producto.titulo}" />
+  <meta name="twitter:description" content="${producto.descripcion?.substring(0, 200)}" />
+  <meta name="twitter:image" content="https://www.goldinfiniti.com/${producto.imagenes[0]}" />
+
+  <!-- Versionado -->
+  <meta name="version" content="3.181.0">
+  <meta name="codename" content="Epic Lion">
+  <meta name="build-timestamp" content="2026-03-20T02:22:30.297Z">
+
+  <!-- Fuentes optimizadas -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300..800&family=Playfair+Display:wght@400..700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300..800&family=Playfair+Display:wght@400..700&display=swap"></noscript>
+  <link href="https://fonts.googleapis.com/css2?family=Futura+PT:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@100&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://goldinfiniti.com/styles.css">
+  <link rel="shortcut icon" href="https://goldinfiniti.com/images/logos/faviconn.png" type="image/x-icon">
+
+  <!-- Scripts críticos -->
+  <script src="https://checkout.culqi.com/js/v4" defer></script>
+  
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-2B3M2969SW"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-2B3M2969SW', {
+      'anonymize_ip': true,
+      'page_title': document.title,
+      'page_location': window.location.href
+    });
+  </script>
+
+  <!-- Schema JSON-LD del producto -->
+  <script type="application/ld+json">
+  ${JSON.stringify(schema, null, 2)}
+  </script>
+  
 </head>
 <body>
-    <!-- TOP BAR -->
-    <div class="top-bar">
-        <div class="top-bar-content">
-            <div class="top-bar-carousel">
-                <div class="item">Estilo Premium Vestidos exclusivos</div>
-                <div class="item"><a href="tel:968 786 648" class="phone">100% PIMA COTTON PREMIUN</a></div>
-                <div class="item"><a href="" class="contact-link">Envío VIP Compras superiores a S/250.00 </a></div>
-                <div class="item redes">
-                    <a href="https://www.instagram.com/doiscrow/" target="_blank">
-                        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/instagram.svg" alt="Instagram">
-                    </a>
-                    <a href="https://www.facebook.com/profile.php?id=61585623818611" target="_blank">
-                        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/facebook.svg" alt="Facebook">
-                    </a>
-                    <a href="https://www.youtube.com/channel/UCLBjBEzoQQ5x6DVDPWNqpgA" target="_blank">
-                        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg" alt="YouTube">
-                    </a>
-                    <a href="https://www.tiktok.com/@goldinfiniti.com" target="_blank">
-                        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/tiktok.svg" alt="TikTok">
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+<!-- CODIGO BARRA SUPERIOR -->  
+<div class="top-bar">
+  <div class="top-bar-content">
+    <div class="top-bar-carousel">
+      <div class="item">Estilo Premium Vestidos exclusivos</div>
+      <div class="item"><a href="tel:968 786 648" class="phone">100% PIMA COTTON PREMIUN</a></div>
+      <div class="item"><a href="" class="contact-link">Envío VIP Compras superiores a S/250.00 </a></div>
 
-    <!-- HEADER -->
+      <!-- Redes Sociales al final -->
+      <div class="item redes">
+        <a href="https://www.instagram.com/doiscrow/" target="_blank">
+          <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/instagram.svg" alt="Instagram">
+        </a>
+        <a href="https://www.facebook.com/profile.php?id=61585623818611" target="_blank">
+          <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/facebook.svg" alt="Facebook">
+        </a>
+        <a href="https://www.youtube.com/channel/UCLBjBEzoQQ5x6DVDPWNqpgA" target="_blank">
+          <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg" alt="YouTube">
+        </a>
+        <a href="https://www.tiktok.com/@goldinfiniti.com" target="_blank">
+          <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/tiktok.svg" alt="TikTok">
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+ 
+
+
+
+
+    <!-- Codigo html Header -->
     <header class="header">
         <div class="header-container">
             <div class="logo">
@@ -460,20 +551,21 @@ app.get('/producto/:slug', (req, res) => {
                     <li class="nav-item"><a href="/colecciones" class="nav-link">Colecciones</a></li>
                     <li class="nav-item"><a href="/accesorios" class="nav-link">Accesorios</a></li>
                     <li class="nav-item"><a href="/ofertas" class="nav-link">Ofertas</a></li>
-                    <li class="nav-item"><a href="/contacto.html" class="nav-link">Contacto</a></li>
-                </ul>
+                    <li class="nav-item"><a href="/contacto.html" class="nav-link">Contacto</a></li>                           
+                </ul>                                                      
             </nav>
+                                                                                                                                                                                                                            
             <div class="header-icons">
-                <div class="search-box">
-                    <input type="text" placeholder="Buscar..." class="search-input">
-                    <button class="search-btn"><i class="fas fa-search"></i></button>
-                </div>
-                <a href="/login-premiun.html" class="user-icon"><i class="fas fa-user"></i></a>
-                <div class="cart-icon-container">
-                    <a href="#" class="cart-icon"><i class="fas fa-shopping-bag"></i></a>
-                    <span class="cart-count"></span>
-                </div>
-            </div>
+    <div class="search-box">
+        <input type="text" placeholder="Buscar..." class="search-input">
+        <button class="search-btn"><i class="fas fa-search"></i></button>
+    </div>
+    <a href="/login-premiun.html" class="user-icon"><i class="fas fa-user"></i></a>
+    <div class="cart-icon-container">
+        <a href="#" class="cart-icon"><i class="fas fa-shopping-bag"></i></a>
+        <span class="cart-count"></span>
+    </div>
+</div>
             <div class="hamburger">
                 <span class="bar"></span>
                 <span class="bar"></span>
@@ -482,72 +574,97 @@ app.get('/producto/:slug', (req, res) => {
         </div>
     </header>
 
-    <!-- PRODUCTO INDIVIDUAL (MODAL ABIERTO) -->
-    <div class="product-modal active" style="display: block; position: relative; top: 0; transform: none; margin: 2rem auto;">
+    <!-- PRODUCTO (MODAL ABIERTO POR DEFECTO) -->
+    <div class="product-modal active" id="productModal" style="display: block; position: relative; top: 0; transform: none; margin: 2rem auto;">
+        <div class="modal-overlay" style="display: none;"></div>
         <div class="modal-container" style="transform: none;">
+            <button class="modal-close" aria-label="Cerrar modal">&times;</button>
             <div class="modal-content">
+                
+                <!-- Columna izquierda - Carrusel de imágenes -->
                 <div class="modal-gallery">
                     <div class="main-image">
                         <img src="https://goldinfiniti.com/${producto.imagenes[0]}" alt="${producto.titulo}" id="modalMainImage" class="modal-product-image">
                     </div>
+                    <!-- PUNTOS INDICADORES -->
+                    <div class="image-dots" id="imageDots"></div>
+                    
                     <div class="thumbnail-container">
                         <div class="thumbnails" id="productThumbnails">
-                            ${producto.imagenes.map(img => `<img src="https://goldinfiniti.com/${img}" class="thumbnail" onclick="document.getElementById('modalMainImage').src='https://goldinfiniti.com/${img}'">`).join('')}
+                            ${thumbnailsHtml}
                         </div>
+                        <button class="thumbnail-nav prev-thumb" aria-label="Miniatura anterior">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <button class="thumbnail-nav next-thumb" aria-label="Miniatura siguiente">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
                     </div>
                 </div>
+
+                <!-- Columna derecha - Información del producto -->
                 <div class="modal-product-info">
-                    <h2 class="product-modal-title">${producto.titulo}</h2>
+                    <h2 class="product-modal-title" id="modalProductTitle">${producto.titulo}</h2>
+
                     <div class="product-modal-meta">
-                        <div class="modal-rating">${starsHtml}</div>
-                        <span class="review-count">(${producto.reseñas || 0} reseñas)</span>
+                        <div class="modal-rating" id="modalRating">
+                            ${starsHtml}
+                        </div>
+                        <span class="review-count" id="modalReviewCount">(${producto.reseñas || 0} reseñas)</span>
                         <span class="availability in-stock">Disponible</span>
                     </div>
+
                     <div class="modal-pricing">
-                        <span class="current-price">S/${producto.precioActual.toFixed(2)}</span>
-                        ${producto.precioAnterior ? `<span class="old-price">S/${producto.precioAnterior.toFixed(2)}</span>` : ''}
-                        ${producto.descuento ? `<span class="discount-badge">${producto.descuento}</span>` : ''}
+                        <span class="current-price" id="modalCurrentPrice">S/${producto.precioActual.toFixed(2)}</span>
+                        ${precioAnteriorHtml}
+                        ${descuentoHtml}
                     </div>
+
                     <div class="product-modal-description">
                         <h3>Descripción</h3>
-                        <p>${producto.descripcion || ''}</p>
+                        <p id="modalDescription">${producto.descripcion || ''}</p>
                     </div>
+
                     <div class="product-modal-colors">
                         <h3>Colores</h3>
-                        <div class="color-options">
+                        <div class="color-options" id="modalColorOptions">
                             <select class="color-select" data-product="${producto.id}">
-                                <option value="">Seleccione color</option>
-                                ${producto.colores?.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('') || ''}
+                                ${colorOptionsHtml}
                             </select>
                         </div>
                     </div>
+
                     <div class="product-modal-sizes">
                         <h3>Tallas</h3>
-                        <div class="size-options">
+                        <div class="size-options" id="modalSizeOptions">
                             <select class="size-select" data-product="${producto.id}">
-                                <option value="">Seleccione talla</option>
-                                ${producto.tallas?.map(t => `<option value="${t}">${t}</option>`).join('') || ''}
+                                ${tallaOptionsHtml}
                             </select>
                         </div>
                     </div>
+
                     <div class="product-modal-quantity">
                         <h3>Cantidad</h3>
                         <div class="quantity-selector">
-                            <button class="qty-minus">-</button>
-                            <input type="number" value="1" min="1" class="qty-input">
-                            <button class="qty-plus">+</button>
+                            <button class="qty-minus" aria-label="Reducir cantidad">-</button>
+                            <input type="number" value="1" min="1" class="qty-input" aria-label="Cantidad">
+                            <button class="qty-plus" aria-label="Aumentar cantidad">+</button>
                         </div>
                     </div>
+
                     <div class="product-modal-actions">
-                        <button class="add-to-cart add-to-cart-btn" data-product-id="${producto.id}">Añadir al carrito</button>
-                        <button class="buy-now-btn">Comprar ahora</button>
+                        <button class="add-to-cart add-to-cart-btn" id="modalAddToCart" data-product-id="${producto.id}">Añadir al carrito</button>
+                        <button class="buy-now-btn" id="openPagoDirecto">Comprar ahora</button>
+                        <button class="add-wishlist-btn" aria-label="Añadir a favoritos">
+                            <i class="far fa-heart"></i>
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Mini Carrito -->
+    <!-- Mini Carrito mejorado -->
     <div class="mini-cart" id="miniCart">
         <div class="cart-icon">
             <i class="fas fa-shopping-bag"></i>
@@ -556,7 +673,110 @@ app.get('/producto/:slug', (req, res) => {
         <span class="cart-total"></span>
     </div>
 
-    <!-- FOOTER -->
+    <!-- Modal del Carrito -->
+    <div class="cart-modal" id="cartModal">
+        <div class="cart-overlay"></div>
+        <div class="cart-container">
+            <div class="cart-header">
+                <h3>Tu Carrito de Compras</h3>
+                <button class="cart-close">&times;</button>
+            </div>
+            
+            <div class="cart-body" id="cartItemsContainer">
+                <div class="empty-cart">
+                    <i class="fas fa-shopping-bag"></i>
+                    <p>Tu carrito está vacío</p>
+                </div>
+            </div>
+            <button class="checkout-btn" id="checkoutBtn">Proceder al Pago</button>
+        </div>
+    </div>
+
+    <!-- Modal de Pago Directo -->
+    <div id="modalPagoDirecto" class="modal-pago-directo">
+        <div class="modal-pago-content">
+            <div class="pago-columna-izquierda">
+                <div class="pago-header">
+                    <h1 class="pago-titulo">Datos Obligatorios</h1>
+                    <div class="pago-controls">
+                        <button class="modal-pago-back" aria-label="Volver">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <button class="modal-pago-close" aria-label="Cerrar">
+                            <i class="fas fa-times"></i> 
+                        </button>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <!-- Formulario de pago (simplificado) -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CODIGO DE WHATSAPP FLOTANTE -->
+    <div id="wa-velour-widget" aria-live="polite">
+        <button class="wa-widget__btn" aria-expanded="false" aria-controls="wa-widget-panel" aria-label="WhatsApp">
+            <svg class="wa-widget__icon" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+                <path fill="#FFFFFF" d="M17.472,14.382c-0.297-0.149-1.758-0.867-2.03-0.967c-0.272-0.099-0.47-0.149-0.67,0.15
+                c-0.197,0.297-0.767,0.967-0.94,1.164c-0.175,0.196-0.35,0.223-0.65,0.074c-0.297-0.149-1.255-0.462-2.39-1.475
+                c-0.882-0.788-1.48-1.761-1.65-2.059c-0.173-0.297-0.018-0.458,0.13-0.606c0.134-0.134,0.297-0.347,0.446-0.52
+                c0.149-0.175,0.198-0.297,0.297-0.495c0.099-0.198,0.05-0.371-0.025-0.52c-0.074-0.149-0.669-1.612-0.917-2.206
+                c-0.242-0.594-0.487-0.513-0.669-0.523l-0.57-0.01c-0.198,0-0.52,0.074-0.793,0.371c-0.272,0.297-1.04,1.016-1.04,2.479
+                s1.065,2.876,1.213,3.074c0.149,0.198,2.096,3.2,5.076,4.487c0.708,0.313,1.263,0.499,1.694,0.639c0.669,0.223,1.28,0.191,1.759,0.116
+                c0.52-0.083,1.758-0.719,2.006-1.413c0.248-0.695,0.248-1.29,0.173-1.413C18.219,14.529,17.769,14.531,17.472,14.382z"/>
+                <path fill="#FFFFFF" d="M12.006,0.5C5.662,0.5,0.5,5.662,0.5,12.006c0,2.026,0.554,3.924,1.515,5.557L0.5,23.5l5.975-1.92
+                c1.63,0.892,3.487,1.42,5.531,1.42c6.344,0,11.506-5.162,11.506-11.506C23.512,5.662,18.35,0.5,12.006,0.5z M12.006,21.428
+                c-1.786,0-3.506-0.489-5.005-1.407l-0.359-0.214l-3.723,1.197l0.994-3.648l-0.233-0.372c-1.025-1.643-1.616-3.604-1.616-5.678
+                c0-5.193,4.225-9.417,9.418-9.417c5.193,0,9.418,4.224,9.418,9.417C21.424,17.204,17.199,21.428,12.006,21.428z"/>
+            </svg>
+        </button>
+        <section id="wa-widget-panel" class="wa-widget__panel" role="dialog" aria-label="Soporte">
+            <div class="wa-card">
+                <header class="wa-card__header">
+                    <h3 class="wa-card__title">Soporte</h3>
+                    <p class="wa-card__subtitle">Ayuda rápida</p>
+                </header>
+                <div class="wa-card__body">
+                    <div class="wa-bubble wa-bubble--from">
+                        <span class="wa-bubble__text">¿Necesitas ayuda?</span>
+                    </div>
+                </div>
+                <footer class="wa-card__footer">
+                    <div class="wa-input">
+                        <textarea class="wa-input__field" rows="1" placeholder="Mensaje">Hola, estoy en su tienda virtual y tengo algunas dudas. ¿Podrían ayudarme?</textarea>
+                        <a class="wa-input__cta" id="wa-send" href="https://wa.me/51968786648?text=" target="_blank" rel="noopener">Enviar</a>
+                    </div>
+                </footer>
+            </div>
+        </section>
+    </div>
+
+    <!-- Sección de Newsletter -->
+    <section class="newsletter-pro" aria-label="Suscripción al newsletter">
+        <div class="newsletter-box">
+            <div class="newsletter-copy">
+                <p class="newsletter-eyebrow">Newsletter</p>
+                <h2 class="newsletter-title">Mantente un paso adelante</h2>
+                <p class="newsletter-text">
+                    Recibe lanzamientos, tendencias y ofertas seleccionadas directamente en tu correo.
+                </p>
+            </div>
+            <form class="newsletter-form" id="form-news" novalidate>
+                <div class="newsletter-field">
+                    <input type="email" id="email" name="email" placeholder="Tu correo electrónico" autocomplete="email" required>
+                    <span class="newsletter-error" id="email-error">Revisa el formato del correo.</span>
+                </div>
+                <button type="submit" class="btn-news" id="btn-send">Suscribirse</button>
+            </form>
+            <p class="newsletter-privacy">
+                Nos tomamos en serio tu privacidad. <a href="/politica-de-privacidad.html">Política de datos</a>.
+            </p>
+            <p id="mensaje-exito" class="mensaje-exito" aria-live="polite">✅ ¡Gracias por suscribirte!</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
     <footer class="footer" id="footer">
         <div class="footer-container">
             <div class="footer-col footer-about">
@@ -606,29 +826,65 @@ app.get('/producto/:slug', (req, res) => {
         
         <div class="footer-bottom">
             <div class="footer-bottom-container">
-                <div class="version-footer">
-                    <span><strong style="color:#d4af37;">GoldInfiniti</strong> v3.176.0</span>
+                <div class="version-footer" style="font-size: 11px; color: #888; text-align: center; margin: 5px 0;">
+                    <span style="display: inline-block; margin-right: 10px;">
+                        <strong style="color: #d4af37;">GoldInfiniti</strong> v3.181.0 (Epic Lion)
+                    </span>
                 </div>
                 <div class="copyright-section">
-                    <p>© 2026 Goldinfiniti Tech Corp. Todos los derechos reservados.</p>
+                    <p class="copyright">
+                        © 2026 <strong>Goldinfiniti Tech Corp</strong>. Todos los derechos reservados.
+                    </p>
                 </div>
-                <div class="payment-icons">
-                    <img src="https://goldinfiniti.com/images/tarjetasbanco/visa.svg" alt="Visa" width="40">
-                    <img src="https://goldinfiniti.com/images/tarjetasbanco/mastercard.svg" alt="Mastercard" width="40">
-                    <img src="https://goldinfiniti.com/images/tarjetasbanco/yape.png" alt="Yape" width="40">
+                <div class="payment-section" id="pagos">
+                    <div class="payment-icons">
+                        <img src="https://goldinfiniti.com/images/tarjetasbanco/visa.svg" alt="Visa" width="40">
+                        <img src="https://goldinfiniti.com/images/tarjetasbanco/mastercard.svg" alt="Mastercard" width="40">
+                        <img src="https://goldinfiniti.com/images/tarjetasbanco/yape.png" alt="Yape" width="40">
+                    </div>
                 </div>
             </div>
         </div>
     </footer>
 
-    <!-- Scripts -->
+    <!-- Script del menú -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const currentPath = window.location.pathname.split("/").pop();
+            document.querySelectorAll('.nav-link').forEach(link => {
+                const href = link.getAttribute('href');
+                if (href === currentPath) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+        });
+    </script>
+
+    <!-- Scripts de Firebase y Culqi -->
     <script src="https://checkout.culqi.com/js/v4" defer></script>
     <script src="https://goldinfiniti.com/js/productos.js"></script>
     <script src="https://goldinfiniti.com/js/carrito.js"></script>
     <script src="https://goldinfiniti.com/js/script.js"></script>
     <script src="https://goldinfiniti.com/js/culqiCheckout.js" defer></script>
+    <script type="module" src="https://goldinfiniti.com/js/app.js"></script>
+    <script type="module" src="https://goldinfiniti.com/js/login.js"></script>
+    <script type="module" src="https://goldinfiniti.com/js/newsletter.js"></script>
+    <script type="module" src="https://goldinfiniti.com/js/handler.js"></script>
+
+    <!-- Script para pasar el ID del producto -->
     <script>
         window.productoActualId = ${producto.id};
+        
+        // Asegurar que el modal esté visible
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('productModal');
+            if (modal) {
+                modal.style.display = 'block';
+                modal.classList.add('active');
+            }
+        });
     </script>
 </body>
 </html>`);
