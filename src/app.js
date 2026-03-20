@@ -11,7 +11,7 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const https = require('https');
-const path = require('path'); // ← AÑADIDO
+const path = require('path');
 
 // Importar utilidades
 const logger = require('./core/utils/logger');
@@ -166,7 +166,7 @@ app.use((req, res, next) => {
 });
 
 // ============================================
-// 2.5. SERVIR ARCHIVOS ESTÁTICOS DESDE FIREBASE (AÑADIDO)
+// 2.5. SERVIR ARCHIVOS ESTÁTICOS DESDE FIREBASE
 // ============================================
 app.use('/styles.css', (req, res) => {
     res.redirect('https://goldinfiniti.com/styles.css');
@@ -357,13 +357,35 @@ app.get('/producto/:slug', (req, res) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${producto.titulo} - Goldinfiniti</title>
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="${producto.titulo}" />
+    <meta property="og:description" content="${producto.descripcion?.substring(0, 160) || ''}" />
+    <meta property="og:image" content="https://goldinfiniti.com/${producto.imagenes[0]}" />
+    <meta property="og:url" content="https://api.goldinfiniti.com/producto/${producto.slug}" />
+    
+    <!-- Schema.org -->
     <script type="application/ld+json">${JSON.stringify(schema)}</script>
+    
+    <!-- Fuentes y CSS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="https://goldinfiniti.com/styles.css">
     <link rel="shortcut icon" href="https://goldinfiniti.com/images/logos/faviconn.png" type="image/x-icon">
+    
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-2B3M2969SW"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-2B3M2969SW');
+    </script>
 </head>
 <body>
-    <!-- HEADER -->
+    <!-- TOP BAR -->
     <div class="top-bar">
         <div class="top-bar-content">
             <div class="top-bar-carousel">
@@ -388,6 +410,7 @@ app.get('/producto/:slug', (req, res) => {
         </div>
     </div>
 
+    <!-- HEADER -->
     <header class="header">
         <div class="header-container">
             <div class="logo">
@@ -426,7 +449,7 @@ app.get('/producto/:slug', (req, res) => {
         </div>
     </header>
 
-    <!-- PRODUCTO INDIVIDUAL -->
+    <!-- PRODUCTO INDIVIDUAL (MODAL ABIERTO) -->
     <div class="product-modal active" style="display: block; position: relative; top: 0; transform: none; margin: 2rem auto;">
         <div class="modal-container" style="transform: none;">
             <div class="modal-content">
@@ -491,6 +514,7 @@ app.get('/producto/:slug', (req, res) => {
         </div>
     </div>
 
+    <!-- Mini Carrito -->
     <div class="mini-cart" id="miniCart">
         <div class="cart-icon">
             <i class="fas fa-shopping-bag"></i>
@@ -564,12 +588,15 @@ app.get('/producto/:slug', (req, res) => {
         </div>
     </footer>
 
+    <!-- Scripts -->
+    <script src="https://checkout.culqi.com/js/v4" defer></script>
     <script src="https://goldinfiniti.com/js/productos.js"></script>
     <script src="https://goldinfiniti.com/js/carrito.js"></script>
     <script src="https://goldinfiniti.com/js/script.js"></script>
-    <script src="https://checkout.culqi.com/js/v4" defer></script>
     <script src="https://goldinfiniti.com/js/culqiCheckout.js" defer></script>
-    <script>window.productoActualId = ${producto.id};</script>
+    <script>
+        window.productoActualId = ${producto.id};
+    </script>
 </body>
 </html>`);
 });
@@ -623,7 +650,7 @@ app.get('/ofertas', (req, res) => {
 });
 
 // ============================================
-// FUNCIÓN GENERADORA DE PÁGINAS DE CATEGORÍA
+// FUNCIÓN GENERADORA DE PÁGINAS DE CATEGORÍA (CON HEADER COMPLETO)
 // ============================================
 function generarPaginaCategoriaCompleta(res, titulo, productos) {
     let productosHTML = '';
@@ -710,21 +737,76 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
     <title>${titulo} - Goldinfiniti | Ropa de Algodón Pima Premium</title>
     <meta name="description" content="Ropa ${titulo.toLowerCase()} de algodón Pima 100% peruano. Envíos a todo Perú.">
     
+    <link rel="canonical" href="https://www.goldinfiniti.com/${titulo.toLowerCase()}.html" />
+
+    <!-- Open Graph -->
     <meta property="og:title" content="${titulo} - Goldinfiniti" />
     <meta property="og:description" content="Colección ${titulo.toLowerCase()} de algodón Pima premium" />
     <meta property="og:image" content="https://www.goldinfiniti.com/images/og-image.jpg" />
     <meta property="og:url" content="https://www.goldinfiniti.com/${titulo.toLowerCase()}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Goldinfiniti" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${titulo} - Goldinfiniti" />
+    <meta name="twitter:description" content="Colección ${titulo.toLowerCase()} en algodón Pima" />
+    <meta name="twitter:image" content="https://www.goldinfiniti.com/images/og-image.jpg" />
     
-    <script type="application/ld+json">${JSON.stringify(schema)}</script>
-    
+    <!-- Versionado -->
+    <meta name="version" content="3.179.0">
+    <meta name="codename" content="Nova Panther">
+    <meta name="build-timestamp" content="2026-03-20T00:24:43.976Z">
+
+    <!-- Fuentes -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300..800&family=Playfair+Display:wght@400..700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300..800&family=Playfair+Display:wght@400..700&display=swap"></noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Futura+PT:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Estilos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="https://goldinfiniti.com/styles.css">
     <link rel="shortcut icon" href="https://goldinfiniti.com/images/logos/faviconn.png" type="image/x-icon">
+
+    <!-- Scripts críticos -->
+    <script src="https://checkout.culqi.com/js/v4" defer></script>
+    
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-2B3M2969SW"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-2B3M2969SW', {
+            'anonymize_ip': true,
+            'page_title': document.title,
+            'page_location': window.location.href
+        });
+    </script>
+
+    <!-- Schema.org de la tienda -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Store",
+        "name": "Goldinfiniti",
+        "url": "https://www.goldinfiniti.com",
+        "logo": "https://www.goldinfiniti.com/images/logos/logo1.1.png",
+        "sameAs": [
+            "https://www.facebook.com/profile.php?id=61585623818611",
+            "https://www.instagram.com/doiscrow/",
+            "https://www.tiktok.com/@goldinfiniti.com"
+        ]
+    }
+    </script>
+    
+    <!-- Schema del ItemList (productos) -->
+    <script type="application/ld+json">${JSON.stringify(schema)}</script>
 </head>
 <body>
+    <!-- TOP BAR -->
     <div class="top-bar">
         <div class="top-bar-content">
             <div class="top-bar-carousel">
@@ -749,6 +831,7 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
         </div>
     </div>
 
+    <!-- HEADER -->
     <header class="header">
         <div class="header-container">
             <div class="logo">
@@ -787,6 +870,7 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
         </div>
     </header>
 
+    <!-- HERO DE CATEGORÍA (simplificado) -->
     <section class="featured-products" id="destacados">
         <div class="section-header">
             <h2 class="section-title">${titulo}</h2>
@@ -797,6 +881,7 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
         </div>
     </section>
 
+    <!-- Mini Carrito -->
     <div class="mini-cart" id="miniCart">
         <div class="cart-icon">
             <i class="fas fa-shopping-bag"></i>
@@ -805,6 +890,7 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
         <span class="cart-total"></span>
     </div>
 
+    <!-- FOOTER COMPLETO -->
     <footer class="footer" id="footer">
         <div class="footer-container">
             <div class="footer-col footer-about">
@@ -869,11 +955,26 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
         </div>
     </footer>
 
+    <!-- Scripts -->
+    <script src="https://checkout.culqi.com/js/v4" defer></script>
     <script src="https://goldinfiniti.com/js/productos.js"></script>
     <script src="https://goldinfiniti.com/js/carrito.js"></script>
     <script src="https://goldinfiniti.com/js/script.js"></script>
-    <script src="https://checkout.culqi.com/js/v4" defer></script>
     <script src="https://goldinfiniti.com/js/culqiCheckout.js" defer></script>
+    
+    <!-- Script de versión (opcional) -->
+    <script>
+    (function() {
+        const elements = {
+            version: document.getElementById('current-version'),
+            codename: document.getElementById('codename'),
+            date: document.getElementById('build-date')
+        };
+        if (elements.version) elements.version.textContent = '3.179.0';
+        if (elements.codename) elements.codename.textContent = '(Nova Panther)';
+        if (elements.date) elements.date.textContent = '19/03/2026, 07:24 p. m.';
+    })();
+    </script>
 </body>
 </html>`);
 }
