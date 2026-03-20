@@ -320,10 +320,7 @@ if (process.env.NODE_ENV === 'development') {
 
 
 // ============================================
-// CARGAR TODOS LOS PRODUCTOS (RUTA CORREGIDA)
-// ============================================
-// ============================================
-// CARGAR PRODUCTOS (SIN EJECUTAR EL CÓDIGO DEL FRONTEND)
+// CARGAR TODOS LOS PRODUCTOS (RUTA CORREGIDA - VERSIÓN FINAL)
 // ============================================
 const path = require('path');
 const fs = require('fs');
@@ -332,9 +329,17 @@ let TODOS_LOS_PRODUCTOS = [];
 
 function cargarProductos() {
     try {
+        // Ruta CORRECTA a tus archivos (según tu terminal)
         const frontendPath = 'C:/Users/Ciro/Desktop/GOLDINFINITI-STORE/PUBLIC/js';
         
-        // Leer los archivos como texto, NO como módulo
+        console.log('📁 Buscando productos en:', frontendPath);
+        
+        // Verificar que la carpeta existe
+        if (!fs.existsSync(frontendPath)) {
+            console.log('❌ La carpeta NO existe:', frontendPath);
+            return;
+        }
+        
         const archivos = [
             'productos.js',
             'productos-mujer.js',
@@ -348,18 +353,31 @@ function cargarProductos() {
         archivos.forEach(archivo => {
             try {
                 const ruta = path.join(frontendPath, archivo);
+                
+                // Verificar que el archivo existe
+                if (!fs.existsSync(ruta)) {
+                    console.log(`⚠️ Archivo no encontrado: ${archivo}`);
+                    return;
+                }
+                
                 const contenido = fs.readFileSync(ruta, 'utf8');
                 
-                // Buscar el array de productos con regex
+                // Buscar el array de productos (versión mejorada)
                 const match = contenido.match(/const\s+productos\w*\s*=\s*(\[[\s\S]*?\]);/);
                 
                 if (match && match[1]) {
+                    // Reemplazar referencias a window que puedan causar error
+                    let arrayStr = match[1].replace(/window\./g, 'globalThis.');
+                    
                     // Evaluar SOLO el array (seguro porque son datos)
-                    const productosArray = eval('(' + match[1] + ')');
+                    const productosArray = eval('(' + arrayStr + ')');
+                    
                     if (Array.isArray(productosArray)) {
                         TODOS_LOS_PRODUCTOS = [...TODOS_LOS_PRODUCTOS, ...productosArray];
                         console.log(`✅ ${archivo}: ${productosArray.length} productos`);
                     }
+                } else {
+                    console.log(`⚠️ No se encontró array en ${archivo}`);
                 }
             } catch (e) {
                 console.log(`⚠️ Error en ${archivo}: ${e.message}`);
@@ -368,13 +386,18 @@ function cargarProductos() {
         
         console.log(`📦 TOTAL: ${TODOS_LOS_PRODUCTOS.length} productos cargados`);
         
+        // Mostrar algunos slugs como ejemplo
+        if (TODOS_LOS_PRODUCTOS.length > 0) {
+            const slugs = TODOS_LOS_PRODUCTOS.map(p => p.slug).filter(Boolean).slice(0, 5);
+            console.log('🔍 Ejemplo de slugs:', slugs);
+        }
+        
     } catch (error) {
         console.log('❌ Error general:', error.message);
     }
 }
 
 cargarProductos();
-
 // ============================================
 // RUTA PARA PRODUCTO INDIVIDUAL
 // ============================================
