@@ -319,85 +319,81 @@ if (process.env.NODE_ENV === 'development') {
 
 
 
+
 // ============================================
-// CARGAR TODOS LOS PRODUCTOS (RUTA CORREGIDA - VERSIÓN FINAL)
+// CARGAR PRODUCTOS DESDE FIREBASE HOSTING
 // ============================================
-const path = require('path');
-const fs = require('fs');
+const https = require('https');
 
 let TODOS_LOS_PRODUCTOS = [];
 
-function cargarProductos() {
-    try {
-        // Ruta CORRECTA a tus archivos (según tu terminal)
-        const frontendPath = 'C:/Users/Ciro/Desktop/GOLDINFINITI-STORE/PUBLIC/js';
+function cargarProductosDesdeFirebase() {
+    const baseUrl = 'https://goldinfiniti.com'; // Tu frontend en Firebase
+    
+    const archivos = [
+        'js/productos.js',
+        'js/productos-mujer.js',
+        'js/productos-hombre.js',
+        'js/productos-ninos.js',
+        'js/productos-colecciones.js',
+        'js/productos-accesorios.js',
+        'js/productos-ofertas.js'
+    ];
+    
+    let archivosCargados = 0;
+    const totalArchivos = archivos.length;
+    
+    console.log('📥 Cargando productos desde Firebase...');
+    
+    archivos.forEach(archivo => {
+        const url = `${baseUrl}/${archivo}`;
         
-        console.log('📁 Buscando productos en:', frontendPath);
-        
-        // Verificar que la carpeta existe
-        if (!fs.existsSync(frontendPath)) {
-            console.log('❌ La carpeta NO existe:', frontendPath);
-            return;
-        }
-        
-        const archivos = [
-            'productos.js',
-            'productos-mujer.js',
-            'productos-hombre.js',
-            'productos-ninos.js',
-            'productos-colecciones.js',
-            'productos-accesorios.js',
-            'productos-ofertas.js'
-        ];
-        
-        archivos.forEach(archivo => {
-            try {
-                const ruta = path.join(frontendPath, archivo);
-                
-                // Verificar que el archivo existe
-                if (!fs.existsSync(ruta)) {
-                    console.log(`⚠️ Archivo no encontrado: ${archivo}`);
-                    return;
-                }
-                
-                const contenido = fs.readFileSync(ruta, 'utf8');
-                
-                // Buscar el array de productos (versión mejorada)
-                const match = contenido.match(/const\s+productos\w*\s*=\s*(\[[\s\S]*?\]);/);
-                
-                if (match && match[1]) {
-                    // Reemplazar referencias a window que puedan causar error
-                    let arrayStr = match[1].replace(/window\./g, 'globalThis.');
+        https.get(url, (resp) => {
+            let data = '';
+            
+            resp.on('data', (chunk) => {
+                data += chunk;
+            });
+            
+            resp.on('end', () => {
+                try {
+                    // Buscar el array de productos
+                    const match = data.match(/const\s+productos\w*\s*=\s*(\[[\s\S]*?\]);/);
                     
-                    // Evaluar SOLO el array (seguro porque son datos)
-                    const productosArray = eval('(' + arrayStr + ')');
-                    
-                    if (Array.isArray(productosArray)) {
-                        TODOS_LOS_PRODUCTOS = [...TODOS_LOS_PRODUCTOS, ...productosArray];
-                        console.log(`✅ ${archivo}: ${productosArray.length} productos`);
+                    if (match && match[1]) {
+                        // Evaluar solo el array (seguro)
+                        const productosArray = eval('(' + match[1] + ')');
+                        
+                        if (Array.isArray(productosArray)) {
+                            TODOS_LOS_PRODUCTOS = [...TODOS_LOS_PRODUCTOS, ...productosArray];
+                            console.log(`✅ ${archivo}: ${productosArray.length} productos`);
+                        }
                     }
-                } else {
-                    console.log(`⚠️ No se encontró array en ${archivo}`);
+                } catch (e) {
+                    console.log(`⚠️ Error en ${archivo}: ${e.message}`);
                 }
-            } catch (e) {
-                console.log(`⚠️ Error en ${archivo}: ${e.message}`);
-            }
+                
+                archivosCargados++;
+                if (archivosCargados === totalArchivos) {
+                    console.log(`📦 TOTAL: ${TODOS_LOS_PRODUCTOS.length} productos cargados desde Firebase`);
+                    
+                    // Mostrar algunos slugs
+                    if (TODOS_LOS_PRODUCTOS.length > 0) {
+                        const slugs = TODOS_LOS_PRODUCTOS.map(p => p.slug).filter(Boolean).slice(0, 5);
+                        console.log('🔍 Ejemplo de slugs:', slugs);
+                    }
+                }
+            });
+            
+        }).on('error', (err) => {
+            console.log(`❌ Error descargando ${archivo}: ${err.message}`);
+            archivosCargados++;
         });
-        
-        console.log(`📦 TOTAL: ${TODOS_LOS_PRODUCTOS.length} productos cargados`);
-        
-        // Mostrar algunos slugs como ejemplo
-        if (TODOS_LOS_PRODUCTOS.length > 0) {
-            const slugs = TODOS_LOS_PRODUCTOS.map(p => p.slug).filter(Boolean).slice(0, 5);
-            console.log('🔍 Ejemplo de slugs:', slugs);
-        }
-        
-    } catch (error) {
-        console.log('❌ Error general:', error.message);
-    }
+    });
 }
 
-cargarProductos();
+// Ejecutar la carga
+cargarProductosDesdeFirebase();
 // ============================================
 // RUTA PARA PRODUCTO INDIVIDUAL
 // ============================================
