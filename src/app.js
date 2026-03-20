@@ -11,6 +11,7 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const https = require('https');
+const path = require('path'); // ← AÑADIDO
 
 // Importar utilidades
 const logger = require('./core/utils/logger');
@@ -38,9 +39,10 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+      scriptSrc: ["'self'", "https://checkout.culqi.com", "https://www.googletagmanager.com"],
+      imgSrc: ["'self'", "data:", "https:", "https://goldinfiniti.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
     },
   },
   crossOriginEmbedderPolicy: true,
@@ -54,6 +56,7 @@ const corsOptions = {
     const allowedOrigins = [
       'https://goldinfiniti.com',
       'https://www.goldinfiniti.com',
+      'https://api.goldinfiniti.com',
       'http://127.0.0.1:5502',
       'http://localhost:5502',
       'http://localhost:3000',
@@ -160,6 +163,29 @@ app.use((req, res, next) => {
     originalEnd.apply(res, args);
   };
   next();
+});
+
+// ============================================
+// 2.5. SERVIR ARCHIVOS ESTÁTICOS DESDE FIREBASE (AÑADIDO)
+// ============================================
+app.use('/styles.css', (req, res) => {
+    res.redirect('https://goldinfiniti.com/styles.css');
+});
+
+app.use('/js', (req, res) => {
+    res.redirect(`https://goldinfiniti.com/js${req.url}`);
+});
+
+app.use('/images', (req, res) => {
+    res.redirect(`https://goldinfiniti.com/images${req.url}`);
+});
+
+app.use('/css', (req, res) => {
+    res.redirect(`https://goldinfiniti.com/css${req.url}`);
+});
+
+app.use('/fonts', (req, res) => {
+    res.redirect(`https://goldinfiniti.com/fonts${req.url}`);
 });
 
 // ============================================
@@ -309,7 +335,7 @@ app.get('/producto/:slug', (req, res) => {
         "@context": "https://schema.org",
         "@type": "Product",
         "name": producto.titulo,
-        "image": producto.imagenes[0],
+        "image": `https://goldinfiniti.com/${producto.imagenes[0]}`,
         "description": producto.descripcion?.substring(0, 160) || '',
         "offers": {
             "@type": "Offer",
@@ -328,17 +354,45 @@ app.get('/producto/:slug', (req, res) => {
     res.send(`<!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${producto.titulo} - Goldinfiniti</title>
     <script type="application/ld+json">${JSON.stringify(schema)}</script>
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://goldinfiniti.com/styles.css">
+    <link rel="shortcut icon" href="https://goldinfiniti.com/images/logos/faviconn.png" type="image/x-icon">
 </head>
 <body>
     <!-- HEADER -->
+    <div class="top-bar">
+        <div class="top-bar-content">
+            <div class="top-bar-carousel">
+                <div class="item">Estilo Premium Vestidos exclusivos</div>
+                <div class="item"><a href="tel:968 786 648" class="phone">100% PIMA COTTON PREMIUN</a></div>
+                <div class="item"><a href="" class="contact-link">Envío VIP Compras superiores a S/250.00 </a></div>
+                <div class="item redes">
+                    <a href="https://www.instagram.com/doiscrow/" target="_blank">
+                        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/instagram.svg" alt="Instagram">
+                    </a>
+                    <a href="https://www.facebook.com/profile.php?id=61585623818611" target="_blank">
+                        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/facebook.svg" alt="Facebook">
+                    </a>
+                    <a href="https://www.youtube.com/channel/UCLBjBEzoQQ5x6DVDPWNqpgA" target="_blank">
+                        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg" alt="YouTube">
+                    </a>
+                    <a href="https://www.tiktok.com/@goldinfiniti.com" target="_blank">
+                        <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/tiktok.svg" alt="TikTok">
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <header class="header">
         <div class="header-container">
             <div class="logo">
                 <a href="/">
-                    <img src="/images/logos/logo1.1.png" alt="goldinfiniti" class="logo-img">
+                    <img src="https://goldinfiniti.com/images/logos/logo1.1.png" alt="goldinfiniti" class="logo-img">
                 </a>
             </div>
             <nav class="navbar">
@@ -372,15 +426,84 @@ app.get('/producto/:slug', (req, res) => {
         </div>
     </header>
 
-    <h1>${producto.titulo}</h1>
-    <img src="${producto.imagenes[0]}" width="300">
-    <p>S/${producto.precioActual}</p>
-    
+    <!-- PRODUCTO INDIVIDUAL -->
+    <div class="product-modal active" style="display: block; position: relative; top: 0; transform: none; margin: 2rem auto;">
+        <div class="modal-container" style="transform: none;">
+            <div class="modal-content">
+                <div class="modal-gallery">
+                    <div class="main-image">
+                        <img src="https://goldinfiniti.com/${producto.imagenes[0]}" alt="${producto.titulo}" id="modalMainImage" class="modal-product-image">
+                    </div>
+                    <div class="thumbnail-container">
+                        <div class="thumbnails" id="productThumbnails">
+                            ${producto.imagenes.map(img => `<img src="https://goldinfiniti.com/${img}" class="thumbnail" onclick="document.getElementById('modalMainImage').src='https://goldinfiniti.com/${img}'">`).join('')}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-product-info">
+                    <h2 class="product-modal-title">${producto.titulo}</h2>
+                    <div class="product-modal-meta">
+                        <div class="modal-rating">${starsHtml}</div>
+                        <span class="review-count">(${producto.reseñas || 0} reseñas)</span>
+                        <span class="availability in-stock">Disponible</span>
+                    </div>
+                    <div class="modal-pricing">
+                        <span class="current-price">S/${producto.precioActual.toFixed(2)}</span>
+                        ${producto.precioAnterior ? `<span class="old-price">S/${producto.precioAnterior.toFixed(2)}</span>` : ''}
+                        ${producto.descuento ? `<span class="discount-badge">${producto.descuento}</span>` : ''}
+                    </div>
+                    <div class="product-modal-description">
+                        <h3>Descripción</h3>
+                        <p>${producto.descripcion || ''}</p>
+                    </div>
+                    <div class="product-modal-colors">
+                        <h3>Colores</h3>
+                        <div class="color-options">
+                            <select class="color-select" data-product="${producto.id}">
+                                <option value="">Seleccione color</option>
+                                ${producto.colores?.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('') || ''}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="product-modal-sizes">
+                        <h3>Tallas</h3>
+                        <div class="size-options">
+                            <select class="size-select" data-product="${producto.id}">
+                                <option value="">Seleccione talla</option>
+                                ${producto.tallas?.map(t => `<option value="${t}">${t}</option>`).join('') || ''}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="product-modal-quantity">
+                        <h3>Cantidad</h3>
+                        <div class="quantity-selector">
+                            <button class="qty-minus">-</button>
+                            <input type="number" value="1" min="1" class="qty-input">
+                            <button class="qty-plus">+</button>
+                        </div>
+                    </div>
+                    <div class="product-modal-actions">
+                        <button class="add-to-cart add-to-cart-btn" data-product-id="${producto.id}">Añadir al carrito</button>
+                        <button class="buy-now-btn">Comprar ahora</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mini-cart" id="miniCart">
+        <div class="cart-icon">
+            <i class="fas fa-shopping-bag"></i>
+            <span class="cart-count"></span>
+        </div>
+        <span class="cart-total"></span>
+    </div>
+
     <!-- FOOTER -->
     <footer class="footer" id="footer">
         <div class="footer-container">
             <div class="footer-col footer-about">
-                <img src="/images/logos/logo2.1.png" alt="Goldinfiniti" class="footer-logo">
+                <img src="https://goldinfiniti.com/images/logos/logo2.1.png" alt="Goldinfiniti" class="footer-logo">
                 <p class="footer-about-text">Goldinfiniti Premium E-Commerce</p>
                 <div class="footer-social">
                     <a href="https://www.facebook.com/profile.php?id=61585623818611"><i class="fab fa-facebook-f"></i></a>
@@ -389,10 +512,63 @@ app.get('/producto/:slug', (req, res) => {
                     <a href="https://www.youtube.com/channel/UCLBjBEzoQQ5x6DVDPWNqpgA"><i class="fab fa-youtube"></i></a>
                 </div>
             </div>
+            
+            <div class="footer-col">
+                <h3 class="footer-title">Enlaces rápidos</h3>
+                <ul class="footer-links">
+                    <li><a href="/politica-de-privacidad.html">Política de Privacidad</a></li>
+                    <li><a href="/terminos-y-condiciones.html">Términos y Condiciones</a></li>
+                    <li><a href="/cambios-devoluciones.html">Cambios y Devoluciones</a></li>
+                    <li><a href="/sobre-nosotros.html">Sobre nosotros</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-col">
+                <h3 class="footer-title">Servicio al cliente</h3>
+                <ul class="footer-links">
+                    <li><a href="/guia-de-tallas.html">Guía de tallas</a></li>
+                    <li><a href="/guia-compras.html">Guía de compras</a></li>
+                    <li><a href="/metodos-pago.html">Métodos de pago</a></li>
+                    <li><a href="/contacto.html">Contacto</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-col">
+                <h3 class="footer-title">Contacto</h3>
+                <ul class="footer-contact">
+                    <li><i class="fas fa-map-marker-alt"></i> Santa Anita, Lima</li>
+                    <li><i class="fas fa-phone"></i> +51 968 786 648</li>
+                    <li><i class="fas fa-envelope"></i> contacto@goldinfiniti.com</li>
+                    <li><i class="fas fa-file-alt"></i> RUC: 20613360281</li>
+                </ul>
+                <div class="complaints-book" style="margin-top:25px;">
+                    <a href="/libro-reclamaciones.html" style="color:#d4af37;">Libro de Reclamaciones</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <div class="footer-bottom-container">
+                <div class="version-footer">
+                    <span><strong style="color:#d4af37;">GoldInfiniti</strong> v3.176.0</span>
+                </div>
+                <div class="copyright-section">
+                    <p>© 2026 Goldinfiniti Tech Corp. Todos los derechos reservados.</p>
+                </div>
+                <div class="payment-icons">
+                    <img src="https://goldinfiniti.com/images/tarjetasbanco/visa.svg" alt="Visa" width="40">
+                    <img src="https://goldinfiniti.com/images/tarjetasbanco/mastercard.svg" alt="Mastercard" width="40">
+                    <img src="https://goldinfiniti.com/images/tarjetasbanco/yape.png" alt="Yape" width="40">
+                </div>
+            </div>
         </div>
     </footer>
-    
-    <script src="/js/script.js"></script>
+
+    <script src="https://goldinfiniti.com/js/productos.js"></script>
+    <script src="https://goldinfiniti.com/js/carrito.js"></script>
+    <script src="https://goldinfiniti.com/js/script.js"></script>
+    <script src="https://checkout.culqi.com/js/v4" defer></script>
+    <script src="https://goldinfiniti.com/js/culqiCheckout.js" defer></script>
     <script>window.productoActualId = ${producto.id};</script>
 </body>
 </html>`);
@@ -479,7 +655,7 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
             ${p.descuento ? `<div class="product-badge sale">${p.descuento}</div>` : ''}
             <a href="/producto/${p.slug}">
                 <div class="product-img">
-                    <img src="${p.imagenes[0]}" alt="${p.titulo}" class="product-main-image" loading="lazy">
+                    <img src="https://goldinfiniti.com/${p.imagenes[0]}" alt="${p.titulo}" class="product-main-image" loading="lazy">
                 </div>
                 <div class="product-info">
                     <h3 class="product-title">${p.titulo}</h3>
@@ -545,8 +721,8 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/styles.css">
-    <link rel="shortcut icon" href="/images/logos/faviconn.png" type="image/x-icon">
+    <link rel="stylesheet" href="https://goldinfiniti.com/styles.css">
+    <link rel="shortcut icon" href="https://goldinfiniti.com/images/logos/faviconn.png" type="image/x-icon">
 </head>
 <body>
     <div class="top-bar">
@@ -577,7 +753,7 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
         <div class="header-container">
             <div class="logo">
                 <a href="/">
-                    <img src="/images/logos/logo1.1.png" alt="goldinfiniti" class="logo-img">
+                    <img src="https://goldinfiniti.com/images/logos/logo1.1.png" alt="goldinfiniti" class="logo-img">
                 </a>
             </div>
             <nav class="navbar">
@@ -632,7 +808,7 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
     <footer class="footer" id="footer">
         <div class="footer-container">
             <div class="footer-col footer-about">
-                <img src="/images/logos/logo2.1.png" alt="Goldinfiniti" class="footer-logo">
+                <img src="https://goldinfiniti.com/images/logos/logo2.1.png" alt="Goldinfiniti" class="footer-logo">
                 <p class="footer-about-text">Goldinfiniti Premium E-Commerce</p>
                 <div class="footer-social">
                     <a href="https://www.facebook.com/profile.php?id=61585623818611"><i class="fab fa-facebook-f"></i></a>
@@ -685,18 +861,19 @@ function generarPaginaCategoriaCompleta(res, titulo, productos) {
                     <p>© 2026 Goldinfiniti Tech Corp. Todos los derechos reservados.</p>
                 </div>
                 <div class="payment-icons">
-                    <img src="/images/tarjetasbanco/visa.svg" alt="Visa" width="40">
-                    <img src="/images/tarjetasbanco/mastercard.svg" alt="Mastercard" width="40">
-                    <img src="/images/tarjetasbanco/yape.png" alt="Yape" width="40">
+                    <img src="https://goldinfiniti.com/images/tarjetasbanco/visa.svg" alt="Visa" width="40">
+                    <img src="https://goldinfiniti.com/images/tarjetasbanco/mastercard.svg" alt="Mastercard" width="40">
+                    <img src="https://goldinfiniti.com/images/tarjetasbanco/yape.png" alt="Yape" width="40">
                 </div>
             </div>
         </div>
     </footer>
 
-    <script src="/js/productos.js"></script>
-    <script src="/js/carrito.js"></script>
-    <script src="/js/script.js"></script>
-    <script src="/js/culqiCheckout.js" defer></script>
+    <script src="https://goldinfiniti.com/js/productos.js"></script>
+    <script src="https://goldinfiniti.com/js/carrito.js"></script>
+    <script src="https://goldinfiniti.com/js/script.js"></script>
+    <script src="https://checkout.culqi.com/js/v4" defer></script>
+    <script src="https://goldinfiniti.com/js/culqiCheckout.js" defer></script>
 </body>
 </html>`);
 }
