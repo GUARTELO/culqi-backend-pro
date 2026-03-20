@@ -34,38 +34,17 @@ const app = express();
 // 2. MIDDLEWARES
 // ============================================
 // A. SEGURIDAD - Helmet (VERSIÓN FINAL Y FUNCIONAL)
+// SEGURIDAD - Configuración permisiva pero segura
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: [
-        "'self'",
-        "'unsafe-inline'",
-        "https://fonts.googleapis.com",
-        "https://cdnjs.cloudflare.com",
-        "https://goldinfiniti.com"      // ← ESENCIAL
-      ],
-      scriptSrc: [
-        "'self'",
-        "'unsafe-inline'",                // ← ESENCIAL
-        "https://checkout.culqi.com",
-        "https://www.googletagmanager.com",
-        "https://goldinfiniti.com"        // ← ESENCIAL
-      ],
-      imgSrc: [
-        "'self'",
-        "data:",
-        "https:",
-        "https://goldinfiniti.com",
-        "https://cdn.jsdelivr.net"
-      ],
-      fontSrc: [
-        "'self'",
-        "https://fonts.gstatic.com",
-        "https://cdnjs.cloudflare.com"
-      ],
-      connectSrc: ["'self'", "https://goldinfiniti.com", "https://api.culqi.com"],
-      scriptSrcAttr: ["'unsafe-inline'"],  // ← ESENCIAL para onclick
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com", "https://goldinfiniti.com", "*"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://checkout.culqi.com", "https://www.googletagmanager.com", "https://goldinfiniti.com", "*"],
+      imgSrc: ["'self'", "data:", "https:", "https://goldinfiniti.com", "https://cdn.jsdelivr.net", "*"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "*"],
+      connectSrc: ["'self'", "https://goldinfiniti.com", "https://api.culqi.com", "https://analytics.google.com", "https://www.google-analytics.com", "*"],
+      scriptSrcAttr: ["'unsafe-inline'"],
     },
   },
   crossOriginEmbedderPolicy: false,
