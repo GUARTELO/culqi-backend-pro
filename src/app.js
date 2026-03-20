@@ -149,6 +149,7 @@ app.use(morgan(morganFormat, {
 app.use(requestLogger);
 
 // I. RESPONSE TIME
+// I. RESPONSE TIME
 app.use((req, res, next) => {
   const start = Date.now();
   const originalEnd = res.end;
@@ -162,6 +163,13 @@ app.use((req, res, next) => {
     }
     originalEnd.apply(res, args);
   };
+  next();
+});
+
+// Permitir recursos de goldinfiniti.com (SIN ROMPER NADA)
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
   next();
 });
 
