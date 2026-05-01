@@ -91,12 +91,17 @@ const initializeFirebase = () => {
     // Si se pudo inicializar
     if (admin.apps.length > 0) {
       firestore = admin.firestore();
+      
+      // ✅ NUEVO: Ignorar undefined en Firestore (soluciona error pago.comprobante_url)
+      firestore.settings({ ignoreUndefinedProperties: true });
+      
       auth = admin.auth();
       isInitialized = true;
       
       console.log('✅ Firebase configurado correctamente');
       console.log('📊 Proyecto: mi-tienda-online-10630');
       console.log('📍 Ubicación: nam5 (us-central1)');
+      console.log('🔧 ignoreUndefinedProperties: Activado');
       
     } else {
       console.warn('⚠️ Firebase NO inicializado - Modo sin conexión a BD');
