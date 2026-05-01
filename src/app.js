@@ -32,6 +32,33 @@ const paymentController = require('./api/v1/payments/controller');
 const app = express();
 
 // ============================================
+// 1.5 CONFIGURACIÓN DE TRUST PROXY (NUEVO)
+// ============================================
+
+// ✅ Configuración segura para producción
+if (process.env.NODE_ENV === 'production') {
+    // Render.com usa 1 nivel de proxy (Cloudflare → Render)
+    app.set('trust proxy', 1);
+    
+    // Log para confirmar en producción (usando console.log para no depender de logger)
+    console.log('🔒 Modo producción: Trust proxy activado (1 nivel)');
+    
+    // Middleware opcional para monitorear HTTPS (sin redirección forzada)
+    app.use((req, res, next) => {
+        // Solo log para verificar (sin redirección por ahora)
+        if (req.headers['x-forwarded-proto'] && req.headers['x-forwarded-proto'] !== 'https') {
+            console.log(`⚠️ Petición HTTP detectada: ${req.method} ${req.url}`);
+            // Si quieres redirigir automáticamente a HTTPS, descomenta:
+            // return res.redirect(`https://${req.headers.host}${req.url}`);
+        }
+        next();
+    });
+} else {
+    // Desarrollo local - sin cambios
+    console.log('🔧 Modo desarrollo: Trust proxy desactivado (IPs locales)');
+}
+
+// ============================================
 // 2. MIDDLEWARES (EN ORDEN CORRECTO)
 // ============================================
 
