@@ -13,6 +13,7 @@ const cors = require('cors');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
+const xss = require('xss'); // ✅ NUEVO: Sanitización XSS (versión moderna)
 
 // Importar utilidades
 const logger = require('./core/utils/logger');
@@ -32,7 +33,7 @@ const paymentController = require('./api/v1/payments/controller');
 const app = express();
 
 // ============================================
-// 1.5 CONFIGURACIÓN DE TRUST PROXY (NUEVO)
+// 1.5 CONFIGURACIÓN DE TRUST PROXY
 // ============================================
 
 // ✅ Configuración segura para producción
@@ -40,16 +41,13 @@ if (process.env.NODE_ENV === 'production') {
     // Render.com usa 1 nivel de proxy (Cloudflare → Render)
     app.set('trust proxy', 1);
     
-    // Log para confirmar en producción (usando console.log para no depender de logger)
+    // Log para confirmar en producción
     console.log('🔒 Modo producción: Trust proxy activado (1 nivel)');
     
-    // Middleware opcional para monitorear HTTPS (sin redirección forzada)
+    // Middleware para monitorear HTTPS
     app.use((req, res, next) => {
-        // Solo log para verificar (sin redirección por ahora)
         if (req.headers['x-forwarded-proto'] && req.headers['x-forwarded-proto'] !== 'https') {
             console.log(`⚠️ Petición HTTP detectada: ${req.method} ${req.url}`);
-            // Si quieres redirigir automáticamente a HTTPS, descomenta:
-            // return res.redirect(`https://${req.headers.host}${req.url}`);
         }
         next();
     });
@@ -57,6 +55,64 @@ if (process.env.NODE_ENV === 'production') {
     // Desarrollo local - sin cambios
     console.log('🔧 Modo desarrollo: Trust proxy desactivado (IPs locales)');
 }
+
+// ============================================
+// 1.6 HTTPS FORZADO (NUEVO - OBLIGATORIO)
+// ============================================
+
+if (process.env.NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+        // Verificar si la conexión es HTTPS
+        const isHttps = req.headers['x-forwarded-proto'] === 'https';
+        const isLocalRequest = req.headers.host === 'localhost' || req.headers.host === '127.0.0.1';
+        
+        if (!isHttps && !isLocalRequest) {
+            // Construir URL HTTPS
+            const httpsUrl = `https://${req.headers.host}${req.url}`;
+            
+            // Log para monitoreo
+            console.log(`🔒 Redirigiendo HTTP a HTTPS: ${req.method} ${req.url}`);
+            
+            // Redirigir permanentemente (301)
+            return res.redirect(301, httpsUrl);
+        }
+        
+        next();
+    });
+    console.log('🔒 HTTPS forzado: Activado');
+}
+
+// ============================================
+// 1.7 XSS SANITIZATION (NUEVO - RECOMENDADO)
+// ============================================
+
+// Middleware para sanitizar entradas contra XSS
+app.use((req, res, next) => {
+    if (req.body) {
+        // Sanitizar cada campo del body
+        const sanitizeObject = (obj) => {
+            if (!obj) return obj;
+            if (typeof obj === 'string') {
+                return xss(obj); // Limpia strings
+            }
+            if (Array.isArray(obj)) {
+                return obj.map(item => sanitizeObject(item));
+            }
+            if (typeof obj === 'object') {
+                const sanitized = {};
+                for (const [key, value] of Object.entries(obj)) {
+                    sanitized[key] = sanitizeObject(value);
+                }
+                return sanitized;
+            }
+            return obj;
+        };
+        
+        req.body = sanitizeObject(req.body);
+    }
+    next();
+});
+console.log('🧹 XSS sanitization: Activado (xss moderno)');
 
 // ============================================
 // 2. MIDDLEWARES (EN ORDEN CORRECTO)
@@ -84,14 +140,14 @@ const corsOptions = {
     const allowedOrigins = [
       'https://goldinfiniti.com',      // TU DOMINIO
       'https://www.goldinfiniti.com',  // TU DOMINIO con www
-      'http://127.0.0.1:5502',         // ← AÑADE ESTO
-      'http://localhost:5502',         // ← AÑADE ESTO
-      'http://localhost:3000',         // ← AÑADE ESTO
-      'http://127.0.0.1:5500',         // ← AÑADE ESTA LÍNEA (puerto 5500)
-      'http://localhost:5500',         // ← AÑADE ESTA LÍNEA (puerto 5500)
-      'file://',                       // ← AÑADE ESTA LÍNEA (archivos locales)
-      'null',                          // ← AÑADE ESTA LÍNEA (algunos navegadores)
-      undefined,                       // Para peticiones sin origen
+      'http://127.0.0.1:5502',
+      'http://localhost:5502',
+      'http://localhost:3000',
+      'http://127.0.0.1:5500',
+      'http://localhost:5500',
+      'file://',
+      'null',
+      undefined,
     ];
     
     if (allowedOrigins.includes(origin) || !origin) {
@@ -135,7 +191,7 @@ app.use(express.urlencoded({
 // D. COMPRESSION - Comprimir respuestas
 app.use(compression({
   level: 6,
-  threshold: 100 * 1024, // Comprimir solo sobre 100KB
+  threshold: 100 * 1024,
   filter: (req, res) => {
     if (req.headers['x-no-compression']) {
       return false;
@@ -170,7 +226,7 @@ app.use((req, res, next) => {
 const morganFormat = process.env.NODE_ENV === 'development' ? 'dev' : 'combined';
 app.use(morgan(morganFormat, { 
   stream: logger.httpStream,
-  skip: (req) => req.path === '/health' // No loggear health checks
+  skip: (req) => req.path === '/health'
 }));
 
 // H. MIDDLEWARE PERSONALIZADO - Request logger
@@ -180,22 +236,18 @@ app.use(requestLogger);
 app.use((req, res, next) => {
   const start = Date.now();
   
-  // Interceptar el método 'end' para medir tiempo
   const originalEnd = res.end;
   res.end = function (...args) {
     const duration = Date.now() - start;
     
-    // Solo agregar header si no ha sido enviado
     if (!res.headersSent) {
       res.setHeader('X-Response-Time', `${duration}ms`);
     }
     
-    // Log solo si es lento (> 1 segundo)
     if (duration > 1000) {
       logger.warn(`Slow request: ${req.method} ${req.path} took ${duration}ms`);
     }
     
-    // Llamar al original
     originalEnd.apply(res, args);
   };
   
@@ -221,31 +273,24 @@ app.get('/', (req, res) => {
     service: 'Culqi Payment Processor + Libro de Reclamaciones INDECOPI',
     version: (() => {
       try {
-        // MISMA LÓGICA QUE /health PERO CON RUTA CORRECTA
-        // 1. Ruta absoluta que funciona en producción
         const fs = require('fs');
         const path = require('path');
         
-        // ESTA es la ruta que realmente funciona (la misma que debería usar /health)
         const versionPath = path.join(process.cwd(), 'src/config/version.json');
         
-        // Verificar si existe antes de requerir
         if (fs.existsSync(versionPath)) {
           const rawData = fs.readFileSync(versionPath, 'utf8');
           const autoVersion = JSON.parse(rawData);
           return autoVersion.version;
         }
         
-        // Si no existe, lanzar error para ir al catch
         throw new Error('version.json no encontrado');
         
       } catch (e) {
         try {
-          // 2. Si falla, usa package.json (EXACTAMENTE como /health)
           const packageJson = require('./package.json');
           return packageJson.version;
         } catch (e2) {
-          // 3. Último recurso: valor por defecto (NO ROMPE NADA)
           return '2.0.0';
         }
       }
@@ -254,6 +299,12 @@ app.get('/', (req, res) => {
     environment: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),
     documentation: 'https://docs.tudominio.com',
+    security: {
+      https_forced: process.env.NODE_ENV === 'production',
+      trust_proxy: true,
+      xss_protection: true,
+      rate_limiting: true,
+    },
     endpoints: {
       health: '/health',
       payments: {
@@ -279,6 +330,7 @@ app.get('/', (req, res) => {
     ]
   });
 });
+
 // ============================================
 // 4. MANEJO DE ERRORES (SISTEMA DE REPARACIÓN)
 // ============================================
@@ -320,7 +372,6 @@ app.use(errorHandler);
 // ============================================
 
 if (process.env.NODE_ENV === 'development') {
-  // Mostrar rutas disponibles al iniciar
   app.on('mount', () => {
     console.log('\n' + '='.repeat(60));
     console.log('🚀 APP.JS CONFIGURADO CORRECTAMENTE');
