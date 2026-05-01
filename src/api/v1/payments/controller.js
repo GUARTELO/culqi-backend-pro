@@ -8,6 +8,7 @@
  * - Marzo: ORD-202603-0001... (se reinicia cada mes)
  * - Sistema de Reclamos Completo: CLAIM-202602-0001...
  * - CORREGIDO: Captura de DNI en todo el flujo
+ * - CORREGIDO: Generación de IDs secuenciales (numero → numeroOrden)
  * ============================================================
  */
 
@@ -123,23 +124,30 @@ class PaymentController {
   }
 
   /* ============================================================
-   * GENERAR ID SECUENCIAL POR MES
+   * GENERAR ID SECUENCIAL POR MES (CORREGIDO)
    * ============================================================
    */
   async _generarOrderIdSecuencial() {
     try {
       const firebase = require('../../../core/config/firebase');
       const firestore = firebase.firestore;
-      const hoy = new Date();
-      const año = hoy.getFullYear();
-      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+      
+      // ✅ FORZAR ZONA HORARIA PERÚ (UTC-5)
+      const ahora = new Date();
+      const offsetPeru = -5 * 60; // Perú está en UTC-5
+      const ahoraPeru = new Date(ahora.getTime() + (offsetPeru * 60 * 1000));
+      
+      const año = ahoraPeru.getUTCFullYear();
+      const mes = String(ahoraPeru.getUTCMonth() + 1).padStart(2, '0');
       const prefijo = `ORD-${año}${mes}`;
       
       logger.info(`🔢 Generando ID secuencial para ${prefijo}...`);
+      logger.info(`📍 Hora servidor UTC: ${ahora.toISOString()}`);
+      logger.info(`📍 Hora Perú: ${ahoraPeru.toISOString()}`);
       
-      // Buscar TODAS las órdenes del mes actual
-      const inicioMes = new Date(año, hoy.getMonth(), 1);
-      const finMes = new Date(año, hoy.getMonth() + 1, 0);
+      // Buscar órdenes del mes actual (usando fecha Perú)
+      const inicioMes = new Date(Date.UTC(año, ahoraPeru.getUTCMonth(), 1));
+      const finMes = new Date(Date.UTC(año, ahoraPeru.getUTCMonth() + 1, 0));
       
       const snapshot = await firestore
         .collection('ordenes')
@@ -153,7 +161,8 @@ class PaymentController {
       
       if (!snapshot.empty) {
         const ultimaOrden = snapshot.docs[0].data();
-        const ultimoNumero = ultimaOrden.numero || ultimaOrden.id;
+        // ✅ CORREGIDO: usar 'numeroOrden' en lugar de 'numero'
+        const ultimoNumero = ultimaOrden.numeroOrden || ultimaOrden.id;
         
         if (ultimoNumero && ultimoNumero.startsWith(prefijo)) {
           const partes = ultimoNumero.split('-');
@@ -164,6 +173,8 @@ class PaymentController {
             }
           }
           logger.info(`📊 Último número: ${ultimoNumero}, Siguiente: ${siguienteNumero}`);
+        } else {
+          logger.info(`📊 No hay órdenes previas con prefijo ${prefijo}, iniciando desde 1`);
         }
       } else {
         logger.info(`📊 Primer orden del mes ${prefijo}`);
@@ -176,15 +187,16 @@ class PaymentController {
     } catch (error) {
       logger.error('❌ Error generando ID secuencial:', error);
       
-      // Fallback
-      const hoy = new Date();
-      const año = hoy.getFullYear();
-      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+      // Fallback con hora Perú
+      const ahora = new Date();
+      const offsetPeru = -5 * 60;
+      const ahoraPeru = new Date(ahora.getTime() + (offsetPeru * 60 * 1000));
+      const año = ahoraPeru.getUTCFullYear();
+      const mes = String(ahoraPeru.getUTCMonth() + 1).padStart(2, '0');
       const timestamp = Date.now().toString().slice(-6);
       return `ORD-${año}${mes}-${timestamp}`;
     }
   }
-
   /* ============================================================
    * GENERAR ID SECUENCIAL PARA RECLAMOS
    * ============================================================
