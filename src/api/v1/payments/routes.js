@@ -215,12 +215,6 @@ router.post('/process', paymentController.processPayment);
 
 
 // ======================================================
-// CONSULTAR RUC EN SUNAT  ← AGREGAR AQUÍ
-// ======================================================
-router.get('/consultar-ruc', paymentController.consultarRuc);
-
-
-// ======================================================
 // ENDPOINT DE PRUEBA (SOLO DESARROLLO)
 // ======================================================
 
