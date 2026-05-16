@@ -119,6 +119,7 @@ class PaymentController {
     this.getStats = this.getStats.bind(this);
     this.verifyPayment = this.verifyPayment.bind(this);
     this.getServiceInfo = this.getServiceInfo.bind(this);
+    this.consultarRuc = this.consultarRuc.bind(this);
     
     logger.info('🚀 PaymentController (Firebase + Reclamos) inicializado');
   }
@@ -2370,6 +2371,130 @@ async _generarIdDiarioComoFrontend() {
         receipts: 'Comprobantes electrónicos'
       }
     });
+  }
+
+
+     /* ============================================================
+   * CONSULTAR RUC EN SUNAT VÍA LATINFO
+   * ============================================================
+   * ENDPOINT: GET /api/v1/payments/consultar-ruc?ruc=20613360281
+   * RESPETA EL FORMATO DE RESPUESTA DE TU SISTEMA
+   * USA @carrerahaus/latinfo (GRATIS) + FALLBACK A APIS.NET.PE
+   * ============================================================
+   */
+  async consultarRuc(req, res) {
+    const startTime = Date.now();
+    const { ruc } = req.query;
+    const requestId = req.id || `consulta_${Date.now()}`;
+    
+    // Validar formato de RUC (11 dígitos)
+    if (!ruc || !/^\d{11}$/.test(ruc)) {
+      logger.warn(`RUC inválido: ${ruc}`, { requestId });
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_RUC',
+          message: 'El RUC debe tener 11 dígitos',
+          timestamp: new Date().toISOString()
+        },
+        metadata: {
+          response_time: `${Date.now() - startTime}ms`,
+          golden_infinity: true
+        }
+      });
+    }
+    
+    logger.info(`🔍 Consultando RUC en SUNAT: ${ruc}`, { requestId });
+    
+    // Función auxiliar para respuesta exitosa
+    const sendSuccessResponse = (razonSocial, direccion, source = 'latinfo') => {
+      return res.status(200).json({
+        success: true,
+        razonSocial: razonSocial,
+        direccion: direccion || '',
+        ruc: ruc,
+        source: source,
+        metadata: {
+          response_time: `${Date.now() - startTime}ms`,
+          timestamp: new Date().toISOString(),
+          golden_infinity: true
+        }
+      });
+    };
+    
+    try {
+      // ✅ NUEVA VERSIÓN DEL PAQUETE
+      const latinfo = require('@carrerahaus/latinfo');
+      const resultado = await latinfo.ruc(ruc);
+      
+      if (resultado && resultado.razon_social) {
+        logger.info(`✅ RUC encontrado con Latinfo: ${ruc}`, { 
+          razonSocial: resultado.razon_social.substring(0, 50)
+        });
+        return sendSuccessResponse(
+          resultado.razon_social,
+          resultado.direccion_fiscal || resultado.direccion || '',
+          'latinfo'
+        );
+      }
+      
+      // SI LATINFO NO DEVUELVE DATOS, INTENTAR FALLBACK
+      logger.info(`🔄 Latinfo sin datos para ${ruc}, intentando fallback...`);
+      
+      const fetch = require('node-fetch');
+      const fallbackResponse = await fetch(`https://apis.net.pe/api/v1/ruc?numero=${ruc}`, {
+        timeout: 5000
+      });
+      
+      if (fallbackResponse.ok) {
+        const fallbackData = await fallbackResponse.json();
+        
+        if (fallbackData && fallbackData.razon_social) {
+          logger.info(`✅ RUC encontrado con fallback: ${ruc}`);
+          return sendSuccessResponse(
+            fallbackData.razon_social,
+            fallbackData.direccion || '',
+            'apis_net_pe_fallback'
+          );
+        }
+      }
+      
+      // SI NINGUNA FUNCIONA, RUC NO ENCONTRADO
+      logger.warn(`❌ RUC no encontrado en ninguna fuente: ${ruc}`);
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'RUC_NOT_FOUND',
+          message: 'RUC no encontrado en SUNAT. Verifique el número e intente nuevamente.',
+          timestamp: new Date().toISOString()
+        },
+        metadata: {
+          response_time: `${Date.now() - startTime}ms`,
+          golden_infinity: true
+        }
+      });
+      
+    } catch (error) {
+      // ERROR EN LA CONSULTA
+      logger.error(`❌ Error consultando RUC ${ruc}`, {
+        error: error.message,
+        stack: error.stack
+      });
+      
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: 'SUNAT_SERVICE_ERROR',
+          message: 'Error al consultar SUNAT. Intente nuevamente en unos segundos.',
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+          timestamp: new Date().toISOString()
+        },
+        metadata: {
+          response_time: `${Date.now() - startTime}ms`,
+          golden_infinity: true
+        }
+      });
+    }
   }
 }
 
