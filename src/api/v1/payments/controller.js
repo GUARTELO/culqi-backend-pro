@@ -2375,21 +2375,19 @@ async _generarIdDiarioComoFrontend() {
 
 
      /* ============================================================
-   * CONSULTAR RUC EN SUNAT VÍA LATINFO
+   * CONSULTAR RUC EN SUNAT VÍA APIS.NET.PE
    * ============================================================
    * ENDPOINT: GET /api/v1/payments/consultar-ruc?ruc=20613360281
-   * RESPETA EL FORMATO DE RESPUESTA DE TU SISTEMA
-   * USA @carrerahaus/latinfo (GRATIS) + FALLBACK A APIS.NET.PE
+   * USA SOLO APIS.NET.PE (GRATIS, SIN DEPENDENCIAS COMPLEJAS)
    * ============================================================
    */
   async consultarRuc(req, res) {
     const startTime = Date.now();
     const { ruc } = req.query;
-    const requestId = req.id || `consulta_${Date.now()}`;
     
     // Validar formato de RUC (11 dígitos)
     if (!ruc || !/^\d{11}$/.test(ruc)) {
-      logger.warn(`RUC inválido: ${ruc}`, { requestId });
+      logger.warn(`RUC inválido: ${ruc}`);
       return res.status(400).json({
         success: false,
         error: {
@@ -2404,68 +2402,44 @@ async _generarIdDiarioComoFrontend() {
       });
     }
     
-    logger.info(`🔍 Consultando RUC en SUNAT: ${ruc}`, { requestId });
-    
-    // Función auxiliar para respuesta exitosa
-    const sendSuccessResponse = (razonSocial, direccion, source = 'latinfo') => {
-      return res.status(200).json({
-        success: true,
-        razonSocial: razonSocial,
-        direccion: direccion || '',
-        ruc: ruc,
-        source: source,
-        metadata: {
-          response_time: `${Date.now() - startTime}ms`,
-          timestamp: new Date().toISOString(),
-          golden_infinity: true
-        }
-      });
-    };
+    logger.info(`🔍 Consultando RUC en SUNAT: ${ruc}`);
     
     try {
-      // ✅ NUEVA VERSIÓN DEL PAQUETE
-      const latinfo = require('@carrerahaus/latinfo');
-      const resultado = await latinfo.ruc(ruc);
-      
-      if (resultado && resultado.razon_social) {
-        logger.info(`✅ RUC encontrado con Latinfo: ${ruc}`, { 
-          razonSocial: resultado.razon_social.substring(0, 50)
-        });
-        return sendSuccessResponse(
-          resultado.razon_social,
-          resultado.direccion_fiscal || resultado.direccion || '',
-          'latinfo'
-        );
-      }
-      
-      // SI LATINFO NO DEVUELVE DATOS, INTENTAR FALLBACK
-      logger.info(`🔄 Latinfo sin datos para ${ruc}, intentando fallback...`);
-      
+      // USAR SOLO APIS.NET.PE (sin Latinfo)
       const fetch = require('node-fetch');
-      const fallbackResponse = await fetch(`https://apis.net.pe/api/v1/ruc?numero=${ruc}`, {
-        timeout: 5000
+      const response = await fetch(`https://apis.net.pe/api/v1/ruc?numero=${ruc}`, {
+        timeout: 10000
       });
       
-      if (fallbackResponse.ok) {
-        const fallbackData = await fallbackResponse.json();
-        
-        if (fallbackData && fallbackData.razon_social) {
-          logger.info(`✅ RUC encontrado con fallback: ${ruc}`);
-          return sendSuccessResponse(
-            fallbackData.razon_social,
-            fallbackData.direccion || '',
-            'apis_net_pe_fallback'
-          );
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
       
-      // SI NINGUNA FUNCIONA, RUC NO ENCONTRADO
-      logger.warn(`❌ RUC no encontrado en ninguna fuente: ${ruc}`);
+      const data = await response.json();
+      
+      if (data && data.razon_social) {
+        logger.info(`✅ RUC encontrado: ${ruc} - ${data.razon_social}`);
+        return res.status(200).json({
+          success: true,
+          razonSocial: data.razon_social,
+          direccion: data.direccion || '',
+          ruc: ruc,
+          source: 'apis_net_pe',
+          metadata: {
+            response_time: `${Date.now() - startTime}ms`,
+            timestamp: new Date().toISOString(),
+            golden_infinity: true
+          }
+        });
+      }
+      
+      // RUC no encontrado
+      logger.warn(`❌ RUC no encontrado: ${ruc}`);
       return res.status(404).json({
         success: false,
         error: {
           code: 'RUC_NOT_FOUND',
-          message: 'RUC no encontrado en SUNAT. Verifique el número e intente nuevamente.',
+          message: 'RUC no encontrado en SUNAT. Verifique el número.',
           timestamp: new Date().toISOString()
         },
         metadata: {
@@ -2475,18 +2449,15 @@ async _generarIdDiarioComoFrontend() {
       });
       
     } catch (error) {
-      // ERROR EN LA CONSULTA
       logger.error(`❌ Error consultando RUC ${ruc}`, {
-        error: error.message,
-        stack: error.stack
+        error: error.message
       });
       
       return res.status(500).json({
         success: false,
         error: {
           code: 'SUNAT_SERVICE_ERROR',
-          message: 'Error al consultar SUNAT. Intente nuevamente en unos segundos.',
-          details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+          message: 'Error al consultar SUNAT. Intente nuevamente.',
           timestamp: new Date().toISOString()
         },
         metadata: {
