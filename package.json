@@ -1,6 +1,6 @@
 {
   "name": "culqi-backend-pro",
-  "version": "1.0.48",
+  "version": "1.0.49",
   "description": "Backend profesional para procesamiento de pagos con Culqi",
   "main": "server.js",
   "scripts": {
@@ -29,6 +29,7 @@
   "author": "Culqi Backend Team",
   "license": "MIT",
   "dependencies": {
+    "@carrerahaus/latinfo": "^0.21.2",
     "@sendgrid/mail": "^8.1.6",
     "axios": "^1.6.0",
     "compression": "^1.7.4",
@@ -44,6 +45,7 @@
     "mongoose": "^8.0.3",
     "morgan": "^1.10.0",
     "node-cache": "^5.1.2",
+    "node-fetch": "^2.7.0",
     "nodemailer": "^7.0.11",
     "pdfkit": "^0.17.2",
     "uuid": "^9.0.1",
