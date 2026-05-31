@@ -661,7 +661,7 @@ function _generateGoldenInfinityEmail(firebaseData) {
           </p>
           <p style="margin-bottom: 10px; font-size: 11px;">
             📧 contacto@goldinfiniti.com | 🌐 www.goldinfiniti.com<br>
-            📞 +51 968 786 648 | 🏢 Cal. Hermanos Ayar Nro. 549 Coo. Chancas de Andahuaylas Et. Santa Anita,Lima
+            📞 +51 968 786 648 | 🏢 C.CHANCAS DE ANDAHUAYLAS MZ. G-1 LT.24 LIMA-SANTA ANITA
           </p>
           <p style="font-size: 10px; color: #999; margin-top: 15px;">
             © ${new Date().getFullYear()} Goldinfiniti Tech Corp. Sistema Automatico de notificaciones.<br>
@@ -1619,7 +1619,7 @@ function _generateClaimEmail(claimData) {
           </p>
           <p style="margin-bottom: 10px; font-size: 11px;">
             📧 contacto@goldinfiniti.com | 🌐 www.goldinfiniti.com<br>
-            📞 +51 968 786 648 | 🏢 Cal. Hermanos Ayar Nro. 549 Coo. Chancas de Andahuaylas Et. Santa Anita.Lima, Perú
+            📞 +51 968 786 648 | 🏢 C.CHANCAS DE ANDAHUAYLAS MZ. G-1 LT.24 LIMA-SANTA ANITA
           </p>
           <p style="font-size: 10px; color: #999; margin-top: 15px;">
             © ${new Date().getFullYear()} Goldinfiniti Tech Corp. Sistema Automatico de Notificaciones.<br>
