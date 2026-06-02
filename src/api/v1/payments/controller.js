@@ -564,11 +564,6 @@ logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
       );
     }
   }
-
-  /* ============================================================
-   * 🆕 PROCESAR RECLAMO - SISTEMA COMPLETO PROFESIONAL
-   * ============================================================
-   */
    /* ============================================================
    * 🆕 PROCESAR RECLAMO - SISTEMA COMPLETO PROFESIONAL
    * ============================================================
@@ -1288,31 +1283,32 @@ logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
     const nombreCompleto = `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim();
     
     return {
-      token: token.trim(),
-      amount: Number(amount),
-      currency_code: 'PEN',
-      email: email.toLowerCase().trim(),
-      description: `Goldinfiniti - Orden ${orderId}`,
-      antifraud_details: {
-        customer_ip: req?.ip || '127.0.0.1',
-        customer_device: req?.get('User-Agent') || 'Web Browser',
-        first_name: cliente.nombre || '',
-        last_name: cliente.apellido || ''
-      },
-      metadata: {
-        order_id: orderId,
-        cliente_id: cliente.id,
-        cliente_nombre: nombreCompleto,
-        cliente_dni: cliente.dni || '', // ✅ AÑADIR DNI A METADATA DE CULQI
-        cliente_telefono: cliente.telefono || '',
-        firebase_doc_id: metadata?.firebaseDocId,
-        productos_count: metadata?.productosCount || 0,
-        tipo_compra: metadata?.tipoCompra || 'directa',
-        golden_infinity: true,
-        timestamp: new Date().toISOString()
-      }
+        token: token.trim(),
+        amount: Number(amount),
+        currency_code: 'PEN',
+        email: email.toLowerCase().trim(),
+        description: `Goldinfiniti - Orden ${orderId}`,
+        order_id: orderId,  // ← ✅ AGREGAR ESTA LÍNEA
+        antifraud_details: {
+            customer_ip: req?.ip || '127.0.0.1',
+            customer_device: req?.get('User-Agent') || 'Web Browser',
+            first_name: cliente.nombre || '',
+            last_name: cliente.apellido || ''
+        },
+        metadata: {
+            order_id: orderId,
+            cliente_id: cliente.id,
+            cliente_nombre: nombreCompleto,
+            cliente_dni: cliente.dni || '',
+            cliente_telefono: cliente.telefono || '',
+            firebase_doc_id: metadata?.firebaseDocId,
+            productos_count: metadata?.productosCount || 0,
+            tipo_compra: metadata?.tipoCompra || 'directa',
+            golden_infinity: true,
+            timestamp: new Date().toISOString()
+        }
     };
-  }
+}
 
   _prepareEmailData(paymentId, culqiResult, firebaseData) {
     const { cliente, comprobante, envio, productos, resumen, metadata, ordenId } = firebaseData;
