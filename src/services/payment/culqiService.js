@@ -146,11 +146,10 @@ class CulqiService {
   }
 
 
-    /* ============================================================
-   * ORDERS (YAPE / PLIN / CHECKOUT)
-   * ============================================================
-   */
-  async createOrder(data) {
+
+
+  
+    async createOrder(data) {
     this._checkCircuit();
 
     try {
@@ -225,7 +224,9 @@ class CulqiService {
     }
   }
 
-  
+
+
+
   async getCharge(chargeId) {
     try {
       const response = await this.http.get(`/charges/${chargeId}`);
