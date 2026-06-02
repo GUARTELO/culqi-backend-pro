@@ -245,6 +245,9 @@ router.get('/stats', paymentController.getStats);
 
 router.get('/verify/:paymentId', paymentController.verifyPayment);
 
+// ✅ NUEVA RUTA PARA YAPE, PLIN, PAGOEFECTIVO
+router.post('/create-order', paymentController.createOrder);
+
 router.get('/health', (req, res) => {
     return sendJson(res, 200, {
         success: true,
@@ -496,6 +499,7 @@ if (!IS_PRODUCTION) {
                 'POST   /api/v1/payments/process',
                 'GET    /api/v1/payments/stats',
                 'GET    /api/v1/payments/verify/:paymentId',
+                'POST   /api/v1/payments/create-order',
                 'GET    /api/v1/payments/health',
                 'GET    /api/v1/payments/methods',
                 'POST   /api/v1/payments/webhook',
