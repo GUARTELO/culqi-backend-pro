@@ -2332,6 +2332,69 @@ async _generarIdDiarioComoFrontend() {
     }
   }
   
+
+   /**
+   * Crear orden en Culqi (para YAPE, Plin, PagoEfectivo, etc.)
+   */
+  async createOrder(req, res) {
+    const startTime = Date.now();
+    const requestId = req.id || `order_${uuidv4().substring(0, 8)}`;
+
+    try {
+      const { amount, email, description, order_number, metadata } = req.body;
+
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ success: false, error: 'Monto inválido' });
+      }
+
+      if (!email) {
+        return res.status(400).json({ success: false, error: 'Email requerido' });
+      }
+
+      logger.info(`🛒 Creando orden Culqi: ${requestId}`, { amount, email, order_number });
+
+      const orderData = await culqiService.createOrder({
+        amount: amount,
+        email: email,
+        description: description || 'Compra en Goldinfiniti',
+        order_number: order_number || `ORD-${Date.now()}`,
+        metadata: metadata || {}
+      });
+
+      logger.info(`✅ Orden Culqi creada: ${orderData.id}`, {
+        requestId,
+        orderId: orderData.id,
+        amount: orderData.amount,
+        state: orderData.state,
+        duration: `${Date.now() - startTime}ms`
+      });
+
+      res.status(200).json({
+        success: true,
+        order_id: orderData.id,
+        id: orderData.id,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        payment_code: orderData.payment_code,
+        qr: orderData.qr,
+        checkout_url: orderData.checkout_url,
+        state: orderData.state
+      });
+
+    } catch (error) {
+      logger.error(`❌ Error creando orden Culqi: ${requestId}`, {
+        error: error.message,
+        duration: `${Date.now() - startTime}ms`
+      });
+
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Error creando orden de pago'
+      });
+    }
+  }
+
+
   async getServiceInfo(req, res) {
     res.status(200).json({
       success: true,
