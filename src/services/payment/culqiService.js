@@ -145,6 +145,160 @@ class CulqiService {
     }
   }
 
+
+  /* ============================================================
+ * ORDERS (YAPE / PLIN / CHECKOUT)
+ * ============================================================
+ */
+async createOrder(data) {
+  this._checkCircuit();
+
+  try {
+    /* =========================
+     * VALIDACIONES BÁSICAS
+     * ========================= */
+    if (!data.amount || typeof data.amount !== 'number') {
+      throw {
+        culqiError: true,
+        code: 'INVALID_AMOUNT',
+        message: 'Monto inválido',
+        statusCode: 400,
+      };
+    }
+
+    if (!data.email) {
+      throw {
+        culqiError: true,
+        code: 'EMAIL_REQUIRED',
+        message: 'Email requerido',
+        statusCode: 400,
+      };
+    }
+
+    /* =========================
+     * PAYLOAD CULQI ORDER
+     * ========================= */
+    const payload = {
+      amount: Math.round(data.amount * 100),
+
+      currency_code:
+        data.currency_code || 'PEN',
+
+      description:
+        data.description || 'Compra Online',
+
+      order_number:
+        data.order_number ||
+        `ORD-${Date.now()}`,
+
+      client_details: {
+        first_name:
+          data.first_name || 'Cliente',
+
+        last_name:
+          data.last_name || 'Online',
+
+        email: data.email,
+
+        phone_number: String(
+          data.phone_number || '999999999'
+        ).replace(/\D/g, ''),
+      },
+
+      /* =========================
+       * 30 MIN EXPIRATION
+       * ========================= */
+      expiration_date:
+        Math.floor(Date.now() / 1000) + (60 * 30),
+
+      /*
+       * false =
+       * checkout Culqi
+       * Yape
+       * Plin
+       * PagoEfectivo
+       */
+      confirm: false,
+
+      metadata: {
+        ...data.metadata,
+      },
+    };
+
+    logger.info('🛒 Creando ORDEN CULQI', {
+      order_number: payload.order_number,
+      amount: payload.amount,
+      email: payload.client_details.email,
+    });
+
+    /* =========================
+     * REQUEST CULQI
+     * ========================= */
+    const response = await this.http.post(
+      '/orders',
+      payload
+    );
+
+    logger.info('✅ ORDEN CULQI CREADA', {
+      orderId: response.data.id,
+      order_number: response.data.order_number,
+      state: response.data.state,
+    });
+
+    /* =========================
+     * RESPONSE NORMALIZADA
+     * ========================= */
+    return {
+      id: response.data.id,
+
+      order_number:
+        response.data.order_number,
+
+      amount:
+        response.data.amount / 100,
+
+      currency:
+        response.data.currency_code,
+
+      payment_code:
+        response.data.payment_code,
+
+      qr:
+        response.data.qr || null,
+
+      cuotealo:
+        response.data.cuotealo || null,
+
+      creation_date:
+        response.data.creation_date,
+
+      expiration_date:
+        response.data.expiration_date,
+
+      state:
+        response.data.state,
+
+      checkout_url:
+        response.data.payment_url ||
+        response.data.url ||
+        null,
+
+      _raw:
+        process.env.NODE_ENV === 'development'
+          ? response.data
+          : undefined,
+    };
+
+  } catch (error) {
+    logger.error('❌ ERROR CREANDO ORDER CULQI', {
+      error: error.message,
+    });
+
+    throw this._transformError(error);
+  }
+}
+
+
   async getCharge(chargeId) {
     try {
       const response = await this.http.get(`/charges/${chargeId}`);
