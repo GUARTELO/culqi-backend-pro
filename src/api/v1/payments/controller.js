@@ -22,7 +22,7 @@ const logger = require('../../../core/utils/logger');
 const { v4: uuidv4 } = require('uuid');
 
 // Servicios
-const culqiService = require(path.join(__dirname, '../../../../services/payment/culqiService'));
+const culqiService = require(path.join(__dirname, '../../../../src/services/payment/culqiService'));
 
 // Servicio de Email
 let emailService;
