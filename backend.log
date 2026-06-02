@@ -1,0 +1,14 @@
+[32minfo[39m: CulqiService inicializado {"baseURL":"https://api.culqi.com/v2","environment":"development","service":"culqi-backend","timestamp":"2026-06-02 13:45:41"}
+[32minfo[39m: ­ƒöä PaymentController: Inicializando servicio de email... {"service":"culqi-backend","timestamp":"2026-06-02 13:45:41"}
+­ƒôº Nodemailer cargado correctamente {}
+­ƒôº PDFKit cargado correctamente {}
+­ƒöì [EMAIL DEBUG] Verificando variables de entorno:
+   GMAIL_USER: cirobriones99@gmail.com
+   GMAIL_APP_PASSWORD existe?: true
+   Longitud password: 16
+Ô£à [EMAIL DEBUG] Creando transporter REAL con Gmail
+[32minfo[39m: Ô£à EmailService cargado correctamente {"service":"culqi-backend","timestamp":"2026-06-02 13:45:45"}
+[32minfo[39m: ­ƒÜÇ PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend","timestamp":"2026-06-02 13:45:45"}
+­ƒöº Modo desarrollo: Trust proxy desactivado (IPs locales)
+­ƒº╣ XSS sanitization: Activado (xss moderno)
+[31merror[39m: Uncaught Exception {"error":{"address":"0.0.0.0","code":"EADDRINUSE","errno":-4091,"port":3000,"syscall":"listen"},"service":"culqi-backend","timestamp":"2026-06-02 13:45:45"}

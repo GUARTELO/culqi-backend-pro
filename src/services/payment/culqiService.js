@@ -148,7 +148,18 @@ class CulqiService {
 
 
 
-  
+  // ✅ CORREGIDO - usa this.http
+async captureOrder(orderId) {
+    try {
+        const response = await this.http.post(`/orders/${orderId}/capture`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+
+
     async createOrder(data) {
     this._checkCircuit();
 

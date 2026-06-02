@@ -441,17 +441,27 @@ async _generarIdDiarioComoFrontend() {
        * =======================
        */
       logger.info(`⚡ Procesando pago Culqi ${paymentId}`);
-      const culqiResult = await culqiService.createCharge(culqiData);
-      
-      if (!culqiResult || !culqiResult.id) {
-        throw this._error('CULQI_PROCESSING_FAILED', 'Error procesando pago con Culqi', 502);
-      }
 
-      logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
-        culqiId: culqiResult.id,
-        amount: culqiResult.amount,
-        status: culqiResult.status
-      });
+// ✅ DETECTAR SI ES YAPE (ord_live_) O TARJETA (tkn_live_)
+let culqiResult;
+if (token.startsWith('ord_live_')) {
+    // Es YAPE, Plin o PagoEfectivo
+    logger.info(`🔄 Capturando orden YAPE: ${token}`);
+    culqiResult = await culqiService.captureOrder(token);
+} else {
+    // Es tarjeta
+    culqiResult = await culqiService.createCharge(culqiData);
+}
+
+if (!culqiResult || !culqiResult.id) {
+    throw this._error('CULQI_PROCESSING_FAILED', 'Error procesando pago con Culqi', 502);
+}
+
+logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
+    culqiId: culqiResult.id,
+    amount: culqiResult.amount,
+    status: culqiResult.status
+});
 
       /* =======================
        * 4. PREPARAR DATOS PARA EMAIL (CON TODA LA INFO FIREBASE)
