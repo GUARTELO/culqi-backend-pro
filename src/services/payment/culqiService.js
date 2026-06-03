@@ -962,19 +962,19 @@ const country =
     // ============================================================
 
     const payload = {
-        amount: Math.round(Number(data.amount) * 100),
+    amount: Number(data.amount),  // ← ELIMINA Math.round(* 100)
 
-        currency_code: data.currency_code || 'PEN',
+    currency_code: data.currency_code || 'PEN',
 
-        email: data.email,
+    email: data.email,
 
-        source_id: data.token || data.source_id,
+    source_id: data.token || data.source_id,
 
-        description:
-            data.description ||
-            `Compra GoldInfiniti - ${data.email}`,
+    description:
+        data.description ||
+        `Compra GoldInfiniti - ${data.email}`,
 
-        capture: data.capture !== false,
+    capture: data.capture !== false,
 
         // ========================================================
         // DEVICE / FRAUD
