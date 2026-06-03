@@ -103,10 +103,12 @@ class CulqiService {
 
         this._setupInterceptors();
 
+
         logger.info('CulqiService initialized', {
             environment: process.env.NODE_ENV,
             baseURL: this.baseURL
         });
+        
     }
 
     /* ============================================================
@@ -195,12 +197,19 @@ class CulqiService {
         );
     }
 
-    /* ============================================================
-     * CHARGES
+  /* ============================================================
+     * HELPERS (NUEVO)
      * ============================================================
      */
 
-    /* ============================================================
+    _safeString(value) {
+        if (!value) return undefined;
+        const str = String(value).trim();
+        return str.length > 0 ? str : undefined;
+    }
+
+    
+  /* ============================================================
  * CHARGES
  * ============================================================
  */
