@@ -30,6 +30,7 @@
   "license": "MIT",
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
+    "@types/node": "^25.9.1",
     "axios": "^1.6.0",
     "compression": "^1.7.4",
     "cors": "^2.8.5",
@@ -48,7 +49,8 @@
     "nodemailer": "^7.0.11",
     "pdfkit": "^0.17.2",
     "uuid": "^9.0.1",
-    "winston": "^3.11.0",
+    "validator": "^13.15.35",
+    "winston": "^3.19.0",
     "xss": "^1.0.15"
   },
   "devDependencies": {
