@@ -442,19 +442,31 @@ async _generarIdDiarioComoFrontend() {
        */
       logger.info(`⚡ Procesando pago Culqi ${paymentId}`);
 
-// ✅ DETECTAR SI ES YAPE (ord_live_) O TARJETA (tkn_live_)
 let culqiResult;
+
+// Yape / Plin / PagoEfectivo
 if (token.startsWith('ord_live_')) {
-    // Es YAPE, Plin o PagoEfectivo
-    logger.info(`🔄 Capturando orden YAPE: ${token}`);
+
+    logger.info(`🟣 CAPTURANDO ORDEN DIGITAL: ${token}`);
+
     culqiResult = await culqiService.captureOrder(token);
-} else {
-    // Es tarjeta
+
+} 
+
+// Tarjeta
+else {
+
+    logger.info(`💳 CREANDO CHARGE TARJETA`);
+
     culqiResult = await culqiService.createCharge(culqiData);
 }
 
 if (!culqiResult || !culqiResult.id) {
-    throw this._error('CULQI_PROCESSING_FAILED', 'Error procesando pago con Culqi', 502);
+    throw this._error(
+        'CULQI_PROCESSING_FAILED',
+        'Error procesando pago con Culqi',
+        502
+    );
 }
 
 logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
@@ -462,7 +474,6 @@ logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
     amount: culqiResult.amount,
     status: culqiResult.status
 });
-
       /* =======================
        * 4. PREPARAR DATOS PARA EMAIL (CON TODA LA INFO FIREBASE)
        * =======================
@@ -1278,23 +1289,43 @@ logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
    * MÉTODOS ORIGINALES DE PAYMENT CONTROLLER (NO MODIFICADOS)
    * ============================================================
    */
+_prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
 
-  _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
-    const nombreCompleto = `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim();
-    
+    // ============================================================
+    // NOMBRE COMPLETO REAL
+    // ============================================================
+    const nombreCompleto = `${cliente.nombre || ''} ${cliente.apellido || ''}`
+        .trim()
+        .replace(/\s+/g, ' ');
+
+    const partes = nombreCompleto.split(' ');
+
+    const firstName = (cliente.nombre || partes[0] || 'Cliente').trim();
+
+    const lastName =
+        (cliente.apellido && cliente.apellido.trim()) ||
+        partes.slice(1).join(' ').trim() ||
+        'GoldInfiniti';
+
+    // 🔥 FIX CULQI: nunca vacío
+    const safeLastName = lastName.length > 0 ? lastName : 'GoldInfiniti';
+
     return {
         token: token.trim(),
         amount: Number(amount),
         currency_code: 'PEN',
         email: email.toLowerCase().trim(),
         description: `Goldinfiniti - Orden ${orderId}`,
-        order_id: orderId,  // ← ✅ AGREGAR ESTA LÍNEA
+        order_id: orderId,
+
         antifraud_details: {
             customer_ip: req?.ip || '127.0.0.1',
             customer_device: req?.get('User-Agent') || 'Web Browser',
-            first_name: cliente.nombre || '',
-            last_name: cliente.apellido || ''
+            first_name: firstName,
+            last_name: safeLastName, // 🔥 NUNCA VACÍO
+            phone_number: cliente.telefono || '999999999'
         },
+
         metadata: {
             order_id: orderId,
             cliente_id: cliente.id,
@@ -1309,6 +1340,8 @@ logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
         }
     };
 }
+
+
 
   _prepareEmailData(paymentId, culqiResult, firebaseData) {
     const { cliente, comprobante, envio, productos, resumen, metadata, ordenId } = firebaseData;
