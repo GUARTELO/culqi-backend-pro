@@ -128,22 +128,30 @@ class CulqiService {
    * CHARGES
    * ============================================================
    */
-  async createCharge(data) {
+ async createCharge(data) {
     this._checkCircuit();
 
     this._validateChargeData(data);
 
     try {
-      const payload = this._buildChargePayload(data);
-      const response = await this.http.post('/charges', payload);
-      return this._transformChargeResponse(response.data);
+        const payload = this._buildChargePayload(data);
+        
+        // ✅ LOG PARA VER QUÉ SE ENVÍA A CULQI
+        console.log('🔍🔍🔍 PAYLOAD ENVIADO A CULQI:', JSON.stringify(payload, null, 2));
+        
+        const response = await this.http.post('/charges', payload);
+        return this._transformChargeResponse(response.data);
+        
     } catch (error) {
-      if (error.retryable && (data._retryCount || 0) < MAX_RETRIES) {
-        return this._retryCharge(data, error);
-      }
-      throw error;
+        // ✅ LOG PARA VER EL ERROR REAL DE CULQI
+        console.error('❌ ERROR DE CULQI:', error.response?.data || error.message);
+        
+        if (error.retryable && (data._retryCount || 0) < MAX_RETRIES) {
+            return this._retryCharge(data, error);
+        }
+        throw error;
     }
-  }
+}
 
 
 
@@ -332,21 +340,21 @@ async captureOrder(orderId) {
    */
   _buildChargePayload(data) {
     return {
-      amount: Math.round(data.amount * 100),
-      currency_code: data.currency_code,
-      email: data.email,
-      source_id: data.token,
-      description: data.description || `Pago ${data.email}`,
-      capture: data.capture !== false,
-      metadata: {
-        ...data.metadata,
-        internal_ref: data.order_id || `order_${Date.now()}`,
-        ip: data.ip_address,
-        session_id: data.session_id,
-      },
-      antifraud_details: data.antifraud_details || undefined,
+        amount: Math.round(data.amount * 100),
+        currency_code: data.currency_code,
+        email: data.email,
+        source_id: data.token,  // ← VERIFICAR QUE ESTÉ ASÍ
+        description: data.description || `Pago ${data.email}`,
+        capture: data.capture !== false,
+        metadata: {
+            ...data.metadata,
+            internal_ref: data.order_id || `order_${Date.now()}`,
+            ip: data.ip_address,
+            session_id: data.session_id,
+        },
+        antifraud_details: data.antifraud_details || undefined,
     };
-  }
+}
 
   /* ============================================================
    * TRANSFORMACIONES
