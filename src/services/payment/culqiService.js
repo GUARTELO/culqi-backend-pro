@@ -339,11 +339,26 @@ async captureOrder(orderId) {
    * ============================================================
    */
   _buildChargePayload(data) {
+    // 🔴 LOGS DE DIAGNÓSTICO
+    console.log('🔴🔴🔴 DIAGNÓSTICO CULQI:');
+    console.log('data.token:', data.token);
+    console.log('data.token type:', typeof data.token);
+    console.log('data.token startsWith tkn_live?:', data.token?.startsWith('tkn_live'));
+    console.log('data.amount:', data.amount);
+    console.log('data.email:', data.email);
+    console.log('data.order_id:', data.order_id);
+    
+    // Si el token es inválido, lanzar error explícito
+    if (!data.token || !data.token.startsWith('tkn_live')) {
+        console.error('❌ TOKEN INVÁLIDO EN _buildChargePayload:', data.token);
+        throw new Error(`Token inválido: ${data.token}`);
+    }
+    
     return {
         amount: Math.round(data.amount * 100),
         currency_code: data.currency_code,
         email: data.email,
-        source_id: data.token,  // ← VERIFICAR QUE ESTÉ ASÍ
+        source_id: data.token,
         description: data.description || `Pago ${data.email}`,
         capture: data.capture !== false,
         metadata: {
@@ -355,7 +370,6 @@ async captureOrder(orderId) {
         antifraud_details: data.antifraud_details || undefined,
     };
 }
-
   /* ============================================================
    * TRANSFORMACIONES
    * ============================================================
