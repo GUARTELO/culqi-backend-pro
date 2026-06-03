@@ -208,7 +208,7 @@ class CulqiService {
         return str.length > 0 ? str : undefined;
     }
 
-    
+
   /* ============================================================
  * CHARGES
  * ============================================================
@@ -911,34 +911,39 @@ async createCharge(data) {
             .substring(0, 15);
 
     // ============================================================
-    // DIRECCIÓN
-    // ============================================================
+// DIRECCIÓN (CULQI SAFE - PRODUCCIÓN)
+// ============================================================
 
-    const address =
-        String(
-            data.address ||
-            data.direccion ||
-            'Lima'
-        )
-            .trim()
-            .substring(0, 100);
+const rawAddress =
+    data.address ??
+    data.direccion ??
+    'Lima, Perú';
 
-    const addressCity =
-        String(
-            data.city ||
-            data.ciudad ||
-            'Lima'
-        )
-            .trim()
-            .substring(0, 50);
+const cleanAddress =
+    String(rawAddress)
+        .replace(/\s+/g, ' ')      // espacios múltiples
+        .replace(/[\n\r\t]/g, '')  // caracteres raros
+        .trim();
 
-    const country =
-        String(
-            data.country ||
-            'PE'
-        )
-            .trim()
-            .substring(0, 2);
+const address =
+    cleanAddress &&
+    cleanAddress.toLowerCase() !== 'undefined' &&
+    cleanAddress.toLowerCase() !== 'null' &&
+    cleanAddress.length >= 5
+        ? cleanAddress.substring(0, 100)
+        : 'Lima, Perú';
+
+const addressCity =
+    String(data.city || data.ciudad || 'Lima')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 50);
+
+const country =
+    String(data.country || 'PE')
+        .replace(/\s+/g, '')
+        .trim()
+        .substring(0, 2);
 
     // ============================================================
     // LOGS DEBUG
