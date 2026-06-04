@@ -2372,6 +2372,7 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
   }
   
 
+
    /**
    * Crear orden en Culqi (para YAPE, Plin, PagoEfectivo, etc.)
    */
@@ -2380,58 +2381,96 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
     const requestId = req.id || `order_${uuidv4().substring(0, 8)}`;
 
     try {
-      const { amount, email, description, order_number, metadata } = req.body;
+        const {
+            amount,
+            email,
+            description,
+            order_number,
+            first_name,
+            last_name,
+            phone_number,
+            metadata
+        } = req.body;
 
-      if (!amount || amount <= 0) {
-        return res.status(400).json({ success: false, error: 'Monto inválido' });
-      }
+        if (!amount || amount <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Monto inválido'
+            });
+        }
 
-      if (!email) {
-        return res.status(400).json({ success: false, error: 'Email requerido' });
-      }
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email requerido'
+            });
+        }
 
-      logger.info(`🛒 Creando orden Culqi: ${requestId}`, { amount, email, order_number });
+        logger.info(`🛒 Creando orden Culqi: ${requestId}`, {
+            amount,
+            email,
+            order_number
+        });
 
-      const orderData = await culqiService.createOrder({
-        amount: amount,
-        email: email,
-        description: description || 'Compra en Goldinfiniti',
-        order_number: order_number || `ORD-${Date.now()}`,
-        metadata: metadata || {}
-      });
+        // 1️⃣ CREAR ORDEN (SOLO CREACIÓN)
+        const orderData = await culqiService.createOrder({
+            amount,
+            email,
+            description: description || 'Compra en Goldinfiniti',
+            order_number: order_number || `ORD-${Date.now()}`,
 
-      logger.info(`✅ Orden Culqi creada: ${orderData.id}`, {
-        requestId,
-        orderId: orderData.id,
-        amount: orderData.amount,
-        state: orderData.state,
-        duration: `${Date.now() - startTime}ms`
-      });
+            // 👇 SE AGREGAN SOLO SI EXISTEN (NO ROMPE COMPATIBILIDAD)
+            first_name: first_name || 'Cliente',
+            last_name: last_name || 'GoldInfiniti',
+            phone_number: phone_number || '999999999',
 
-      res.status(200).json({
-        success: true,
-        order_id: orderData.id,
-        id: orderData.id,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        payment_code: orderData.payment_code,
-        qr: orderData.qr,
-        checkout_url: orderData.checkout_url,
-        state: orderData.state
-      });
+            metadata: metadata || {}
+        });
+
+        logger.info(`✅ Orden Culqi creada: ${orderData.id}`, {
+            requestId,
+            orderId: orderData.id,
+            amount: orderData.amount,
+            state: orderData.state,
+            duration: `${Date.now() - startTime}ms`
+        });
+
+        // 2️⃣ 🔥 IMPORTANTE: NO asumir QR aquí
+        // Culqi NO garantiza QR en createOrder
+
+        return res.status(200).json({
+            success: true,
+
+            order_id: orderData.id,
+            id: orderData.id,
+
+            amount: orderData.amount,
+            currency: orderData.currency,
+            state: orderData.state,
+
+            // ⚠️ IMPORTANTE PARA FRONTEND
+            qr: null,
+            payment_code: null,
+            checkout_url: null,
+
+            message: "Orden creada correctamente. Use /orders/:orderId/checkout para generar QR."
+        });
 
     } catch (error) {
-      logger.error(`❌ Error creando orden Culqi: ${requestId}`, {
-        error: error.message,
-        duration: `${Date.now() - startTime}ms`
-      });
+        logger.error(`❌ Error creando orden Culqi: ${requestId}`, {
+            error: error.message,
+            duration: `${Date.now() - startTime}ms`
+        });
 
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Error creando orden de pago'
-      });
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Error creando orden de pago'
+        });
     }
-  }
+}
+
+
+
 
 
   async getServiceInfo(req, res) {
@@ -2474,8 +2513,49 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
       }
     });
   }
-}
 
+
+  /**
+   * 🔥 GENERAR QR REAL (YAPE / PLIN / PAGOEFECTIVO)
+   */
+  async createOrderCheckout(req, res) {
+    const startTime = Date.now();
+    const { orderId } = req.params;
+
+    try {
+      if (!orderId) {
+        return res.status(400).json({
+          success: false,
+          error: 'orderId requerido'
+        });
+      }
+
+      logger.info(`📲 Generando checkout QR para orden: ${orderId}`);
+      const checkout = await culqiService.createOrderCheckout(orderId);
+
+      return res.status(200).json({
+        success: true,
+        order_id: orderId,
+        qr: checkout.qr,
+        payment_code: checkout.payment_code,
+        url_pe: checkout.url_pe,
+        checkout_url: checkout.checkout_url,
+        state: checkout.state
+      });
+
+    } catch (error) {
+      logger.error(`❌ Error generando checkout: ${orderId}`, {
+        error: error.message,
+        duration: `${Date.now() - startTime}ms`
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Error generando checkout'
+      });
+    }
+  }
+}
 // Crear y exportar instancia
 const paymentController = new PaymentController();
 module.exports = paymentController;

@@ -248,6 +248,9 @@ router.get('/verify/:paymentId', paymentController.verifyPayment);
 // ✅ NUEVA RUTA PARA YAPE, PLIN, PAGOEFECTIVO
 router.post('/create-order', paymentController.createOrder);
 
+// ✅ GENERAR QR PARA UNA ORDEN EXISTENTE
+router.post('/orders/:orderId/checkout', paymentController.createOrderCheckout);
+
 router.get('/health', (req, res) => {
     return sendJson(res, 200, {
         success: true,

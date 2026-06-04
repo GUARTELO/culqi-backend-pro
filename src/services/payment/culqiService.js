@@ -552,6 +552,45 @@ async createCharge(data) {
         }
     }
 
+
+   /**
+ * 🔥 OBTENER ESTADO REAL DE ORDEN (QR, YAPE, PLIN)
+ */
+async getOrderCheckout(orderId) {
+    this._checkCircuit();
+
+    try {
+        logger.info(`📲 Consultando checkout real: ${orderId}`);
+
+        const response = await this.http.get(`/orders/${orderId}`);
+
+        const order = this._transformOrderResponse(response.data);
+
+        logger.info(`✅ Orden consultada`, {
+            orderId: order.id,
+            hasQr: !!order.qr,
+            hasPaymentCode: !!order.payment_code,
+            hasUrlPe: !!order.url_pe
+        });
+
+        return {
+            qr: order.qr || null,
+            payment_code: order.payment_code || null,
+            url_pe: order.url_pe || null,
+            checkout_url: order.checkout_url || null,
+            state: order.state
+        };
+
+    } catch (error) {
+        logger.error(`❌ Error consultando checkout: ${orderId}`, {
+            error: error.message
+        });
+
+        throw this._transformError(error);
+    }
+}
+
+
     /* ============================================================
      * REFUNDS
      * ============================================================
