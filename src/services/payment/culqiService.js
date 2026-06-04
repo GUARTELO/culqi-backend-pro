@@ -554,8 +554,8 @@ async createCharge(data) {
 
 
 
-    /* ============================================================
- * GENERAR CHECKOUT QR PARA YAPE/PLIN/PAGOEFECTIVO
+/* ============================================================
+ * OBTENER DATOS DEL CHECKOUT YA GENERADO POR CULQI
  * ============================================================
  */
 async createOrderCheckout(orderId) {
@@ -571,41 +571,33 @@ async createOrderCheckout(orderId) {
 
     try {
 
-        logger.info(`📲 Generando checkout para orden: ${orderId}`);
+        logger.info(`📲 Consultando orden existente: ${orderId}`);
 
-        // 🔥 ESTE ENDPOINT GENERA EL QR
-        const response = await this.http.post(
-            `/orders/${orderId}/confirm`,
-            {},
-            {
-                headers: {
-                    'Idempotency-Key': crypto.randomUUID()
-                }
-            }
-        );
+        // ✅ SOLO CONSULTAMOS LA ORDEN
+        const response = await this.http.get(`/orders/${orderId}`);
 
-        logger.info(`✅ Checkout generado`, {
+        const order = response.data;
+
+        logger.info(`✅ Orden consultada correctamente`, {
             orderId,
-            hasQr: !!response.data.qr,
-            hasPaymentCode: !!response.data.payment_code,
-            state: response.data.state
+            state: order.state
         });
 
         return {
-            id: response.data.id,
-            qr: response.data.qr || null,
-            payment_code: response.data.payment_code || null,
-            url_pe: response.data.url_pe || null,
+            id: order.id,
+            qr: order.qr || null,
+            payment_code: order.payment_code || null,
             checkout_url:
-                response.data.checkout_url ||
-                response.data.url ||
+                order.checkout_url ||
+                order.payment_url ||
+                order.url ||
                 null,
-            state: response.data.state || null
+            state: order.state || null
         };
 
     } catch (error) {
 
-        logger.error(`❌ Error generando checkout`, {
+        logger.error(`❌ Error consultando orden`, {
             orderId,
             error: error.message
         });
