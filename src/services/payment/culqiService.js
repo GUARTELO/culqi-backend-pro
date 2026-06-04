@@ -553,6 +553,66 @@ async createCharge(data) {
     }
 
 
+
+    /* ============================================================
+ * GENERAR CHECKOUT QR PARA YAPE/PLIN/PAGOEFECTIVO
+ * ============================================================
+ */
+async createOrderCheckout(orderId) {
+    this._checkCircuit();
+
+    if (!orderId) {
+        throw new CulqiError({
+            code: 'INVALID_ORDER_ID',
+            message: 'Order ID requerido',
+            statusCode: 400
+        });
+    }
+
+    try {
+
+        logger.info(`📲 Generando checkout para orden: ${orderId}`);
+
+        // 🔥 ESTE ENDPOINT GENERA EL QR
+        const response = await this.http.post(
+            `/orders/${orderId}/confirm`,
+            {},
+            {
+                headers: {
+                    'Idempotency-Key': crypto.randomUUID()
+                }
+            }
+        );
+
+        logger.info(`✅ Checkout generado`, {
+            orderId,
+            hasQr: !!response.data.qr,
+            hasPaymentCode: !!response.data.payment_code,
+            state: response.data.state
+        });
+
+        return {
+            id: response.data.id,
+            qr: response.data.qr || null,
+            payment_code: response.data.payment_code || null,
+            url_pe: response.data.url_pe || null,
+            checkout_url:
+                response.data.checkout_url ||
+                response.data.url ||
+                null,
+            state: response.data.state || null
+        };
+
+    } catch (error) {
+
+        logger.error(`❌ Error generando checkout`, {
+            orderId,
+            error: error.message
+        });
+
+        throw this._transformError(error);
+    }
+}
    /**
  * 🔥 OBTENER ESTADO REAL DE ORDEN (QR, YAPE, PLIN)
  */
