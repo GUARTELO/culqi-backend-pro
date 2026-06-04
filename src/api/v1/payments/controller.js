@@ -2578,6 +2578,86 @@ async getOrderStatus(req, res) {
 
         const order = await culqiService.getOrder(orderId);
 
+
+
+
+        // ========================================
+// 🔥 ENVIAR EMAIL PARA YAPE / QR / PAGOEFECTIVO
+// ========================================
+if (order.state === 'paid') {
+
+    logger.info(`📧 Pago QR confirmado: ${orderId}`);
+
+    try {
+        const firebase = require('../../../core/config/firebase');
+        const firestore = firebase.firestore;
+
+        const ordenSnapshot = await firestore
+            .collection('ordenes')
+            .where('id', '==', order.order_number)
+            .limit(1)
+            .get();
+
+        if (!ordenSnapshot.empty) {
+
+            const ordenDoc = ordenSnapshot.docs[0];
+            const ordenData = ordenDoc.data();
+
+            // Evitar duplicados
+            if (!ordenData?.metadata?.email_enviado) {
+
+                logger.info(`📨 Enviando email para pago QR: ${orderId}`);
+
+                const emailData = {
+                    id: orderId,
+                    culqi_id: orderId,
+                    amount: order.amount,
+                    currency: order.currency_code || 'PEN',
+                    status: 'succeeded',
+
+                    customer_email: ordenData.cliente?.email,
+                    customer_name: ordenData.cliente?.nombre,
+                    customer_phone: ordenData.cliente?.telefono || '',
+                    customer_dni: ordenData.cliente?.dni || '',
+
+                    order_id: ordenData.id || ordenData.numeroOrden,
+
+                    productos: ordenData.productos || [],
+                    resumen: ordenData.resumen || {},
+                    comprobante: ordenData.comprobante || {},
+                    envio: ordenData.envio || {},
+
+                    metadata: {
+                        ...ordenData.metadata,
+                        payment_processed: true,
+                        payment_timestamp: new Date().toISOString()
+                    }
+                };
+
+                // 🔥 REUTILIZA TU SISTEMA ACTUAL
+                await this._sendFirebaseEmail(emailData);
+
+                // 🔥 MARCAR COMO ENVIADO
+                await ordenDoc.ref.update({
+                    'metadata.email_enviado': true,
+                    'metadata.email_timestamp': new Date().toISOString(),
+                    'metadata.pago_confirmado': true
+                });
+
+                logger.info(`✅ Email enviado correctamente para ${orderId}`);
+            }
+        }
+
+    } catch (emailError) {
+
+        logger.error(`❌ Error enviando email QR`, {
+            error: emailError.message
+        });
+    }
+}
+
+
+
         logger.info(`✅ Estado de orden ${orderId}: ${order.state}`);
 
         return res.status(200).json({
