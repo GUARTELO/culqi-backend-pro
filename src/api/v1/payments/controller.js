@@ -2594,7 +2594,7 @@ if (order.state === 'paid') {
 
         const ordenSnapshot = await firestore
             .collection('ordenes')
-            .where('id', '==', order.order_number)
+            .where('culqi_order_id', '==', orderId)
             .limit(1)
             .get();
 
