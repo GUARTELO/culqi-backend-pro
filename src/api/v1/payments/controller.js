@@ -2555,6 +2555,55 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
       });
     }
   }
+
+
+
+
+  /* ============================================================
+ * OBTENER ESTADO DE UNA ORDEN (PARA POLLING DE YAPE/PLIN)
+ * ============================================================
+ */
+async getOrderStatus(req, res) {
+    const { orderId } = req.params;
+
+    try {
+        if (!orderId) {
+            return res.status(400).json({
+                success: false,
+                error: 'orderId requerido'
+            });
+        }
+
+        logger.info(`🔍 Consultando estado de orden: ${orderId}`);
+
+        const order = await culqiService.getOrder(orderId);
+
+        logger.info(`✅ Estado de orden ${orderId}: ${order.state}`);
+
+        return res.status(200).json({
+            success: true,
+            id: order.id,
+            order_number: order.order_number,
+            amount: order.amount,
+            currency: order.currency,
+            state: order.state,
+            payment_code: order.payment_code,
+            qr: order.qr,
+            checkout_url: order.checkout_url,
+            paid_at: order.paid_at || null
+        });
+
+    } catch (error) {
+        logger.error(`❌ Error consultando orden ${orderId}`, {
+            error: error.message
+        });
+
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Error consultando orden'
+        });
+    }
+}
 }
 // Crear y exportar instancia
 const paymentController = new PaymentController();

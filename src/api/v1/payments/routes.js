@@ -244,6 +244,8 @@ router.post('/process', paymentController.processPayment);
 router.get('/stats', paymentController.getStats);
 
 router.get('/verify/:paymentId', paymentController.verifyPayment);
+// Consultar estado de una orden (para polling)
+router.get('/orders/:orderId', paymentController.getOrderStatus);
 
 // ✅ NUEVA RUTA PARA YAPE, PLIN, PAGOEFECTIVO
 router.post('/create-order', paymentController.createOrder);
