@@ -2557,133 +2557,288 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
   }
 
 
-
-
-  /* ============================================================
- * OBTENER ESTADO DE UNA ORDEN (PARA POLLING DE YAPE/PLIN)
+/* ============================================================
+ * 🔥 NUEVO MÉTODO - PROCESAR ORDEN PAGADA (REUTILIZABLE)
  * ============================================================
  */
-async getOrderStatus(req, res) {
+
+async processPaidOrder(orderId, source = 'manual') {
+  const requestId = `process_${orderId}_${Date.now()}`;
+
+  try {
+    // ✅ Firebase DENTRO del método
+    const firebase = require('../../../core/config/firebase');
+    const firestore = firebase.firestore;
+
+    logger.info(`🔄 Procesando orden pagada: ${orderId}`, {
+      source,
+      requestId
+    });
+
+    // 1. OBTENER ORDEN DESDE CULQI
+    const culqiOrder = await culqiService.getOrder(orderId);
+
+    if (!culqiOrder) {
+      throw new Error(`Orden ${orderId} no encontrada en Culqi`);
+    }
+
+    // 2. VALIDAR QUE EL PAGO ESTÉ CONFIRMADO
+    if (culqiOrder.state !== 'paid') {
+      logger.info(`⏭️ Orden ${orderId} aún no pagada`, {
+        state: culqiOrder.state,
+        source
+      });
+
+      return {
+        success: false,
+        state: culqiOrder.state,
+        message: 'Orden aún no pagada'
+      };
+    }
+
+    // 3. BUSCAR ORDEN EN FIREBASE
+    let ordenSnapshot = await firestore
+      .collection('ordenes')
+      .where('numeroOrden', '==', orderId)
+      .limit(1)
+      .get();
+
+    // Fallback por culqi_order_id
+    if (ordenSnapshot.empty) {
+      ordenSnapshot = await firestore
+        .collection('ordenes')
+        .where('culqi_order_id', '==', orderId)
+        .limit(1)
+        .get();
+    }
+
+    if (ordenSnapshot.empty) {
+      logger.warn(`⚠️ Orden ${orderId} no encontrada en Firebase`);
+
+      return {
+        success: false,
+        state: culqiOrder.state,
+        message: 'Orden no encontrada en Firebase'
+      };
+    }
+
+    const ordenRef = ordenSnapshot.docs[0].ref;
+    const ordenData = ordenSnapshot.docs[0].data();
+
+    // 4. PREVENIR EMAILS DUPLICADOS
+    if (ordenData.metadata?.email_enviado === true) {
+      logger.info(`⏭️ Email ya enviado previamente`, {
+        orderId,
+        source
+      });
+
+      return {
+        success: true,
+        alreadySent: true,
+        state: culqiOrder.state,
+        message: 'Email ya enviado anteriormente'
+      };
+    }
+
+        // 5. VALIDAR MONTO
+    const totalFirebase = Number(ordenData.resumen?.total || 0);
+    
+    // ⚠️ Culqi devuelve amount en CÉNTIMOS, convertir a SOLES
+    const totalCulqi = Number(culqiOrder.amount || 0) / 100;
+
+    if (Math.abs(totalFirebase - totalCulqi) > 0.01) {
+      const errorMsg = `Monto no coincide. Firebase S/${totalFirebase} | Culqi S/${totalCulqi}`;
+      logger.error(`❌ ${errorMsg}`, { orderId, source });
+      throw new Error(errorMsg);
+    }
+
+    logger.info(`✅ Montos validados: S/${totalCulqi}`, { orderId });
+
+    // 6. PREPARAR DATOS PARA EMAIL
+    const emailData = {
+      id: culqiOrder.id,
+      culqi_id: culqiOrder.id,
+      amount: totalCulqi,  // ← Mismo formato que usa _sendFirebaseEmail
+      currency: culqiOrder.currency_code || culqiOrder.currency || 'PEN',
+      status: 'succeeded',
+      customer_email: ordenData.cliente?.email || '',
+      customer_name: ordenData.cliente?.nombre || '',
+      customer_phone: ordenData.cliente?.telefono || '',
+      customer_dni: ordenData.cliente?.dni || '',
+      order_id: ordenData.numeroOrden || ordenData.id || orderId,
+      productos: ordenData.productos || [],
+      resumen: ordenData.resumen || {},
+      comprobante: ordenData.comprobante || {},
+      envio: ordenData.envio || {},
+      metadata: {
+        ...ordenData.metadata,
+        payment_processed: true,
+        payment_timestamp: new Date().toISOString(),
+        confirmed_via: source
+      }
+    };
+
+    // 7. ENVIAR EMAIL
+    logger.info(`📧 Enviando email de confirmación`, { orderId, source });
+    const emailResult = await this._sendFirebaseEmail(emailData);
+
+    // 8. ACTUALIZAR FIREBASE SOLO SI EMAIL FUE EXITOSO
+    if (emailResult.success) {
+      await ordenRef.update({
+        'metadata.email_enviado': true,
+        'metadata.email_timestamp': new Date().toISOString(),
+        'metadata.pago_confirmado': true,
+        'metadata.confirmed_via': source,
+        'pago.estado': 'completado',
+        'pago.culqi_order_id': culqiOrder.id
+      });
+
+      logger.info(`✅ Email enviado correctamente`, {
+        orderId,
+        source,
+        messageId: emailResult.messageId || null
+      });
+
+      return {
+        success: true,
+        emailSent: true,
+        alreadySent: false,
+        state: culqiOrder.state,
+        message: 'Email enviado correctamente',
+        messageId: emailResult.messageId || null
+      };
+
+    } else {
+      logger.error(`❌ Falló envío de email`, {
+        orderId,
+        source,
+        error: emailResult.error
+      });
+
+      return {
+        success: false,
+        emailSent: false,
+        state: culqiOrder.state,
+        message: 'Error enviando email',
+        error: emailResult.error
+      };
+    }
+
+  } catch (error) {
+    logger.error(`❌ Error en processPaidOrder`, {
+      orderId,
+      source,
+      error: error.message
+    });
+
+    return {
+      success: false,
+      state: 'error',
+      error: error.message
+    };
+  }
+}
+
+ /* ============================================================
+   * OBTENER ESTADO DE UNA ORDEN (PARA POLLING DE YAPE/PLIN)
+   * ============================================================
+   */
+  async getOrderStatus(req, res) {
     const { orderId } = req.params;
 
     try {
-        if (!orderId) {
-            return res.status(400).json({
-                success: false,
-                error: 'orderId requerido'
-            });
-        }
-
-        logger.info(`🔍 Consultando estado de orden: ${orderId}`);
-
-        const order = await culqiService.getOrder(orderId);
-
-
-
-
-        // ========================================
-// 🔥 ENVIAR EMAIL PARA YAPE / QR / PAGOEFECTIVO
-// ========================================
-if (order.state === 'paid') {
-
-    logger.info(`📧 Pago QR confirmado: ${orderId}`);
-
-    try {
-        const firebase = require('../../../core/config/firebase');
-        const firestore = firebase.firestore;
-
-        const ordenSnapshot = await firestore
-            .collection('ordenes')
-            .where('culqi_order_id', '==', orderId)
-            .limit(1)
-            .get();
-
-        if (!ordenSnapshot.empty) {
-
-            const ordenDoc = ordenSnapshot.docs[0];
-            const ordenData = ordenDoc.data();
-
-            // Evitar duplicados
-            if (!ordenData?.metadata?.email_enviado) {
-
-                logger.info(`📨 Enviando email para pago QR: ${orderId}`);
-
-                const emailData = {
-                    id: orderId,
-                    culqi_id: orderId,
-                    amount: order.amount,
-                    currency: order.currency_code || 'PEN',
-                    status: 'succeeded',
-
-                    customer_email: ordenData.cliente?.email,
-                    customer_name: ordenData.cliente?.nombre,
-                    customer_phone: ordenData.cliente?.telefono || '',
-                    customer_dni: ordenData.cliente?.dni || '',
-
-                    order_id: ordenData.id || ordenData.numeroOrden,
-
-                    productos: ordenData.productos || [],
-                    resumen: ordenData.resumen || {},
-                    comprobante: ordenData.comprobante || {},
-                    envio: ordenData.envio || {},
-
-                    metadata: {
-                        ...ordenData.metadata,
-                        payment_processed: true,
-                        payment_timestamp: new Date().toISOString()
-                    }
-                };
-
-                // 🔥 REUTILIZA TU SISTEMA ACTUAL
-                await this._sendFirebaseEmail(emailData);
-
-                // 🔥 MARCAR COMO ENVIADO
-                await ordenDoc.ref.update({
-                    'metadata.email_enviado': true,
-                    'metadata.email_timestamp': new Date().toISOString(),
-                    'metadata.pago_confirmado': true
-                });
-
-                logger.info(`✅ Email enviado correctamente para ${orderId}`);
-            }
-        }
-
-    } catch (emailError) {
-
-        logger.error(`❌ Error enviando email QR`, {
-            error: emailError.message
+      if (!orderId) {
+        return res.status(400).json({
+          success: false,
+          error: 'orderId requerido'
         });
-    }
-}
+      }
 
+      logger.info(`🔍 Consultando orden ${orderId}`);
 
+      const order = await culqiService.getOrder(orderId);
 
-        logger.info(`✅ Estado de orden ${orderId}: ${order.state}`);
+      // SI EL PAGO YA FUE CONFIRMADO - USA EL NUEVO MÉTODO
+      if (order.state === 'paid') {
+        const processResult = await this.processPaidOrder(orderId, 'polling');
 
         return res.status(200).json({
-            success: true,
-            id: order.id,
-            order_number: order.order_number,
-            amount: order.amount,
-            currency: order.currency,
-            state: order.state,
-            payment_code: order.payment_code,
-            qr: order.qr,
-            checkout_url: order.checkout_url,
-            paid_at: order.paid_at || null
+          success: processResult.success,
+          id: order.id,
+          order_number: order.order_number,
+          amount: Number(order.amount || 0) / 100,
+          currency: order.currency_code || order.currency || 'PEN',
+          state: order.state,
+          payment_code: order.payment_code,
+          qr: order.qr,
+          checkout_url: order.checkout_url,
+          email_processed: processResult.emailSent || processResult.alreadySent || false,
+          message: processResult.message || null
         });
+      }
+
+      // SI TODAVÍA NO ESTÁ PAGADA
+      return res.status(200).json({
+        success: true,
+        id: order.id,
+        order_number: order.order_number,
+        amount: Number(order.amount || 0) / 100,
+        currency: order.currency_code || order.currency || 'PEN',
+        state: order.state,
+        payment_code: order.payment_code,
+        qr: order.qr,
+        checkout_url: order.checkout_url
+      });
 
     } catch (error) {
-        logger.error(`❌ Error consultando orden ${orderId}`, {
-            error: error.message
-        });
+      logger.error(`❌ Error consultando orden`, {
+        orderId,
+        error: error.message
+      });
 
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Error consultando orden'
-        });
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Error consultando orden'
+      });
     }
-}
+  }
+
+
+
+   /* ============================================================
+   * WEBHOOK PARA CULQI (YAPE / QR / PAGOEFECTIVO)
+   * ============================================================
+   */
+  async handleCulqiWebhook(req, res) {
+    const requestId = req.id || `webhook_${Date.now()}`;
+    
+    try {
+      const event = req.body;
+      logger.info(`📨 Webhook recibido`, { event: event.type, requestId });
+      
+      if (event.type === 'charge.completed' || event.type === 'order.paid') {
+        const charge = event.data;
+        const orderId = charge.order_id || charge.metadata?.order_id || charge.metadata?.internal_ref;
+        
+        if (orderId) {
+          const result = await this.processPaidOrder(orderId, 'webhook');
+          
+          if (result.emailSent) {
+            logger.info(`✅ Email enviado desde webhook`, { orderId });
+          } else if (result.alreadySent) {
+            logger.info(`⏭️ Email ya enviado`, { orderId });
+          } else {
+            logger.warn(`⚠️ Webhook sin email`, { orderId });
+          }
+        }
+      }
+      
+      res.status(200).json({ received: true });
+    } catch (error) {
+      logger.error(`❌ Error en webhook`, { error: error.message });
+      res.status(200).json({ received: true, error: error.message });
+    }
+  }
 }
 // Crear y exportar instancia
 const paymentController = new PaymentController();
