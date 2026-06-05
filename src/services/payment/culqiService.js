@@ -1153,8 +1153,7 @@ const country =
             object:
                 response.object,
 
-            amount:
-                response.amount / 100,
+            amount: response.amount,  // ← Mantener en céntimos
 
             currency:
                 response.currency_code,
