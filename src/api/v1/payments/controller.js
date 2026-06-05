@@ -1330,7 +1330,7 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
             order_id: orderId,
             cliente_id: cliente.id,
             cliente_nombre: nombreCompleto,
-            cliente_dni: cliente.dni || '',
+            cliente_dni: String(cliente.dni || '').replace(/\D/g, ''),
             cliente_telefono: cliente.telefono || '',
             firebase_doc_id: metadata?.firebaseDocId,
             productos_count: metadata?.productosCount || 0,
@@ -1376,7 +1376,7 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
       customer_email: cliente.email,
       customer_name: `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim(),
       customer_phone: cliente.telefono || '',
-      customer_dni: cliente.dni || '', // ✅ NUEVO: DNI explícito
+      customer_dni: String(cliente.dni || '').replace(/\D/g, ''),
       
       order_id: ordenId,
       firebase_doc_id: metadata?.firebaseDocId,
@@ -1711,19 +1711,19 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
             </table>
             
             ${envio ? `
-            <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-              <h4>🚚 Información de envío:</h4>
-              <p><strong>Tipo:</strong> ${envio.tipo}</p>
-              <p><strong>Costo:</strong> S/ ${envio.costo.toFixed(2)}</p>
-              <p><strong>Estado:</strong> ${envio.estado}</p>
-            </div>
-            ` : ''}
-            
-            <div class="total">
-              <p>Subtotal: S/ ${resumen.subtotal.toFixed(2)}</p>
-              ${envio ? `<p>Envío: S/ ${resumen.envio.toFixed(2)}</p>` : ''}
-              <p style="font-size: 20px;">TOTAL: S/ ${resumen.total.toFixed(2)}</p>
-            </div>
+<div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+  <h4>🚚 Información de envío:</h4>
+  <p><strong>Tipo:</strong> ${envio.tipo}</p>
+  <p><strong>Costo:</strong> S/ ${Number(envio?.costo || 0).toFixed(2)}</p>   // ← SOLO CAMBIA ESTA
+  <p><strong>Estado:</strong> ${envio.estado}</p>
+</div>
+` : ''}
+
+<div class="total">
+  <p>Subtotal: S/ ${Number(resumen?.subtotal || 0).toFixed(2)}</p>   // ← SOLO CAMBIA ESTA
+  ${envio ? `<p>Envío: S/ ${Number(resumen?.envio || 0).toFixed(2)}</p>` : ''}   // ← SOLO CAMBIA ESTA
+  <p style="font-size: 20px;">TOTAL: S/ ${Number(resumen?.total || 0).toFixed(2)}</p>   // ← SOLO CAMBIA ESTA
+</div>
             
             <p>📧 Este correo ha sido enviado a: ${customer_email}</p>
             <p>🕐 Fecha de compra: ${fecha}</p>
@@ -1734,7 +1734,7 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
           </div>
           
           <div class="footer">
-            <p>Goldinfiniti - Econmerce de confianza</p>
+            <p>Goldinfiniti - Ecommerce de confianza</p>
             <p>contacto@goldinfiniti.com | www.goldinfiniti.com</p>
             <p>© ${new Date().getFullYear()} Goldinfiniti. Todos los derechos reservados.</p>
           </div>
@@ -1765,7 +1765,7 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
         name: `${cliente.nombre} ${cliente.apellido}`,
         email: cliente.email,
         phone: cliente.telefono,
-        dni: cliente.dni || '' // ✅ DNI EN RESPUESTA
+        dni: String(cliente.dni || '').replace(/\D/g, '')
       },
       order_summary: {
         items_count: productos.length,
@@ -1901,10 +1901,8 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
     this.stats.totalAmount += amount;
     success ? this.stats.successfulPayments++ : this.stats.failedPayments++;
     
-    if (emailSent) {
-      this.stats.emailStats.sent++;
-    }
-  }
+    // ✅ ELIMINADO: el contador ya se incrementa en _sendFirebaseEmail
+}
   
   _maskEmail(email) {
     if (!email) return 'unknown@email.com';
@@ -2625,19 +2623,49 @@ async processPaidOrder(orderId, source = 'manual') {
     const ordenRef = ordenSnapshot.docs[0].ref;
     const ordenData = ordenSnapshot.docs[0].data();
 
-    // 4. PREVENIR EMAILS DUPLICADOS
-    if (ordenData.metadata?.email_enviado === true) {
-      logger.info(`⏭️ Email ya enviado previamente`, {
-        orderId,
-        source
-      });
-
-      return {
-        success: true,
-        alreadySent: true,
-        state: culqiOrder.state,
-        message: 'Email ya enviado anteriormente'
-      };
+       // 4. 🔥 PREVENIR RACE CONDITION CON TRANSACCIÓN ATÓMICA
+    let emailYaEnviado = false;
+    
+    await firestore.runTransaction(async (transaction) => {
+        const freshSnapshot = await transaction.get(ordenRef);
+        const freshData = freshSnapshot.data();
+        
+        // Verificar si ya se envió el email
+        if (freshData.metadata?.email_enviado === true) {
+            emailYaEnviado = true;
+            return;
+        }
+        
+        // Verificar si ya está en proceso (bloqueo)
+        if (freshData.metadata?.email_processing === true) {
+            const processingTime = freshData.metadata?.email_processing_at;
+            const now = new Date();
+            const processingDuration = processingTime ? (now - new Date(processingTime)) : 0;
+            
+            // Si lleva más de 5 minutos procesando, asumir fallo y reintentar
+            if (processingDuration < 5 * 60 * 1000) {
+                emailYaEnviado = true;
+                return;
+            }
+        }
+        
+        // Marcar como "en proceso" (BLOQUEO ATÓMICO)
+        transaction.update(ordenRef, {
+            'metadata.email_processing': true,
+            'metadata.email_processing_at': new Date().toISOString(),
+            'metadata.processing_source': source
+        });
+    });
+    
+    // Si ya se envió o está en proceso, salir
+    if (emailYaEnviado) {
+        logger.info(`⏭️ Email ya enviado o en proceso`, { orderId, source });
+        return {
+            success: true,
+            alreadySent: true,
+            state: culqiOrder.state,
+            message: 'Email ya procesado anteriormente'
+        };
     }
 
         // 5. VALIDAR MONTO
@@ -2662,9 +2690,9 @@ async processPaidOrder(orderId, source = 'manual') {
       currency: culqiOrder.currency_code || culqiOrder.currency || 'PEN',
       status: 'succeeded',
       customer_email: ordenData.cliente?.email || '',
-      customer_name: ordenData.cliente?.nombre || '',
+      customer_name: `${ordenData.cliente?.nombre || ''} ${ordenData.cliente?.apellido || ''}`.trim(),
       customer_phone: ordenData.cliente?.telefono || '',
-      customer_dni: ordenData.cliente?.dni || '',
+      customer_dni: String(ordenData.cliente?.dni || '').replace(/\D/g, ''),
       order_id: ordenData.numeroOrden || ordenData.id || orderId,
       productos: ordenData.productos || [],
       resumen: ordenData.resumen || {},
