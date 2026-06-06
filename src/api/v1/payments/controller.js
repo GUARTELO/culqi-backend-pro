@@ -371,25 +371,32 @@ async _generarIdDiarioComoFrontend() {
         }
       }
 
-// ============================================================
-// 🔥 NUEVA CORRECCIÓN - SIN GENERAR IDs NUEVOS
-// ============================================================
+// ========== CORREGIR O GENERAR ID SECUENCIAL ==========
 let ordenIdCorregido = ordenId;
 
-// Limpiar y validar
-if (ordenIdCorregido) {
-    ordenIdCorregido = String(ordenIdCorregido).trim().replace(/[\n\r\t\s]/g, '');
+// CASO 1: ID es automático (ORD-1769...)
+if (ordenId && ordenId.includes('ORD-1769')) {
+    logger.warn('🚨 ID AUTOMÁTICO DETECTADO, CORRIGIENDO:', ordenId);
+    
+    if (metadata?.orderId && metadata.orderId.match(/^ORD-\d{6}-\d{4}$/)) {
+        ordenIdCorregido = metadata.orderId;
+        logger.info('✅ ID corregido del metadata:', ordenIdCorregido);
+    } else {
+        ordenIdCorregido = await this._generarOrderIdSecuencial();
+        logger.info('✅ NUEVO ID SECUENCIAL:', ordenIdCorregido);
+    }
+}
+// CASO 2: ID ya es válido (ORD-202601-XXXX) → USARLO TAL CUAL
+else if (ordenId && ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
+    logger.info('✅ ID ya es válido, usando:', ordenId);
+    ordenIdCorregido = ordenId;
+}
+// CASO 3: No hay ID o es incorrecto → Generar nuevo
+else {
+    ordenIdCorregido = await this._generarOrderIdSecuencial();
+    logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
 }
 
-const match = ordenIdCorregido?.match(/(ORD-\d{6}-\d{4})/);
-
-if (match) {
-    ordenIdCorregido = match[1];
-    logger.info('✅ ID válido del frontend:', ordenIdCorregido);
-} else {
-    logger.error('❌ ID inválido:', { recibido: ordenId, tipo: typeof ordenId });
-    throw this._error('INVALID_ORDER_ID', 'ID de orden inválido', 400);
-}
 
       // ========== FIN CORRECCIÓN ==========
 
