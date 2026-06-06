@@ -2709,6 +2709,35 @@ async processPaidOrder(orderId, source = 'manual') {
     // 7. ENVIAR EMAIL
     logger.info(`📧 Enviando email de confirmación`, { orderId, source });
     const emailResult = await this._sendFirebaseEmail(emailData);
+    // ============================================================
+    // 🔥 FIX 1: ENVIAR NOTIFICACIÓN AL ADMINISTRADOR
+    // ============================================================
+    if (emailServiceAvailable && emailService.sendPaymentNotification) {
+      try {
+        const notificationData = {
+          ...emailData,
+          email_result: {
+            success: emailResult.success,
+            timestamp: emailResult.timestamp,
+            source: source
+          },
+          metadata: {
+            ...emailData.metadata,
+            webhook_processed: true,
+            source: source,
+            notification_type: 'admin_alert'
+          }
+        };
+
+        await emailService.sendPaymentNotification(notificationData);
+        logger.info(`📧 Notificación admin enviada`, { orderId, source });
+      } catch (adminError) {
+        logger.warn(`⚠️ Error enviando email admin (no crítico)`, {
+          orderId,
+          error: adminError.message
+        });
+      }
+    }
 
     // 8. ACTUALIZAR FIREBASE SOLO SI EMAIL FUE EXITOSO
     if (emailResult.success) {
@@ -2834,37 +2863,128 @@ async processPaidOrder(orderId, source = 'manual') {
 
 
    /* ============================================================
-   * WEBHOOK PARA CULQI (YAPE / QR / PAGOEFECTIVO)
+   * WEBHOOK PARA CULQI - PRODUCCIÓN (ASYNC NO BLOQUEANTE)
+   * Soporta TODOS los métodos de pago:
+   * - Tarjeta, YAPE, QR, PagoEfectivo, Cuotealo, Billeteras, Banca Móvil
    * ============================================================
    */
   async handleCulqiWebhook(req, res) {
     const requestId = req.id || `webhook_${Date.now()}`;
-    
+
     try {
       const event = req.body;
-      logger.info(`📨 Webhook recibido`, { event: event.type, requestId });
-      
-      if (event.type === 'charge.completed' || event.type === 'order.paid') {
-        const charge = event.data;
-        const orderId = charge.order_id || charge.metadata?.order_id || charge.metadata?.internal_ref;
-        
-        if (orderId) {
-          const result = await this.processPaidOrder(orderId, 'webhook');
-          
-          if (result.emailSent) {
-            logger.info(`✅ Email enviado desde webhook`, { orderId });
-          } else if (result.alreadySent) {
-            logger.info(`⏭️ Email ya enviado`, { orderId });
-          } else {
-            logger.warn(`⚠️ Webhook sin email`, { orderId });
-          }
-        }
+
+      logger.info(`📨 Webhook recibido`, {
+        requestId,
+        eventType: event?.type
+      });
+
+      // =========================================================
+      // PASO 1: TODOS LOS EVENTOS DE PAGO EXITOSO
+      // =========================================================
+      const successfulEvents = [
+        'charge.completed',      // Tarjeta, YAPE, QR, Billeteras, Cuotealo
+        'order.paid',            // PagoEfectivo (cuando pagan el CIP)
+        'transfer.completed',    // Banca Móvil, Transferencias bancarias
+        'payment.completed'      // Evento genérico (fallback)
+      ];
+
+      // Ignorar eventos irrelevantes
+      if (!successfulEvents.includes(event?.type)) {
+        logger.info(`⏭️ Evento ignorado`, { type: event?.type });
+        return res.status(200).json({ received: true, ignored: true });
       }
-      
-      res.status(200).json({ received: true });
+
+      // =========================================================
+      // PASO 2: EXTRAER ORDER ID (SIN event.data.id - PELIGROSO)
+      // =========================================================
+      let orderId = null;
+
+      if (event?.data) {
+        orderId =
+          event.data.order_id ||
+          event.data.metadata?.order_id ||
+          event.data.metadata?.internal_ref;
+        // ✅ ELIMINADO: event.data.id (peligroso)
+      }
+
+      if (!orderId && event?.order) {
+        orderId =
+          event.order.id ||
+          event.order.metadata?.order_id ||
+          event.order.metadata?.internal_ref;
+      }
+
+      if (!orderId) {
+        logger.warn(`⚠️ No se pudo obtener orderId`, { eventType: event?.type });
+        return res.status(200).json({ received: true, warning: 'orderId not found' });
+      }
+
+      logger.info(`🎯 Webhook recibido para orden: ${orderId}`, {
+        orderId,
+        eventType: event?.type
+      });
+
+      // =========================================================
+      // 🔥 PASO 3: PROCESAR EN SEGUNDO PLANO (NO BLOQUEANTE)
+      // SIN await - para evitar timeouts y reintentos de Culqi
+      // =========================================================
+      this.processPaidOrder(orderId, `webhook:${event?.type}`)
+        .then(result => {
+          const emailSent = (result?.emailSent === true) || 
+                           (result?.alreadySent === true) ||
+                           (result?.success === true);
+          
+          if (emailSent) {
+            logger.info(`✅ Emails procesados correctamente desde webhook`, {
+              orderId,
+              eventType: event?.type,
+              emailSent
+            });
+          } else {
+            logger.warn(`⚠️ Webhook procesado sin envío de email`, {
+              orderId,
+              eventType: event?.type,
+              result
+            });
+          }
+        })
+        .catch(err => {
+          logger.error(`❌ Error en procesamiento async del webhook`, {
+            orderId,
+            eventType: event?.type,
+            error: err.message
+          });
+        });
+
+      // =========================================================
+      // 🔥 PASO 4: RESPONDER INMEDIATAMENTE (EVITA REINTENTOS)
+      // =========================================================
+      return res.status(200).json({
+        received: true,
+        processed: true,
+        async: true,
+        orderId: orderId,
+        eventType: event?.type,
+        timestamp: new Date().toISOString()
+      });
+
     } catch (error) {
-      logger.error(`❌ Error en webhook`, { error: error.message });
-      res.status(200).json({ received: true, error: error.message });
+      // =========================================================
+      // PASO 5: MANEJO DE ERRORES - SIEMPRE RESPONDER 200
+      // =========================================================
+      logger.error(`❌ Error crítico en webhook`, {
+        error: error.message,
+        stack: error.stack,
+        requestId
+      });
+
+      return res.status(200).json({
+        received: true,
+        error: true,
+        message: error.message,
+        timestamp: new Date().toISOString()
+      });
     }
   }
 }
