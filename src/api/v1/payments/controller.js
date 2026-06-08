@@ -1,4 +1,3 @@
-
 /**
  * ============================================================
  * PAYMENT CONTROLLER - VERSIÓN FIREBASE COMPLETA CON IDs SECUENCIALES
@@ -372,25 +371,32 @@ async _generarIdDiarioComoFrontend() {
         }
       }
 
-// ============================================================
-// 🔥 NUEVA CORRECCIÓN - SIN GENERAR IDs NUEVOS
-// ============================================================
+// ========== CORREGIR O GENERAR ID SECUENCIAL ==========
 let ordenIdCorregido = ordenId;
 
-// Limpiar y validar
-if (ordenIdCorregido) {
-    ordenIdCorregido = String(ordenIdCorregido).trim().replace(/[\n\r\t\s]/g, '');
+// CASO 1: ID es automático (ORD-1769...)
+if (ordenId && ordenId.includes('ORD-1769')) {
+    logger.warn('🚨 ID AUTOMÁTICO DETECTADO, CORRIGIENDO:', ordenId);
+    
+    if (metadata?.orderId && metadata.orderId.match(/^ORD-\d{6}-\d{4}$/)) {
+        ordenIdCorregido = metadata.orderId;
+        logger.info('✅ ID corregido del metadata:', ordenIdCorregido);
+    } else {
+        ordenIdCorregido = await this._generarOrderIdSecuencial();
+        logger.info('✅ NUEVO ID SECUENCIAL:', ordenIdCorregido);
+    }
+}
+// CASO 2: ID ya es válido (ORD-202601-XXXX) → USARLO TAL CUAL
+else if (ordenId && ordenId.match(/^ORD-\d{6}-\d{4}$/)) {
+    logger.info('✅ ID ya es válido, usando:', ordenId);
+    ordenIdCorregido = ordenId;
+}
+// CASO 3: No hay ID o es incorrecto → Generar nuevo
+else {
+    ordenIdCorregido = await this._generarOrderIdSecuencial();
+    logger.info('🆕 ID GENERADO DESDE CERO:', ordenIdCorregido);
 }
 
-const match = ordenIdCorregido?.match(/(ORD-\d{6}-\d{4})/);
-
-if (match) {
-    ordenIdCorregido = match[1];
-    logger.info('✅ ID válido del frontend:', ordenIdCorregido);
-} else {
-    logger.error('❌ ID inválido:', { recibido: ordenId, tipo: typeof ordenId });
-    throw this._error('INVALID_ORDER_ID', 'ID de orden inválido', 400);
-}
 
       // ========== FIN CORRECCIÓN ==========
 
@@ -2365,14 +2371,10 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
   
 
 
-  /**
- * Crear orden en Culqi (para YAPE, Plin, PagoEfectivo, etc.)
- * 
- * 🔥 CORREGIDO: Ahora exige IDs ORD unificados (ORD-YYYYMM-XXXX)
- * 🔥 Ya NO genera IDs automáticos como ORD-${Date.now()}
- * 🔥 Valida que el order_number sea formato correcto
- */
-async createOrder(req, res) {
+   /**
+   * Crear orden en Culqi (para YAPE, Plin, PagoEfectivo, etc.)
+   */
+  async createOrder(req, res) {
     const startTime = Date.now();
     const requestId = req.id || `order_${uuidv4().substring(0, 8)}`;
 
@@ -2388,10 +2390,6 @@ async createOrder(req, res) {
             metadata
         } = req.body;
 
-        // ============================================================
-        // 1. VALIDACIONES BÁSICAS
-        // ============================================================
-
         if (!amount || amount <= 0) {
             return res.status(400).json({
                 success: false,
@@ -2406,94 +2404,59 @@ async createOrder(req, res) {
             });
         }
 
-        // ============================================================
-        // 2. 🔥 VALIDACIÓN CRÍTICA - OBLIGAR ID DE FIREBASE
-        // ============================================================
-        // Ya NO se permite generar IDs automáticos como ORD-${Date.now()}
-        // El order_number DEBE venir del frontend con formato ORD-YYYYMM-XXXX
-        
-        if (!order_number || !/^ORD-\d{6}-\d{4}$/.test(order_number)) {
-            logger.error('❌ order_number inválido en createOrder:', { 
-                recibido: order_number,
-                esperado: 'ORD-YYYYMM-XXXX'
-            });
-            
-            return res.status(400).json({
-                success: false,
-                error: 'order_number debe ser ORD-YYYYMM-XXXX (formato Firebase)',
-                recibido: order_number
-            });
-        }
-
-        // ============================================================
-        // 3. LOG DE CREACIÓN
-        // ============================================================
-        
         logger.info(`🛒 Creando orden Culqi: ${requestId}`, {
             amount,
             email,
-            order_number,  // ✅ Ahora siempre es ORD-YYYYMM-XXXX
-            formato_validado: true
+            order_number
         });
 
-        // ============================================================
-        // 4. CREAR ORDEN EN CULQI (CON EL ID DE FIREBASE)
-        // ============================================================
-        
+        // 1️⃣ CREAR ORDEN (SOLO CREACIÓN)
         const orderData = await culqiService.createOrder({
             amount,
             email,
             description: description || 'Compra en Goldinfiniti',
-            order_number: order_number,  // ✅ CORREGIDO: ya NO genera nuevo ID
+            order_number: order_number || `ORD-${Date.now()}`,
+
+            // 👇 SE AGREGAN SOLO SI EXISTEN (NO ROMPE COMPATIBILIDAD)
             first_name: first_name || 'Cliente',
             last_name: last_name || 'GoldInfiniti',
             phone_number: phone_number || '999999999',
-            metadata: {
-                ...metadata,
-                firebase_order_id: order_number,  // Guardar referencia
-                created_via: 'api-v1-payments-createOrder'
-            }
+
+            metadata: metadata || {}
         });
 
-        // ============================================================
-        // 5. LOG DE ÉXITO
-        // ============================================================
-        
         logger.info(`✅ Orden Culqi creada: ${orderData.id}`, {
             requestId,
             orderId: orderData.id,
-            firebase_order_id: order_number,  // ✅ Relación con Firebase
             amount: orderData.amount,
             state: orderData.state,
             duration: `${Date.now() - startTime}ms`
         });
 
-        // ============================================================
-        // 6. RESPUESTA AL FRONTEND
-        // ============================================================
-        
+        // 2️⃣ 🔥 IMPORTANTE: NO asumir QR aquí
+        // Culqi NO garantiza QR en createOrder
+
         return res.status(200).json({
             success: true,
+
             order_id: orderData.id,
             id: orderData.id,
-            firebase_order_id: order_number,  // ✅ Devolver el ID de Firebase
+
             amount: orderData.amount,
             currency: orderData.currency,
             state: orderData.state,
+
+            // ⚠️ IMPORTANTE PARA FRONTEND
             qr: null,
             payment_code: null,
             checkout_url: null,
+
             message: "Orden creada correctamente. Use /orders/:orderId/checkout para generar QR."
         });
 
     } catch (error) {
-        // ============================================================
-        // 7. MANEJO DE ERRORES
-        // ============================================================
-        
         logger.error(`❌ Error creando orden Culqi: ${requestId}`, {
             error: error.message,
-            stack: error.stack,
             duration: `${Date.now() - startTime}ms`
         });
 
@@ -2503,6 +2466,7 @@ async createOrder(req, res) {
         });
     }
 }
+
 
 
 
