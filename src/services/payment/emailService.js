@@ -42,17 +42,15 @@ try {
 }
 
 // ========================
-// 2. CONFIGURACIÓN DEL TRANSPORTER - ✅ ÚNICO CAMBIO NECESARIO
+// 2. CONFIGURACIÓN DEL TRANSPORTER
 // ========================
 const createTransporter = () => {
-  // ✅ VERIFICAR SENDGRID PRIMERO (CAMBIO MÍNIMO)
   const sendgridApiKey = process.env.SENDGRID_API_KEY;
   
   if (sendgridApiKey) {
     console.log('✅ [EMAIL DEBUG] Usando SendGrid como transporte principal');
     console.log('🔑 SendGrid API Key encontrada (longitud:', sendgridApiKey.length, 'caracteres)');
     
-    // ✅ TRANSPORTER FALSO QUE USA SENDGRID POR DETRÁS (CAMBIO MÍNIMO)
     return {
       sendMail: async function(mailOptions) {
         try {
@@ -61,7 +59,6 @@ const createTransporter = () => {
           const sgMail = require('@sendgrid/mail');
           sgMail.setApiKey(sendgridApiKey);
           
-          // ✅ CONVERTIR FORMATO NODEMAILER A SENDGRID (CAMBIO MÍNIMO)
           const msg = {
             to: mailOptions.to,
             from: mailOptions.from || 'contacto@goldinfiniti.com',
@@ -70,10 +67,9 @@ const createTransporter = () => {
             text: mailOptions.text,
             cc: mailOptions.cc,
             bcc: mailOptions.bcc,
-            // ✅ CORREGIR ADJUNTOS PARA SENDGRID (CAMBIO MÍNIMO)
             attachments: mailOptions.attachments ? mailOptions.attachments.map(att => ({
               filename: att.filename,
-              content: att.content.toString('base64'), // ✅ CONVERTIR A BASE64
+              content: att.content.toString('base64'),
               type: att.contentType || att.type,
               disposition: 'attachment'
             })) : []
@@ -109,7 +105,6 @@ const createTransporter = () => {
     
   }
   
-  // ✅ SI NO HAY SENDGRID, USAR GMAIL COMO ANTES (TODO IGUAL)
   console.log('🔍 [EMAIL DEBUG] Verificando variables de entorno:');
   console.log('   GMAIL_USER:', process.env.GMAIL_USER || 'NO ENCONTRADO');
   console.log('   GMAIL_APP_PASSWORD existe?:', !!process.env.GMAIL_APP_PASSWORD);
@@ -118,14 +113,12 @@ const createTransporter = () => {
   const gmailUser = process.env.GMAIL_USER || 'contacto@goldinfiniti.com';
   const gmailPass = process.env.GMAIL_APP_PASSWORD;
   
-  // SI NO HAY PASSWORD, LANZA ERROR REAL - NO SIMULACIÓN
   if (!gmailPass) {
     const errorMsg = '❌ ERROR CRÍTICO: GMAIL_APP_PASSWORD no configurada en .env';
     logger.error(errorMsg);
     throw new Error(errorMsg);
   }
   
-  // ✅ CONFIGURACIÓN MEJORADA PARA GMAIL (TODO IGUAL)
   try {
     console.log('✅ [EMAIL DEBUG] Creando transporter REAL con Gmail');
     
@@ -144,7 +137,6 @@ const createTransporter = () => {
       maxMessages: 100
     });
     
-    // VERIFICAR CONEXIÓN INMEDIATAMENTE
     transporter.verify(function(error, success) {
       if (error) {
         console.error('❌ [EMAIL DEBUG] Error verificando SMTP:', error.message);
@@ -177,12 +169,11 @@ const createTransporter = () => {
   }
 };
 
-// 6. CREAR TRANSPORTER CON VERIFICACIÓN (TODO IGUAL)
+// 6. CREAR TRANSPORTER CON VERIFICACIÓN
 let transporter;
 try {
   transporter = createTransporter();
   
-  // Verificación síncrona adicional
   setTimeout(() => {
     transporter.verify((error) => {
       if (!error) {
@@ -197,7 +188,6 @@ try {
 } catch (error) {
   console.error('🔥 ERROR INICIALIZANDO EMAIL SERVICE:', error.message);
   
-  // Transporter de emergencia que SÍ envía (Ethereal) - TODO IGUAL
   transporter = nodemailer.createTransport({
     host: 'smtp.ethereal.email',
     port: 587,
@@ -211,7 +201,7 @@ try {
   console.log('🔗 Puedes ver emails en: https://ethereal.email');
 }
 
-// 7. FUNCIÓN DE ENVÍO CON REINTENTOS (TODO IGUAL)
+// 7. FUNCIÓN DE ENVÍO CON REINTENTOS
 async function sendEmailWithRetry(mailOptions, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -245,7 +235,7 @@ async function sendEmailWithRetry(mailOptions, retries = 3) {
 }
 
 // ========================
-// 8. 🔧 FUNCIÓN checkEmailConfig - QUE TU CONTROLLER BUSCA
+// 8. FUNCIÓN checkEmailConfig
 // ========================
 function checkEmailConfig() {
   return {
@@ -261,13 +251,8 @@ function checkEmailConfig() {
 }
 
 // ========================
-// 3. FUNCIÓN PRINCIPAL - ENVIAR CONFIRMACIÓN CON DATOS FIREBASE
+// 9. FUNCIÓN PRINCIPAL - ENVIAR CONFIRMACIÓN CON DATOS FIREBASE
 // ========================
-/**
- * Envía email de confirmación con TODOS los datos de Firebase
- * @param {Object} paymentData - Datos completos del pago incluyendo Firebase
- * @returns {Promise<Object>} Resultado del envío
- */
 async function sendPaymentConfirmation(paymentData) {
   const startTime = Date.now();
   const orderId = paymentData.order_id || paymentData.metadata?.orderId || 'N/A';
@@ -275,18 +260,13 @@ async function sendPaymentConfirmation(paymentData) {
   try {
     logger.info(`Iniciando envío de confirmación para orden ${orderId}`);
     
-    // Validar datos mínimos
     if (!paymentData.customer_email) {
       throw new Error('Email del cliente no proporcionado');
     }
     
-    // Extraer datos de Firebase
     const firebaseData = this._extractFirebaseData(paymentData);
-    
-    // Generar contenido del email
     const emailContent = this._generateGoldenInfinityEmail(firebaseData);
     
-    // Generar PDF adjunto si es posible
     let pdfAttachment = null;
     if (PDFDocument) {
       try {
@@ -296,7 +276,6 @@ async function sendPaymentConfirmation(paymentData) {
       }
     }
     
-    // Preparar opciones del correo
     const mailOptions = {
       from: '"GOLDINFINITI" <contacto@goldinfiniti.com>',
       to: paymentData.customer_email,
@@ -307,7 +286,6 @@ async function sendPaymentConfirmation(paymentData) {
       attachments: pdfAttachment ? [pdfAttachment] : []
     };
     
-    // Enviar correo
     logger.info(`Enviando email a ${paymentData.customer_email}`, {
       orderId,
       productosCount: firebaseData.productos.length,
@@ -350,15 +328,9 @@ async function sendPaymentConfirmation(paymentData) {
 }
 
 // ========================
-// 4. EXTRACCIÓN DE DATOS DE FIREBASE 
+// 10. EXTRACCIÓN DE DATOS DE FIREBASE
 // ========================
-/**
- * Extrae y estructura datos de Firebase
- * @param {Object} paymentData - Datos del pago
- * @returns {Object} Datos estructurados para email
- */
 function _extractFirebaseData(paymentData) {
-  // Datos del cliente - CORREGIDO
   const cliente = paymentData.cliente ? {
     nombre: paymentData.cliente.nombre || paymentData.customer_name || 'Cliente',
     dni: paymentData.cliente.dni || paymentData.customer_dni || paymentData.dni || '',
@@ -371,12 +343,10 @@ function _extractFirebaseData(paymentData) {
     telefono: paymentData.customer_phone || ''
   };
   
-  // Productos
   const productos = paymentData.productos || 
                    paymentData.metadata?.items || 
                    [];
   
-  // Resumen
   const resumen = paymentData.resumen || {
     subtotal: paymentData.amount ? paymentData.amount / 100 : 0,
     envio: paymentData.envio?.costo || 0,
@@ -384,21 +354,18 @@ function _extractFirebaseData(paymentData) {
     cantidadItems: productos.length
   };
   
-  // Envío
   const envio = paymentData.envio || {
     tipo: 'Estándar',
     costo: resumen.envio || 0,
     estado: 'Pendiente'
   };
   
-  // Comprobante
   const comprobante = paymentData.comprobante || {
     tipo: paymentData.metadata?.tipo_comprobante || 'boleta',
     serie: '',
     numero: ''
   };
   
-  // Metadata
   const metadata = paymentData.metadata || {};
 
   return {
@@ -415,13 +382,8 @@ function _extractFirebaseData(paymentData) {
 }
 
 // ========================
-// 5. GENERACIÓN DE EMAIL HTML PROFESIONAL - 🔴 CAMBIO 2 APLICADO
+// 11. GENERACIÓN DE EMAIL HTML PROFESIONAL
 // ========================
-/**
- * Genera contenido HTML del email
- * @param {Object} firebaseData - Datos de Firebase
- * @returns {Object} HTML y texto plano
- */
 function _generateGoldenInfinityEmail(firebaseData) {
   const {
     order_id,
@@ -448,7 +410,6 @@ function _generateGoldenInfinityEmail(firebaseData) {
 
   console.log('📅 Fecha en email:', fecha);
 
-  // Tabla de productos
   let productosHtml = '';
   if (productos.length > 0) {
     productos.forEach((producto, index) => {
@@ -513,7 +474,6 @@ function _generateGoldenInfinityEmail(firebaseData) {
     </head>
     <body>
       <div class="container">
-        <!-- Header -->
         <div class="header">
           <div class="logo"></div>
           <div class="subtitle"></div>
@@ -521,34 +481,29 @@ function _generateGoldenInfinityEmail(firebaseData) {
           <p style="margin-top: 10px; font-size: 16px;"> ${cliente.nombre}</p>
         </div>
         
-           <!-- Contenido -->
-<div class="content">
-  <!-- Información de la orden -->
-  <div class="section">
-    <div class="customer-info">
-      <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
-        <!-- IZQUIERDA: Número de Orden, Fecha, ID Transacción, Pago Aprobado -->
-        <div>
-          <p><strong>📋 Número de Orden:</strong><br>${order_id}</p>
-          <p><strong>📅 Fecha:</strong><br>${fecha}</p>
-          ${culqi_id ? `<p style="margin-top: 10px;"><strong>🔗 ID Transacción:</strong><br><code>${culqi_id}</code></p>` : ''}
-          <div style="margin-top: 10px;">
-            <span class="status-badge">✅ PAGO APROBADO</span>
+        <div class="content">
+          <div class="section">
+            <div class="customer-info">
+              <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+                <div>
+                  <p><strong>📋 Número de Orden:</strong><br>${order_id}</p>
+                  <p><strong>📅 Fecha:</strong><br>${fecha}</p>
+                  ${culqi_id ? `<p style="margin-top: 10px;"><strong>🔗 ID Transacción:</strong><br><code>${culqi_id}</code></p>` : ''}
+                  <div style="margin-top: 10px;">
+                    <span class="status-badge">✅ PAGO APROBADO</span>
+                  </div>
+                </div>
+                
+                <div style="text-align: right; margin-left: auto;">
+                  <p style="margin: 0 0 8px 0;"><strong>👤 Cliente:</strong><br>${cliente.nombre}</p>
+                  <p style="margin: 0 0 8px 0;"><strong>🪪 DNI:</strong><br>${cliente.dni || 'No especificado'}</p>
+                  <p style="margin: 0 0 8px 0;"><strong>📧 Email:</strong><br>${cliente.email}</p>
+                  <p style="margin: 0 0 8px 0;"><strong>📱 Teléfono:</strong><br>${cliente.telefono || 'No especificado'}</p>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-        
-        <!-- DERECHA: Cliente, DNI, Email, Teléfono - MÁS PEGADA A LA DERECHA -->
-        <div style="text-align: right; margin-left: auto;">
-          <p style="margin: 0 0 8px 0;"><strong>👤 Cliente:</strong><br>${cliente.nombre}</p>
-          <p style="margin: 0 0 8px 0;"><strong>🪪 DNI:</strong><br>${cliente.dni || 'No especificado'}</p>
-          <p style="margin: 0 0 8px 0;"><strong>📧 Email:</strong><br>${cliente.email}</p>
-          <p style="margin: 0 0 8px 0;"><strong>📱 Teléfono:</strong><br>${cliente.telefono || 'No especificado'}</p>
-        </div>
-      </div>
-    </div>
-  </div>
           
-          <!-- Productos -->
           <div class="section">
             <h2 class="section-title">🛍️ Productos Comprados</h2>
             ${productos.length > 0 ? `
@@ -568,7 +523,6 @@ function _generateGoldenInfinityEmail(firebaseData) {
             ` : '<p>No se encontraron detalles de productos.</p>'}
           </div>
           
-          <!-- Resumen de costos -->
           <div class="section">
             <h2 class="section-title">💰 Resumen de Pago</h2>
             <div class="total-box">
@@ -589,7 +543,6 @@ function _generateGoldenInfinityEmail(firebaseData) {
             </div>
           </div>
           
-          <!-- Información de envío -->
           ${envio.tipo ? `
             <div class="section">
               <h2 class="section-title">🚚 Información de Envío</h2>
@@ -605,7 +558,6 @@ function _generateGoldenInfinityEmail(firebaseData) {
             </div>
           ` : ''}
           
-          <!-- Información de comprobante -->
           <div class="section">
             <h2 class="section-title">📄 Comprobante</h2>
             <div style="background: #f9f9f9; padding: 15px; border-radius: 5px;">
@@ -618,23 +570,21 @@ function _generateGoldenInfinityEmail(firebaseData) {
             </div>
           </div>
           
-          <!-- Información importante -->
-<div class="info-box">
-  <h3 style="color: #856404; margin-bottom: 10px;">📌 Información Importante</h3>
-  <ul style="padding-left: 20px;">
-    <li>Tu pedido está siendo procesado y preparado para el envío.</li>
-    <li>Recibirás actualizaciones por email sobre el estado de tu pedido.</li>
-    <li>Para consultas sobre tu orden, contáctanos a: contacto@goldinfiniti.com</li>
-    <li>
-      <strong>Tiempo de entrega:</strong> 
-      ${envio.tipo?.toLowerCase() === 'lima' || envio.tipo?.toLowerCase() === 'lima metropolitana' 
-        ? '🚚 24 horas (Lima)' 
-        : '📦 2-4 días hábiles (Provincia)'}
-    </li>
-  </ul>
-</div>
+          <div class="info-box">
+            <h3 style="color: #856404; margin-bottom: 10px;">📌 Información Importante</h3>
+            <ul style="padding-left: 20px;">
+              <li>Tu pedido está siendo procesado y preparado para el envío.</li>
+              <li>Recibirás actualizaciones por email sobre el estado de tu pedido.</li>
+              <li>Para consultas sobre tu orden, contáctanos a: contacto@goldinfiniti.com</li>
+              <li>
+                <strong>Tiempo de entrega:</strong> 
+                ${envio.tipo?.toLowerCase() === 'lima' || envio.tipo?.toLowerCase() === 'lima metropolitana' 
+                  ? '🚚 24 horas (Lima)' 
+                  : '📦 2-4 días hábiles (Provincia)'}
+              </li>
+            </ul>
+          </div>
           
-          <!-- Pasos siguientes -->
           <div style="margin-top: 30px; text-align: center;">
             <h3 style="margin-bottom: 15px;">👉 ¿Qué sigue?</h3>
             <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px;">
@@ -654,7 +604,6 @@ function _generateGoldenInfinityEmail(firebaseData) {
           </div>
         </div>
         
-        <!-- Footer -->
         <div class="footer">
           <p style="margin-bottom: 10px;">
             <strong>GOLDINFINITI - E-COMMERCE PREMIUM</strong>
@@ -674,7 +623,6 @@ function _generateGoldenInfinityEmail(firebaseData) {
     </html>
   `;
   
-  // Texto plano para clientes de email sin HTML
   const text = `
 GOLDINFINITI - CONFIRMACIÓN DE COMPRA
 ========================================
@@ -746,84 +694,67 @@ www.goldinfiniti.com
 }
 
 // ========================
-// 6. GENERACIÓN DE PDF ADJUNTO PREMIUM (CON FECHA CORREGIDA)
+// 12. GENERACIÓN DE PDF ADJUNTO PREMIUM - CORREGIDO
 // ========================
-/**
- * Genera PDF profesional estilo ecommerce premium
- * @param {Object} firebaseData - Datos de Firebase
- * @returns {Object} Adjunto de PDF
- */
 async function _generateOrderPDF(firebaseData) {
   return new Promise((resolve, reject) => {
     try {
       const {
         order_id,
-        fecha_creacion,
         cliente,
         productos,
         resumen,
         envio,
         comprobante
       } = firebaseData;
-      
-      let fechaOrden;
-      
-      if (fecha_creacion) {
-        if (fecha_creacion.seconds !== undefined) {
-          fechaOrden = new Date(fecha_creacion.seconds * 1000);
-        }
-        else if (fecha_creacion._seconds !== undefined) {
-          fechaOrden = new Date(fecha_creacion._seconds * 1000);
-        }
-        else if (typeof fecha_creacion === 'string') {
-          fechaOrden = new Date(fecha_creacion);
-        }
-        else if (typeof fecha_creacion === 'number') {
-          if (fecha_creacion < 10000000000) {
-            fechaOrden = new Date(fecha_creacion * 1000);
-          } else {
-            fechaOrden = new Date(fecha_creacion);
-          }
-        }
-        else if (fecha_creacion instanceof Date) {
-          fechaOrden = fecha_creacion;
-        }
-        else {
-          fechaOrden = new Date();
-        }
-      } else {
-        fechaOrden = new Date();
-      }
-      
-      if (fechaOrden.getFullYear() === 1970) {
-        fechaOrden = new Date();
-      }
-      
-      const opcionesFecha = {
+
+      // ============================================================
+      // 📅 FECHA ÚNICA: LA FECHA ACTUAL (IGUAL QUE EL CORREO)
+      // ============================================================
+      const fechaOrden = new Date();
+
+      // Formateo completo (igual que en el correo)
+      const opcionesCompletas = {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+        timeZone: 'America/Lima'
+      };
+
+      const formateadorCompleto = new Intl.DateTimeFormat('es-PE', opcionesCompletas);
+      const fechaCompleta = formateadorCompleto.format(fechaOrden);
+
+      // Separar para el PDF (fecha y hora en diferentes lugares)
+      const fechaFormateada = fechaOrden.toLocaleDateString('es-PE', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
         timeZone: 'America/Lima'
-      };
-      
-      const opcionesHora = {
+      });
+
+      const horaFormateada = fechaOrden.toLocaleTimeString('es-PE', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: true,
         timeZone: 'America/Lima'
-      };
-      
-      const formateadorFecha = new Intl.DateTimeFormat('es-PE', opcionesFecha);
-      const formateadorHora = new Intl.DateTimeFormat('es-PE', opcionesHora);
-      
-      const fechaFormateada = formateadorFecha.format(fechaOrden);
-      const horaFormateada = formateadorHora.format(fechaOrden);
-      
-      // ✅ CONFIGURACIÓN CON MÁRGENES REDUCIDOS
+      });
+
+      console.log('📅 PDF - Fecha formateada:', fechaFormateada);
+      console.log('🕐 PDF - Hora formateada:', horaFormateada);
+      console.log('📅 PDF - Fecha completa:', fechaCompleta);
+
+      // ============================================================
+      // CONFIGURACIÓN DEL DOCUMENTO
+      // ============================================================
       const doc = new PDFDocument({ 
         size: 'A4', 
-        margin: 35, // Reducido de 50 a 35
+        margin: 35,
         info: {
           Title: `Comprobante ${order_id} - Goldinfiniti`,
           Author: 'Goldinfiniti E-commerce',
@@ -847,55 +778,52 @@ async function _generateOrderPDF(firebaseData) {
       });
       
       // ===========================================
-      // NUEVO HEADER - SOLO "BOUCHERE DE COMPRA"
+      // HEADER - "BOUCHERE DE COMPRA"
       // ===========================================
-      // Header más compacto (altura reducida de 120 a 70)
       doc.rect(0, 0, doc.page.width, 70)
          .fillColor('#000000')
          .fill();
       
-      // Solo la frase BOUCHERE DE COMPRA
       doc.fillColor('#FFFFFF')
-         .fontSize(22) // Reducido de 28 a 22
+         .fontSize(22)
          .font('Helvetica-Bold')
-         .text('BOUCHERE DE COMPRA', 0, 25, { align: 'center' }); // Posición ajustada
+         .text('BOUCHERE DE COMPRA', 0, 25, { align: 'center' });
       
-      // Línea dorada decorativa (más delgada)
       doc.strokeColor('#FFD700')
-         .lineWidth(1.5) // Reducido de 2 a 1.5
+         .lineWidth(1.5)
          .moveTo(120, 55)
          .lineTo(doc.page.width - 120, 55)
          .stroke();
       
-      doc.moveDown(2); // Reducido de 3 a 2
+      doc.moveDown(2);
       
       // ===========================================
-      // INFORMACIÓN DE LA ORDEN - MEDIDAS AJUSTADAS
+      // INFORMACIÓN DE LA ORDEN
       // ===========================================
-      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold'); // Reducido de 16 a 14
-      doc.text('INFORMACIÓN DE LA ORDEN', 35, 100); // Ajustado Y de 160 a 100, X de 50 a 35
+      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold');
+      doc.text('INFORMACIÓN DE LA ORDEN', 35, 100);
       
-      doc.strokeColor('#FFD700').lineWidth(1).moveTo(35, 115).lineTo(doc.page.width - 35, 115).stroke(); // Ajustado
+      doc.strokeColor('#FFD700').lineWidth(1).moveTo(35, 115).lineTo(doc.page.width - 35, 115).stroke();
       doc.moveDown(1);
       
-      doc.fillColor('#333333').fontSize(9).font('Helvetica'); // Reducido de 10 a 9
+      doc.fillColor('#333333').fontSize(9).font('Helvetica');
       
-      const infoLeft = 35; // Ajustado de 50 a 35
-      const infoRight = doc.page.width / 2 + 20; // Ajustado
-      let currentY = 125; // Valor fijo en lugar de doc.y
+      const infoLeft = 35;
+      const infoRight = doc.page.width / 2 + 20;
+      let currentY = 125;
       
       doc.text('NÚMERO DE ORDEN:', infoLeft, currentY);
-      doc.fillColor('#000000').font('Helvetica-Bold').text(order_id, infoLeft + 100, currentY); // Reducido de 110 a 100
+      doc.fillColor('#000000').font('Helvetica-Bold').text(order_id, infoLeft + 100, currentY);
       
       doc.fillColor('#333333').font('Helvetica');
-      doc.text('FECHA:', infoLeft, currentY + 16); // Reducido de 18 a 16
+      doc.text('FECHA:', infoLeft, currentY + 16);
       doc.fillColor('#000000').text(fechaFormateada, infoLeft + 100, currentY + 16);
       
-      doc.fillColor('#333333').text('HORA:', infoLeft, currentY + 32); // Reducido de 36 a 32
+      doc.fillColor('#333333').text('HORA:', infoLeft, currentY + 32);
       doc.fillColor('#000000').text(horaFormateada, infoLeft + 100, currentY + 32);
       
       doc.fillColor('#333333').text('ESTADO:', infoRight, currentY);
-      doc.fillColor('#27ae60').font('Helvetica-Bold').text('PAGO APROBADO', infoRight + 100, currentY); // Reducido de 110 a 100
+      doc.fillColor('#27ae60').font('Helvetica-Bold').text('PAGO APROBADO', infoRight + 100, currentY);
       
       doc.fillColor('#333333').font('Helvetica');
       doc.text('MÉTODO DE PAGO:', infoRight, currentY + 16);
@@ -905,12 +833,12 @@ async function _generateOrderPDF(firebaseData) {
       doc.fillColor('#000000').text('Soles (PEN)', infoRight + 100, currentY + 32);
       
       // ===========================================
-      // INFORMACIÓN DEL CLIENTE - MEDIDAS AJUSTADAS
+      // INFORMACIÓN DEL CLIENTE
       // ===========================================
-      doc.moveDown(3); // Reducido de 4 a 3
+      doc.moveDown(3);
       
-      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold'); // Reducido de 16 a 14
-      doc.text('INFORMACIÓN DEL CLIENTE', 35, currentY + 50); // Posición fija
+      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold');
+      doc.text('INFORMACIÓN DEL CLIENTE', 35, currentY + 50);
       doc.strokeColor('#FFD700').lineWidth(1).moveTo(35, currentY + 65).lineTo(doc.page.width - 35, currentY + 65).stroke();
       
       let clientY = currentY + 75;
@@ -929,7 +857,7 @@ async function _generateOrderPDF(firebaseData) {
       doc.fillColor('#000000').text(cliente.telefono || 'No especificado', infoLeft + 100, clientY + 48);
       
       // ===========================================
-      // TABLA DE PRODUCTOS - MEDIDAS AJUSTADAS
+      // TABLA DE PRODUCTOS
       // ===========================================
       doc.moveDown(4);
       doc.fillColor('#000000').fontSize(16).font('Helvetica-Bold');
@@ -1023,15 +951,14 @@ async function _generateOrderPDF(firebaseData) {
       
       doc.y = currentTableY + 20;
 
-      
       // ===========================================
-      // RESUMEN DE PAGO - MEDIDAS AJUSTADAS
+      // RESUMEN DE PAGO
       // ===========================================
-      const summaryBoxTop = currentTableY + 15; // Reducido de +20 a +15
-      const summaryBoxWidth = 270; // Reducido de 300 a 270
+      const summaryBoxTop = currentTableY + 15;
+      const summaryBoxWidth = 270;
       const summaryBoxLeft = doc.page.width - summaryBoxWidth - 35;
       
-      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 140, 5) // Reducido de 150 a 140
+      doc.roundedRect(summaryBoxLeft, summaryBoxTop, summaryBoxWidth, 140, 5)
          .fillColor('#f8f9fa')
          .fill();
       
@@ -1040,20 +967,20 @@ async function _generateOrderPDF(firebaseData) {
          .lineWidth(1)
          .stroke();
       
-      doc.fillColor('#000000').fontSize(13).font('Helvetica-Bold'); // Reducido de 14 a 13
-      doc.text('RESUMEN DE PAGO', summaryBoxLeft + 12, summaryBoxTop + 12); // Padding reducido
+      doc.fillColor('#000000').fontSize(13).font('Helvetica-Bold');
+      doc.text('RESUMEN DE PAGO', summaryBoxLeft + 12, summaryBoxTop + 12);
       
       doc.strokeColor('#e0e0e0').lineWidth(0.5)
-         .moveTo(summaryBoxLeft + 12, summaryBoxTop + 35) // Ajustado de 40 a 35
+         .moveTo(summaryBoxLeft + 12, summaryBoxTop + 35)
          .lineTo(summaryBoxLeft + summaryBoxWidth - 12, summaryBoxTop + 35)
          .stroke();
       
-      let summaryY = summaryBoxTop + 45; // Ajustado de 50 a 45
-      const lineHeight = 20; // Reducido de 22 a 20
+      let summaryY = summaryBoxTop + 45;
+      const lineHeight = 20;
       
-      doc.fillColor('#333333').fontSize(9).font('Helvetica'); // Reducido de 10 a 9
+      doc.fillColor('#333333').fontSize(9).font('Helvetica');
       doc.text('Subtotal:', summaryBoxLeft + 12, summaryY);
-      doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 100, summaryY, { // Ajustado
+      doc.text(`S/ ${resumen.subtotal.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 100, summaryY, {
         align: 'right'
       });
       
@@ -1065,14 +992,14 @@ async function _generateOrderPDF(firebaseData) {
         });
       }
       
-      summaryY += lineHeight + 3; // Reducido de +5 a +3
+      summaryY += lineHeight + 3;
       doc.strokeColor('#FFD700').lineWidth(1)
          .moveTo(summaryBoxLeft + 12, summaryY)
          .lineTo(summaryBoxLeft + summaryBoxWidth - 12, summaryY)
          .stroke();
       
-      summaryY += 8; // Reducido de 10 a 8
-      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold'); // Reducido de 16 a 14
+      summaryY += 8;
+      doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold');
       doc.text('TOTAL:', summaryBoxLeft + 12, summaryY);
       doc.fillColor('#27ae60');
       doc.text(`S/ ${resumen.total.toFixed(2)}`, summaryBoxLeft + summaryBoxWidth - 100, summaryY, {
@@ -1080,13 +1007,13 @@ async function _generateOrderPDF(firebaseData) {
       });
       
       // ===========================================
-      // FOOTER - MEDIDAS AJUSTADAS
+      // FOOTER
       // ===========================================
-      doc.fillColor('#333333').fontSize(7).font('Helvetica'); // Reducido de 8 a 7
+      doc.fillColor('#333333').fontSize(7).font('Helvetica');
       doc.text('Gracias por su compra. Este documento es su comprobante oficial.', 
-        35, doc.page.height - 35, { width: doc.page.width - 70, align: 'center' }); // Ajustado
+        35, doc.page.height - 35, { width: doc.page.width - 70, align: 'center' });
       
-      doc.fillColor('#666666').fontSize(6); // Reducido de 7 a 6
+      doc.fillColor('#666666').fontSize(6);
       doc.text(`ID de transacción: ${order_id}`, 35, doc.page.height - 22, { width: doc.page.width - 70, align: 'center' });
       
       doc.end();
@@ -1100,7 +1027,7 @@ async function _generateOrderPDF(firebaseData) {
 
 
 // ========================
-// 7. FUNCIÓN DE NOTIFICACIÓN INTERNA - 🔴 CAMBIO 3 APLICADO
+// 13. FUNCIÓN DE NOTIFICACIÓN INTERNA
 // ========================
 async function sendPaymentNotification(paymentData) {
   try {
@@ -1116,8 +1043,7 @@ async function sendPaymentNotification(paymentData) {
     const customerName = paymentData.cliente?.nombre || 
                          paymentData.customer_name || 
                          'Cliente';
-    // ELIMINADO: customerLastName ya no se usa
-    const customerFullName = customerName;  // ← AHORA SOLO EL NOMBRE
+    const customerFullName = customerName;
     
     let productosHtml = '';
     if (paymentData.productos && Array.isArray(paymentData.productos)) {
@@ -1189,12 +1115,10 @@ async function sendPaymentNotification(paymentData) {
           </div>
           
           <div style="padding: 25px;">
-            <!-- Cabecera de éxito -->
             <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #28a745;">
               <h2 style="margin: 0; font-size: 20px;">✅ PAGO PROCESADO EXITOSAMENTE</h2>
             </div>
             
-            <!-- Información principal -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
               <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 3px solid #007bff;">
                 <p style="margin: 0 0 8px 0;"><strong>📋 Orden:</strong><br>#${orderId}</p>
@@ -1204,90 +1128,83 @@ async function sendPaymentNotification(paymentData) {
               <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 3px solid #28a745;">
                 <p style="margin: 0 0 8px 0;"><strong>💰 Total:</strong><br><span style="font-size: 24px; font-weight: bold; color: #28a745;">S/ ${total.toFixed(2)}</span></p>
                 <p style="margin: 0 0 8px 0;"><strong>📅 Fecha:</strong><br>${new Date().toLocaleString('es-PE', {
-  weekday: 'long',
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hour12: true,
-  timeZone: 'America/Lima'
-})}</p>
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true,
+                  timeZone: 'America/Lima'
+                })}</p>
                 <p style="margin: 0;"><strong>🔗 ID Culqi:</strong><br><code style="background: #eee; padding: 2px 5px; border-radius: 3px;">${paymentData.culqi_id || paymentData.id || 'N/A'}</code></p>
               </div>
             </div>
             
-            <!-- 🚚 INFORMACIÓN DE ENVÍO -->
-<div style="background: #d1ecf1; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #17a2b8;">
-  <p style="margin: 0 0 10px 0; color: #0c5460; font-weight: bold; font-size: 16px;">🚚 DIRECCIÓN DE ENVÍO:</p>
-  
-  ${paymentData.envio?.direccion ? `
-    <p style="margin: 0 0 8px 0; background: white; padding: 10px; border-radius: 4px; border: 1px solid #bee5eb;">
-      <strong>📍 Dirección:</strong><br>
-      ${paymentData.envio.direccion}
-    </p>
-  ` : '<p style="margin: 0 0 8px 0; color: #dc3545;">⚠️ No se especificó dirección</p>'}
-  
-  ${paymentData.envio?.distrito ? `<p style="margin: 0 0 5px 0;"><strong>🏙️ Distrito:</strong> ${paymentData.envio.distrito}</p>` : ''}
-  ${paymentData.envio?.provincia ? `<p style="margin: 0 0 5px 0;"><strong>🏛️ Provincia:</strong> ${paymentData.envio.provincia}</p>` : ''}
-  ${paymentData.envio?.departamento ? `<p style="margin: 0 0 5px 0;"><strong>🗺️ Departamento:</strong> ${paymentData.envio.departamento}</p>` : ''}
-  ${paymentData.envio?.referencia ? `<p style="margin: 0 0 5px 0;"><strong>📌 Referencia:</strong> ${paymentData.envio.referencia}</p>` : ''}
-  
-  <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #bee5eb;">
-    ${paymentData.envio?.tipo ? `<p style="margin: 0 0 5px 0;"><strong>📦 Tipo envío:</strong> ${paymentData.envio.tipo}</p>` : ''}
-    ${paymentData.envio?.costo ? `<p style="margin: 0 0 5px 0;"><strong>💰 Costo envío:</strong> S/ ${paymentData.envio.costo.toFixed(2)}</p>` : ''}
-    ${paymentData.envio?.estado ? `<p style="margin: 0;"><strong>📊 Estado:</strong> <span style="color: ${paymentData.envio.estado === 'pendiente' ? '#ffc107' : '#28a745'};">${paymentData.envio.estado.toUpperCase()}</span></p>` : ''}
-  </div>
-</div>
+            <div style="background: #d1ecf1; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #17a2b8;">
+              <p style="margin: 0 0 10px 0; color: #0c5460; font-weight: bold; font-size: 16px;">🚚 DIRECCIÓN DE ENVÍO:</p>
+              
+              ${paymentData.envio?.direccion ? `
+                <p style="margin: 0 0 8px 0; background: white; padding: 10px; border-radius: 4px; border: 1px solid #bee5eb;">
+                  <strong>📍 Dirección:</strong><br>
+                  ${paymentData.envio.direccion}
+                </p>
+              ` : '<p style="margin: 0 0 8px 0; color: #dc3545;">⚠️ No se especificó dirección</p>'}
+              
+              ${paymentData.envio?.distrito ? `<p style="margin: 0 0 5px 0;"><strong>🏙️ Distrito:</strong> ${paymentData.envio.distrito}</p>` : ''}
+              ${paymentData.envio?.provincia ? `<p style="margin: 0 0 5px 0;"><strong>🏛️ Provincia:</strong> ${paymentData.envio.provincia}</p>` : ''}
+              ${paymentData.envio?.departamento ? `<p style="margin: 0 0 5px 0;"><strong>🗺️ Departamento:</strong> ${paymentData.envio.departamento}</p>` : ''}
+              ${paymentData.envio?.referencia ? `<p style="margin: 0 0 5px 0;"><strong>📌 Referencia:</strong> ${paymentData.envio.referencia}</p>` : ''}
+              
+              <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #bee5eb;">
+                ${paymentData.envio?.tipo ? `<p style="margin: 0 0 5px 0;"><strong>📦 Tipo envío:</strong> ${paymentData.envio.tipo}</p>` : ''}
+                ${paymentData.envio?.costo ? `<p style="margin: 0 0 5px 0;"><strong>💰 Costo envío:</strong> S/ ${paymentData.envio.costo.toFixed(2)}</p>` : ''}
+                ${paymentData.envio?.estado ? `<p style="margin: 0;"><strong>📊 Estado:</strong> <span style="color: ${paymentData.envio.estado === 'pendiente' ? '#ffc107' : '#28a745'};">${paymentData.envio.estado.toUpperCase()}</span></p>` : ''}
+              </div>
+            </div>
 
-<!-- 📞 Información de contacto -->
-<div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #6c757d;">
-  <p style="margin: 0 0 10px 0; color: #495057; font-weight: bold;">📞 CONTACTO DEL CLIENTE:</p>
-  
-  <!-- Usar las variables que ya extrajiste -->
-  <p style="margin: 0 0 8px 0;">
-    <strong>👤 Nombre:</strong> ${customerFullName}
-  </p>
-  
-  <p style="margin: 0 0 8px 0;">
-    <strong>📧 Email:</strong> 
-    <a href="mailto:${customerEmail}" style="color: #007bff; text-decoration: none;">
-      ${customerEmail}
-    </a>
-  </p>
-  
-  <!-- Buscar teléfono en múltiples ubicaciones -->
-  ${paymentData.cliente?.telefono || paymentData.customer_phone || paymentData.telefono ? `
-    <p style="margin: 0 0 8px 0;">
-      <strong>📱 Teléfono:</strong> 
-      <a href="tel:${paymentData.cliente?.telefono || paymentData.customer_phone || paymentData.telefono}" style="color: #007bff; text-decoration: none;">
-        ${paymentData.cliente?.telefono || paymentData.customer_phone || paymentData.telefono}
-      </a>
-    </p>
-  ` : ''}
-  
-  <!-- Buscar DNI en múltiples ubicaciones -->
-  ${paymentData.cliente?.dni || paymentData.dni || paymentData.documento ? `
-    <p style="margin: 0 0 5px 0;">
-      <strong>🪪 DNI/Documento:</strong> ${paymentData.cliente?.dni || paymentData.dni || paymentData.documento}
-    </p>
-  ` : ''}
-  
-  ${paymentData.envio?.notas ? `
-    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #dee2e6;">
-      <p style="margin: 0 0 5px 0; font-weight: bold;">📝 Notas del cliente:</p>
-      <p style="margin: 0; background: white; padding: 10px; border-radius: 4px; border: 1px solid #dee2e6; font-style: italic;">
-        "${paymentData.envio.notas}"
-      </p>
-    </div>
-  ` : ''}
-</div>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #6c757d;">
+              <p style="margin: 0 0 10px 0; color: #495057; font-weight: bold;">📞 CONTACTO DEL CLIENTE:</p>
+              
+              <p style="margin: 0 0 8px 0;">
+                <strong>👤 Nombre:</strong> ${customerFullName}
+              </p>
+              
+              <p style="margin: 0 0 8px 0;">
+                <strong>📧 Email:</strong> 
+                <a href="mailto:${customerEmail}" style="color: #007bff; text-decoration: none;">
+                  ${customerEmail}
+                </a>
+              </p>
+              
+              ${paymentData.cliente?.telefono || paymentData.customer_phone || paymentData.telefono ? `
+                <p style="margin: 0 0 8px 0;">
+                  <strong>📱 Teléfono:</strong> 
+                  <a href="tel:${paymentData.cliente?.telefono || paymentData.customer_phone || paymentData.telefono}" style="color: #007bff; text-decoration: none;">
+                    ${paymentData.cliente?.telefono || paymentData.customer_phone || paymentData.telefono}
+                  </a>
+                </p>
+              ` : ''}
+              
+              ${paymentData.cliente?.dni || paymentData.dni || paymentData.documento ? `
+                <p style="margin: 0 0 5px 0;">
+                  <strong>🪪 DNI/Documento:</strong> ${paymentData.cliente?.dni || paymentData.dni || paymentData.documento}
+                </p>
+              ` : ''}
+              
+              ${paymentData.envio?.notas ? `
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #dee2e6;">
+                  <p style="margin: 0 0 5px 0; font-weight: bold;">📝 Notas del cliente:</p>
+                  <p style="margin: 0; background: white; padding: 10px; border-radius: 4px; border: 1px solid #dee2e6; font-style: italic;">
+                    "${paymentData.envio.notas}"
+                  </p>
+                </div>
+              ` : ''}
+            </div>
             
-            <!-- Tabla de productos -->
             ${productosHtml}
             
-            <!-- Resumen final -->
             <div style="margin-top: 25px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px;">
               <h3 style="margin: 0 0 15px 0; color: white;">📊 RESUMEN FINAL</h3>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
@@ -1319,7 +1236,6 @@ async function sendPaymentNotification(paymentData) {
               ` : ''}
             </div>
             
-            <!-- Acciones rápidas -->
             <div style="margin-top: 20px; text-align: center; font-size: 12px; color: #666;">
               <p style="margin: 0;">
                 <em>📋 Esta orden fue guardada en Firebase con ID: ${orderId}</em><br>
@@ -1331,18 +1247,18 @@ async function sendPaymentNotification(paymentData) {
           <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd;">
             <p style="margin: 0 0 5px 0; font-weight: bold;">Goldinfiniti Tech Corp - Sistema Automático de Notificaciones</p>
             <p style="margin: 0; font-size: 11px;">
-  🔔 Notificación generada automáticamente • ${new Date().toLocaleString('es-PE', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-    timeZone: 'America/Lima'
-  })}
-</p>
+              🔔 Notificación generada automáticamente • ${new Date().toLocaleString('es-PE', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+                timeZone: 'America/Lima'
+              })}
+            </p>
           </div>
         </div>
       `
@@ -1375,14 +1291,9 @@ async function sendPaymentNotification(paymentData) {
 }
 
 // ========================
-// 🆕 9. FUNCIONES NUEVAS PARA RECLAMOS - ✅ SEGURAS, NO MODIFICAN EXISTENTES
+// 14. FUNCIONES PARA RECLAMOS
 // ========================
 
-/**
- * Envía email de confirmación de reclamo al usuario
- * @param {Object} claimData - Datos del reclamo desde Firebase
- * @returns {Promise<Object>} Resultado del envío
- */
 async function sendClaimConfirmation(claimData) {
   const startTime = Date.now();
   const claimId = claimData.id || claimData.reclamoId || 'N/A';
@@ -1390,15 +1301,12 @@ async function sendClaimConfirmation(claimData) {
   try {
     logger.info(`📝 Iniciando envío de confirmación para reclamo ${claimId}`);
     
-    // Validar datos mínimos
     if (!claimData.consumidor?.email) {
       throw new Error('Email del consumidor no proporcionado');
     }
     
-    // Generar contenido del email
     const emailContent = _generateClaimEmail(claimData);
     
-    // Preparar opciones del correo
     const mailOptions = {
       from: '"GOLDINFINITI - Libro de Reclamaciones" <contacto@goldinfiniti.com>',
       to: claimData.consumidor.email,
@@ -1408,7 +1316,6 @@ async function sendClaimConfirmation(claimData) {
       text: emailContent.text
     };
     
-    // Enviar correo
     logger.info(`📤 Enviando email a ${claimData.consumidor.email}`, {
       claimId,
       tipo: claimData.tipoSolicitud,
@@ -1448,11 +1355,6 @@ async function sendClaimConfirmation(claimData) {
   }
 }
 
-/**
- * Envía notificación de nuevo reclamo al administrador
- * @param {Object} claimData - Datos del reclamo desde Firebase
- * @returns {Promise<Object>} Resultado del envío
- */
 async function sendClaimNotification(claimData) {
   try {
     const claimId = claimData.id || claimData.reclamoId || 'N/A';
@@ -1492,11 +1394,6 @@ async function sendClaimNotification(claimData) {
   }
 }
 
-/**
- * Genera contenido HTML del email de reclamo para usuario
- * @param {Object} claimData - Datos del reclamo
- * @returns {Object} HTML y texto plano
- */
 function _generateClaimEmail(claimData) {
   const {
     id,
@@ -1507,7 +1404,6 @@ function _generateClaimEmail(claimData) {
     legal
   } = claimData;
   
-  // Formatear fecha
   const fecha = new Date(fechaRegistro).toLocaleString('es-PE', {
     weekday: 'long',
     year: 'numeric',
@@ -1546,15 +1442,12 @@ function _generateClaimEmail(claimData) {
     </head>
     <body>
       <div class="container">
-        <!-- Header -->
         <div class="header">
           <h1 style="margin-top: 20px; font-size: 28px;">✅ RECLAMO REGISTRADO</h1>
           <p style="margin-top: 10px; font-size: 16px;">Libro de Reclamaciones INDECOPI</p>
         </div>
         
-        <!-- Contenido -->
         <div class="content">
-          <!-- Información del reclamo -->
           <div class="section">
             <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
               <p><strong>📋 Número de Reclamo:</strong><br>${id}</p>
@@ -1568,7 +1461,6 @@ function _generateClaimEmail(claimData) {
             </div>
           </div>
           
-          <!-- Detalles del reclamo -->
           <div class="section">
             <h2 class="section-title">📝 Detalle de ${tipoSolicitud}</h2>
             <div class="info-box">
@@ -1581,7 +1473,6 @@ function _generateClaimEmail(claimData) {
             </div>
           </div>
           
-          <!-- Información importante -->
           <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
             <h3 style="color: #856404; margin-bottom: 10px;">📌 Información Importante</h3>
             <ul style="padding-left: 20px;">
@@ -1592,7 +1483,6 @@ function _generateClaimEmail(claimData) {
             </ul>
           </div>
           
-          <!-- Pasos siguientes -->
           <div style="margin-top: 30px; text-align: center;">
             <h3 style="margin-bottom: 15px;">👉 ¿Qué sigue?</h3>
             <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px;">
@@ -1612,7 +1502,6 @@ function _generateClaimEmail(claimData) {
           </div>
         </div>
         
-        <!-- Footer -->
         <div class="footer">
           <p style="margin-bottom: 10px;">
             <strong>GOLDINFINITI - Libro de Reclamaciones INDECOPI</strong>
@@ -1675,11 +1564,6 @@ www.goldinfiniti.com
   return { html, text };
 }
 
-/**
- * Genera notificación HTML para el administrador
- * @param {Object} claimData - Datos del reclamo
- * @returns {String} HTML de la notificación
- */
 function _generateClaimAdminNotification(claimData) {
   const {
     id,
@@ -1812,7 +1696,7 @@ function _generateClaimAdminNotification(claimData) {
 }
 
 // ========================
-// 10. FUNCIONES DE UTILIDAD
+// 15. FUNCIONES DE UTILIDAD
 // ========================
 function _maskEmail(email) {
   if (!email || typeof email !== 'string') return 'unknown@email.com';
@@ -1835,22 +1719,18 @@ function verifyService() {
 }
 
 // ========================
-// 11. EXPORTACIÓN COMPLETA (CON TODO LO QUE TU CONTROLLER NECESITA)
+// 16. EXPORTACIÓN COMPLETA
 // ========================
 const emailService = {
-  // 🔧 FUNCIONES DE CONFIGURACIÓN (que tu PaymentController busca)
   checkEmailConfig,
   verifyService,
   
-  // 📤 FUNCIONES DE ENVÍO EXISTENTES (pagos)
   sendPaymentConfirmation,
   sendPaymentNotification,
   
-  // 📝 FUNCIONES NUEVAS PARA RECLAMOS
   sendClaimConfirmation,
   sendClaimNotification,
   
-  // 🛠️ FUNCIONES INTERNAS Y UTILIDAD
   _extractFirebaseData,
   _generateGoldenInfinityEmail,
   _generateOrderPDF,
@@ -1858,7 +1738,6 @@ const emailService = {
   _generateClaimAdminNotification,
   _maskEmail,
   
-  // 🔌 TRANSPORTER Y FUNCIONES DE ENVÍO
   transporter,
   createTransporter,
   sendEmailWithRetry
