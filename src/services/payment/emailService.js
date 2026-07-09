@@ -746,18 +746,8 @@ async function _generateOrderPDF(firebaseData) {
       // ============================================================
       // 📊 CONFIGURACIÓN DE TABLA
       // ============================================================
-      const COLUMN_RATIO = {
-        product: 38,
-        color: 10,
-        talla: 8,
-        cant: 8,
-        price: 16,
-        subtotal: 20
-      };
-
       const TABLE = {
         headerHeight: 14,
-        rowHeight: 18,
         paddingX: 6,
         paddingY: 3
       };
@@ -770,12 +760,12 @@ async function _generateOrderPDF(firebaseData) {
       };
 
       // ============================================================
-      // 📄 CREACIÓN DEL DOCUMENTO
+      // 📄 CREACIÓN DEL DOCUMENTO - MARGEN 0 PARA CONTROL TOTAL
       // ============================================================
       function createDocument() {
         return new PDFDocument({
           size: 'A4',
-          margin: LAYOUT.margin,
+          margin: 0,
           info: {
             Title: `Comprobante ${order_id}`,
             Author: 'Goldinfiniti',
@@ -1033,29 +1023,35 @@ async function _generateOrderPDF(firebaseData) {
       // -------- CALCULAR COLUMNAS --------
       function calculateColumns() {
         const PAGE_W = getPageWidth();
-        const available = PAGE_W - (M * 2) - (TABLE.paddingX * 10);
+        const available = PAGE_W - (M * 2);
+
         const widths = {
-          product: available * (COLUMN_RATIO.product / 100),
-          color: available * (COLUMN_RATIO.color / 100),
-          talla: available * (COLUMN_RATIO.talla / 100),
-          cant: available * (COLUMN_RATIO.cant / 100),
-          price: available * (COLUMN_RATIO.price / 100),
-          subtotal: available * (COLUMN_RATIO.subtotal / 100)
+          product: available * 0.38,
+          color: available * 0.10,
+          talla: available * 0.08,
+          cant: available * 0.08,
+          price: available * 0.16,
+          subtotal: available * 0.20
         };
 
         let x = M;
         const cols = {};
 
         cols.col1 = x;
-        x += widths.product + TABLE.paddingX * 2;
+        x += widths.product;
+
         cols.col2 = x;
-        x += widths.color + TABLE.paddingX * 2;
+        x += widths.color;
+
         cols.col3 = x;
-        x += widths.talla + TABLE.paddingX * 2;
+        x += widths.talla;
+
         cols.col4 = x;
-        x += widths.cant + TABLE.paddingX * 2;
+        x += widths.cant;
+
         cols.col5 = x;
-        x += widths.price + TABLE.paddingX * 2;
+        x += widths.price;
+
         cols.col6 = x;
 
         return { cols, widths };
@@ -1145,9 +1141,11 @@ async function _generateOrderPDF(firebaseData) {
         const maxWidth = widths.product - TABLE.paddingX * 2;
         const displayName = prepareProductText(nombre, maxWidth);
 
+        const rowHeight = sku ? 26 : 18;
+
         if (index % 2 === 0) {
           doc.fillColor(THEME.surface)
-             .rect(M, yPos, PAGE_W - (M * 2), TABLE.rowHeight)
+             .rect(M, yPos, PAGE_W - (M * 2), rowHeight)
              .fill();
         }
 
@@ -1197,16 +1195,16 @@ async function _generateOrderPDF(firebaseData) {
 
         doc.strokeColor(THEME.border)
            .lineWidth(0.15)
-           .moveTo(M, yPos + TABLE.rowHeight)
-           .lineTo(PAGE_W - M, yPos + TABLE.rowHeight)
+           .moveTo(M, yPos + rowHeight)
+           .lineTo(PAGE_W - M, yPos + rowHeight)
            .stroke();
 
-        return yPos + TABLE.rowHeight;
+        return yPos + rowHeight;
       }
 
       // -------- ALTURA REAL DEL RESUMEN --------
       function getSummaryHeight() {
-        return SUMMARY.height + 35;
+        return SUMMARY.height + 10;
       }
 
       // -------- RESUMEN DE PAGO --------
@@ -1291,7 +1289,7 @@ async function _generateOrderPDF(firebaseData) {
       function drawFooter() {
         const PAGE_W = getPageWidth();
         const PAGE_H = getPageHeight();
-        const yPos = PAGE_H - LAYOUT.footerOffset - 20;
+        const yPos = PAGE_H - 42;
 
         doc.strokeColor(THEME.accent)
            .lineWidth(0.18)
@@ -1333,7 +1331,7 @@ async function _generateOrderPDF(firebaseData) {
 
       let currentY = M;
 
-      // Página 1
+      // Página 1 - Contenido fijo
       currentY = drawMainHeader(currentY);
       currentY = drawOrderInfo(currentY);
       currentY = drawClientInfo(cliente, currentY);
@@ -1346,18 +1344,18 @@ async function _generateOrderPDF(firebaseData) {
 
       let rowIndex = 0;
 
-      // ✅ PAGINACIÓN DE PRODUCTOS - SOLO CUANDO NO CABE
+      // ✅ DIBUJAR PRODUCTOS - SIN CONTINUATION_SPACE
       for (let i = 0; i < productos.length; i++) {
-        if (currentY + TABLE.rowHeight > getContentBottom()) {
+        const nextRowHeight = productos[i].sku || productos[i].codigo ? 26 : 18;
+
+        // ✅ SOLO VERIFICAR SI LA FILA CABE
+        if (currentY + nextRowHeight > getContentBottom()) {
           drawFooter();
           doc.addPage();
-
-          currentY = M + 10;
+          currentY = M;
           currentY = drawContinuationHeader(currentY);
           currentY += LAYOUT.textOffset;
-
           currentY = drawSectionTitle('DETALLE DE PRODUCTOS', currentY, true);
-
           tableResult = drawTableHeaders(currentY);
           currentY = tableResult.y;
           cols = tableResult.cols;
@@ -1369,18 +1367,19 @@ async function _generateOrderPDF(firebaseData) {
         rowIndex++;
       }
 
-      // ✅ VERIFICAR ESPACIO PARA RESUMEN
-      const remaining = getContentBottom() - currentY;
+      // ✅ CONTROL DE ESPACIO ANTES DEL RESUMEN
+      const espacioNecesarioResumen = getSummaryHeight() + 14;
+      const limiteInferior = getContentBottom();
 
-      if (remaining < getSummaryHeight()) {
+      if (currentY + espacioNecesarioResumen > limiteInferior) {
         drawFooter();
         doc.addPage();
-
-        currentY = M + 10;
+        currentY = M;
         currentY = drawContinuationHeader(currentY);
-        currentY += 10;
+        currentY += LAYOUT.textOffset;
       }
 
+      // ✅ DIBUJAR RESUMEN
       currentY = drawSummary({
         subtotal: resumen.subtotal,
         shipping: envio.costo || 0,
