@@ -2647,3 +2647,188 @@
 [2026-06-07 21:22:33] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
 [2026-06-07 21:22:33] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
 [2026-06-07 21:22:33] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-08 08:54:55] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-08 08:54:55] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-08 08:54:55] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-08 08:54:55] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-08 08:54:55] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-09 09:05:47] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-09 09:05:47] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-09 09:05:52] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-09 09:05:52] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-09 09:05:52] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-09 10:06:07] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-09 10:06:07] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-09 10:06:10] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-09 10:06:10] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-09 10:06:10] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-10 09:27:17] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-10 09:27:17] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-10 09:27:21] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-10 09:27:21] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-10 09:27:21] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-10 22:45:05] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-10 22:45:05] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-10 22:45:08] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-10 22:45:08] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-10 22:45:08] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-11 08:20:14] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-11 08:20:14] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-11 08:20:16] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-11 08:20:16] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-11 08:20:16] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-13 09:02:30] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-13 09:02:30] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-13 09:02:33] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-13 09:02:33] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-13 09:02:33] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-14 15:34:23] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-14 15:34:23] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-14 15:34:26] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-14 15:34:26] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-14 15:34:26] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-15 06:36:20] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-15 06:36:20] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-15 06:36:23] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-15 06:36:23] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-15 06:36:23] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-16 17:38:19] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-16 17:38:19] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-16 17:38:22] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-16 17:38:22] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-16 17:38:22] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-17 11:13:56] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-17 11:13:56] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-17 11:13:59] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-17 11:13:59] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-17 11:13:59] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-19 09:48:34] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-19 09:48:34] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-19 09:48:37] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-19 09:48:37] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-19 09:48:37] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-19 15:34:49] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-19 15:34:49] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-19 15:34:53] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-19 15:34:53] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-19 15:34:53] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-19 21:34:26] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-19 21:34:26] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-19 21:34:26] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-19 21:34:26] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-19 21:34:26] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-20 08:01:16] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-20 08:01:16] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-20 08:01:20] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-20 08:01:20] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-20 08:01:20] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-20 19:14:24] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-20 19:14:24] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-20 19:14:28] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-20 19:14:28] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-20 19:14:28] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-21 21:19:17] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-21 21:19:17] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-21 21:19:22] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-21 21:19:22] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-21 21:19:22] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-22 07:34:03] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-22 07:34:03] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-22 07:34:07] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-22 07:34:07] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-22 07:34:08] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-23 19:49:28] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-23 19:49:28] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-23 19:49:32] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-23 19:49:32] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-23 19:49:32] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-24 09:30:39] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-24 09:30:39] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-24 09:30:44] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-24 09:30:44] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-24 09:30:44] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-24 21:27:30] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-24 21:27:30] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-24 21:27:31] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-24 21:27:31] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-24 21:27:31] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-25 10:05:51] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-25 10:05:51] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-25 10:05:54] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-25 10:05:54] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-25 10:05:54] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-26 10:09:35] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-26 10:09:35] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-26 10:09:38] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-26 10:09:38] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-26 10:09:38] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-27 10:25:00] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-27 10:25:00] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-27 10:25:03] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-27 10:25:03] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-27 10:25:03] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-28 17:55:15] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-28 17:55:15] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-28 17:55:18] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-28 17:55:18] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-28 17:55:18] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-29 07:43:16] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-29 07:43:16] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-29 07:43:19] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-29 07:43:19] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-29 07:43:19] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-30 09:42:28] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-30 09:42:28] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-30 09:42:31] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-30 09:42:31] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-30 09:42:31] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-06-30 17:44:51] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-06-30 17:44:51] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-06-30 17:44:55] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-06-30 17:44:55] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-06-30 17:44:55] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-07-01 07:10:25] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-07-01 07:10:25] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-07-01 07:10:31] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-07-01 07:10:31] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-07-01 07:10:31] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-07-02 08:41:34] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-07-02 08:41:34] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-07-02 08:41:38] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-07-02 08:41:38] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-07-02 08:41:38] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-07-03 19:54:29] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-07-03 19:54:29] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-07-03 19:54:33] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-07-03 19:54:33] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-07-03 19:54:33] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-07-04 08:13:29] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-07-04 08:13:29] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-07-04 08:13:33] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-07-04 08:13:33] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-07-04 08:13:33] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-07-05 19:40:15] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-07-05 19:40:15] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-07-05 19:40:20] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-07-05 19:40:20] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-07-05 19:40:20] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-07-06 07:56:30] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-07-06 07:56:30] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-07-06 07:56:34] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-07-06 07:56:34] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-07-06 07:56:34] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-07-07 14:11:19] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-07-07 14:11:19] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-07-07 14:11:23] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-07-07 14:11:23] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-07-07 14:11:23] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-07-08 22:56:03] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-07-08 22:56:03] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-07-08 22:56:07] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-07-08 22:56:07] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-07-08 22:56:07] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
+[2026-07-09 07:41:55] INFO: CulqiService initialized {"service":"culqi-backend","environment":"development","baseURL":"https://api.culqi.com/v2"}
+[2026-07-09 07:41:55] INFO: 🔄 PaymentController: Inicializando servicio de email... {"service":"culqi-backend"}
+[2026-07-09 07:41:56] INFO: ✅ EmailService cargado correctamente {"service":"culqi-backend"}
+[2026-07-09 07:41:56] INFO: 🚀 PaymentController (Firebase + Reclamos) inicializado {"service":"culqi-backend"}
+[2026-07-09 07:41:56] INFO: 🚀 Servidor corriendo en 0.0.0.0:3000 [development] {"service":"culqi-backend"}
