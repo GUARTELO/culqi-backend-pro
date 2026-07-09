@@ -798,13 +798,13 @@ async function _generateOrderPDF(firebaseData) {
       });
 
       // ============================================================
-      // 📐 CONSTANTES DE PÁGINA - CORREGIDAS
+      // 📐 CONSTANTES DE PÁGINA
       // ============================================================
       const M = LAYOUT.margin;
       const PAGE_W = doc.page.width;
       const PAGE_H = doc.page.height;
 
-      // ✅ Footer ocupa ~30px, por eso restamos 75 para contenido
+      // ✅ Espacio real disponible para contenido
       const CONTENT_BOTTOM = PAGE_H - 75;
 
       // ============================================================
@@ -1125,7 +1125,7 @@ async function _generateOrderPDF(firebaseData) {
         return truncated + '…';
       }
 
-      // -------- PRODUCTO - CORREGIDO --------
+      // -------- PRODUCTO --------
       function drawProductRow(producto, index, yPos, cols, widths) {
         const nombre = producto.nombre || producto.titulo || `Producto ${index + 1}`;
         const color = (producto.color || '—').substring(0, 12);
@@ -1144,7 +1144,6 @@ async function _generateOrderPDF(firebaseData) {
              .fill();
         }
 
-        // ✅ Restaurar color a PRIMARY antes de dibujar
         doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.body)
            .font('Helvetica');
@@ -1153,7 +1152,6 @@ async function _generateOrderPDF(firebaseData) {
           width: widths.product
         });
 
-        // SKU - solo si existe
         if (sku) {
           doc.fillColor(THEME.border)
              .fontSize(TYPOGRAPHY.micro)
@@ -1162,13 +1160,11 @@ async function _generateOrderPDF(firebaseData) {
                width: widths.product
              });
 
-          // ✅ RESTAURAR COLOR Y FUENTE DESPUÉS DEL SKU
           doc.fillColor(THEME.primary)
              .fontSize(TYPOGRAPHY.body)
              .font('Helvetica');
         }
 
-        // ✅ Ahora todos estos se dibujan en NEGRO
         doc.text(color, cols.col2 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.color
         });
@@ -1199,6 +1195,35 @@ async function _generateOrderPDF(firebaseData) {
            .stroke();
 
         return yPos + TABLE.rowHeight;
+      }
+
+      // -------- ALTURA REAL DEL RESUMEN (CORREGIDO) --------
+      function getSummaryHeight() {
+        let h = 0;
+
+        h += LAYOUT.sectionGap;   // separación antes del resumen (14px)
+        h += 14;                  // título "RESUMEN DE PAGO"
+        h += 14;                  // espacio que devuelve drawSectionTitle
+        h += SUMMARY.height;      // caja (85px)
+        h += 14;                  // margen inferior
+
+        return h;
+      }
+
+      // -------- GARANTIZAR ESPACIO --------
+      function ensureSpace(requiredHeight) {
+        const remaining = CONTENT_BOTTOM - currentY;
+
+        if (remaining >= requiredHeight) {
+          return;
+        }
+
+        drawFooter();
+        doc.addPage();
+
+        currentY = M + 10;
+        currentY = drawContinuationHeader(currentY);
+        currentY += 10;
       }
 
       // -------- RESUMEN DE PAGO --------
@@ -1310,13 +1335,12 @@ async function _generateOrderPDF(firebaseData) {
       }
 
       // ============================================================
-      // 🏗️ CONSTRUCCIÓN DEL PDF - PAGINACIÓN CORREGIDA
+      // 🏗️ CONSTRUCCIÓN DEL PDF - PAGINACIÓN PROFESIONAL
       // ============================================================
 
       let currentY = M;
-      let newPageCreated = false;
 
-      // Página 1 - Contenido fijo
+      // Contenido fijo de la página 1
       currentY = drawMainHeader(currentY);
       currentY = drawOrderInfo(currentY);
       currentY = drawClientInfo(cliente, currentY);
@@ -1329,12 +1353,12 @@ async function _generateOrderPDF(firebaseData) {
 
       let rowIndex = 0;
 
-      // ✅ PAGINACIÓN CORREGIDA - Usa CONTENT_BOTTOM
+      // ✅ PAGINACIÓN DE PRODUCTOS
       for (let i = 0; i < productos.length; i++) {
         if (currentY + TABLE.rowHeight > CONTENT_BOTTOM) {
           drawFooter();
           doc.addPage();
-          newPageCreated = true;
+
           currentY = M + 10;
           currentY = drawContinuationHeader(currentY);
           currentY += LAYOUT.textOffset;
@@ -1352,20 +1376,9 @@ async function _generateOrderPDF(firebaseData) {
         rowIndex++;
       }
 
-      // ✅ RESUMEN - Calculado correctamente
-      const summaryHeight = 14 + SUMMARY.height + LAYOUT.sectionGap + 20;
+      // ✅ GARANTIZAR ESPACIO PARA EL RESUMEN - CON getSummaryHeight() CORREGIDO
+      ensureSpace(getSummaryHeight());
 
-      if (currentY + summaryHeight > CONTENT_BOTTOM) {
-        if (!newPageCreated) {
-          drawFooter();
-          doc.addPage();
-          currentY = M + 10;
-          currentY = drawContinuationHeader(currentY);
-          currentY += 10;
-        }
-      }
-
-      currentY += LAYOUT.sectionGap;
       currentY = drawSummary({
         subtotal: resumen.subtotal,
         shipping: envio.costo || 0,
