@@ -803,7 +803,7 @@ async function _generateOrderPDF(firebaseData) {
       const M = LAYOUT.margin;
       const getPageWidth = () => doc.page.width;
       const getPageHeight = () => doc.page.height;
-      const getContentBottom = () => getPageHeight() - 75;
+      const getContentBottom = () => getPageHeight() - 55; // ✅ REDUCIDO DE 75 A 55
 
       // ============================================================
       // 📅 FECHA
@@ -1204,44 +1204,23 @@ async function _generateOrderPDF(firebaseData) {
         return yPos + TABLE.rowHeight;
       }
 
-      // -------- ALTURA REAL DEL RESUMEN --------
+      // -------- ALTURA REAL DEL RESUMEN - CORREGIDO --------
       function getSummaryHeight() {
-        let h = 0;
-
-        h += LAYOUT.sectionGap;
-        h += 14;
-        h += 14;
-        h += SUMMARY.height;
-        h += 14;
-
-        return h;
+        // ✅ Solo la caja + un margen pequeño
+        return SUMMARY.height + 35;
       }
 
-      // -------- GARANTIZAR ESPACIO - CORREGIDO --------
-      function ensureSpace(requiredHeight) {
-        const CONTENT_BOTTOM = getContentBottom();
-        const remaining = CONTENT_BOTTOM - currentY;
-
-        if (remaining >= requiredHeight) {
-          return;
-        }
-
-        // ✅ NO dibujar footer aquí - se dibujará al final
-        doc.addPage();
-
-        currentY = M + 10;
-        currentY = drawContinuationHeader(currentY);
-        currentY += 10;
-      }
-
-      // -------- RESUMEN DE PAGO --------
+      // -------- RESUMEN DE PAGO - CON NÚMEROS DENTRO DEL RECUADRO --------
       function drawSummary(summaryData, yPos) {
         const PAGE_W = getPageWidth();
         const { subtotal, shipping, total } = summaryData;
         const boxX = PAGE_W - M - SUMMARY.width;
         const boxW = SUMMARY.width;
         const pad = SUMMARY.padding;
-        const textWidth = boxW - (pad * 2);
+
+        // ✅ ANCHOS FIJOS PARA LABEL Y VALOR
+        const labelWidth = 70;
+        const valueWidth = 80;
 
         yPos = drawSectionTitle('RESUMEN DE PAGO', yPos, true);
 
@@ -1262,25 +1241,29 @@ async function _generateOrderPDF(firebaseData) {
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica');
 
+        // ✅ Subtotal - con posición fija
         doc.text('Subtotal', boxX + pad, sy);
         doc.fillColor(THEME.primary)
            .font('Helvetica-Bold')
-           .text(`S/ ${subtotal.toFixed(2)}`, boxX + pad, sy, {
-             width: textWidth,
-             align: 'right'
+           .text(`S/ ${subtotal.toFixed(2)}`, boxX + boxW - pad - valueWidth, sy, {
+             width: valueWidth,
+             align: 'right',
+             lineBreak: false
            });
 
         sy += 15;
 
+        // ✅ Envío - con posición fija
         if (shipping > 0) {
           doc.fillColor(THEME.secondary)
              .font('Helvetica');
           doc.text('Envío', boxX + pad, sy);
           doc.fillColor(THEME.primary)
              .font('Helvetica-Bold')
-             .text(`S/ ${shipping.toFixed(2)}`, boxX + pad, sy, {
-               width: textWidth,
-               align: 'right'
+             .text(`S/ ${shipping.toFixed(2)}`, boxX + boxW - pad - valueWidth, sy, {
+               width: valueWidth,
+               align: 'right',
+               lineBreak: false
              });
           sy += 15;
         }
@@ -1293,6 +1276,7 @@ async function _generateOrderPDF(firebaseData) {
 
         sy += 8;
 
+        // ✅ Total - con posición fija
         doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.subtitle)
            .font('Helvetica-Bold')
@@ -1300,9 +1284,10 @@ async function _generateOrderPDF(firebaseData) {
         doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.title)
            .font('Helvetica-Bold')
-           .text(`S/ ${total.toFixed(2)}`, boxX + pad, sy, {
-             width: textWidth,
-             align: 'right'
+           .text(`S/ ${total.toFixed(2)}`, boxX + boxW - pad - valueWidth, sy, {
+             width: valueWidth,
+             align: 'right',
+             lineBreak: false
            });
 
         return boxY + SUMMARY.height + 14;
@@ -1349,10 +1334,11 @@ async function _generateOrderPDF(firebaseData) {
       }
 
       // ============================================================
-      // 🏗️ CONSTRUCCIÓN DEL PDF
+      // 🏗️ CONSTRUCCIÓN DEL PDF - PAGINACIÓN CORREGIDA
       // ============================================================
 
       let currentY = M;
+      let pageHasContent = true;
 
       // Página 1
       currentY = drawMainHeader(currentY);
@@ -1369,8 +1355,12 @@ async function _generateOrderPDF(firebaseData) {
 
       for (let i = 0; i < productos.length; i++) {
         if (currentY + TABLE.rowHeight > getContentBottom()) {
-          drawFooter();
+          if (pageHasContent) {
+            drawFooter();
+            pageHasContent = false;
+          }
           doc.addPage();
+          pageHasContent = true;
 
           currentY = M + 10;
           currentY = drawContinuationHeader(currentY);
@@ -1389,13 +1379,17 @@ async function _generateOrderPDF(firebaseData) {
         rowIndex++;
       }
 
-      // ✅ VERIFICAR ESPACIO PARA RESUMEN - SIN CREAR PÁGINAS EN BLANCO
+      // ✅ VERIFICAR ESPACIO PARA RESUMEN - CORREGIDO
       const CONTENT_BOTTOM = getContentBottom();
       const remaining = CONTENT_BOTTOM - currentY;
 
       if (remaining < getSummaryHeight()) {
-        drawFooter();
+        if (pageHasContent) {
+          drawFooter();
+          pageHasContent = false;
+        }
         doc.addPage();
+        pageHasContent = true;
 
         currentY = M + 10;
         currentY = drawContinuationHeader(currentY);
