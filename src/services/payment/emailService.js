@@ -694,7 +694,7 @@ www.goldinfiniti.com
 }
 
 // ========================
-// 12. GENERACIÓN DE PDF ADJUNTO PREMIUM - VERSIÓN CORREGIDA
+// 12. GENERACIÓN DE PDF ADJUNTO - VERSIÓN LUXURY FINAL
 // ========================
 async function _generateOrderPDF(firebaseData) {
   return new Promise((resolve, reject) => {
@@ -708,63 +708,68 @@ async function _generateOrderPDF(firebaseData) {
       } = firebaseData;
 
       // ============================================================
-      // 🎨 SISTEMA DE DISEÑO - THEME CENTRALIZADO
+      // 🎨 SISTEMA DE DISEÑO LUXURY FINAL
       // ============================================================
       const THEME = {
         primary: '#0a0a0a',
         secondary: '#6b6b6b',
         accent: '#c8a64b',
         accentLight: '#e8d5a3',
-        surface: '#f8f8f8',
+        surface: '#fafafa',
         border: '#e8e8e8',
-        white: '#ffffff'
+        white: '#ffffff',
+        success: '#1a7a3a'
       };
 
       const TYPOGRAPHY = {
-        title: 10,
-        subtitle: 8,
-        body: 6.5,
-        small: 5.5,
-        tiny: 4.5
+        title: 13,
+        subtitle: 9,
+        section: 7,
+        body: 7,
+        small: 6,
+        tiny: 5,
+        micro: 4.5
       };
 
       const LAYOUT = {
-        margin: 18,
-        padding: 10,
-        textOffset: 5,
-        sectionGap: 20,
-        footerOffset: 15,
-        headerHeight: 35,
+        margin: 22,
+        padding: 12,
+        textOffset: 6,
+        sectionGap: 14,
+        fieldGap: 13,
+        footerOffset: 18,
+        headerHeight: 30,
         continuationHeaderHeight: 28,
-        bottomMargin: 45
+        bottomMargin: 50
       };
 
       // ============================================================
       // 📊 CONFIGURACIÓN DE TABLA
       // ============================================================
       const COLUMN_RATIO = {
-        product: 42,
-        color: 16,
-        talla: 11,
-        cant: 9,
-        total: 22
+        product: 38,
+        color: 10,
+        talla: 8,
+        cant: 8,
+        price: 16,
+        subtotal: 20
       };
 
       const TABLE = {
-        headerHeight: 12,
-        rowHeight: 15,
+        headerHeight: 14,
+        rowHeight: 18,
         paddingX: 6,
-        paddingY: 2,
+        paddingY: 3,
         get reservedSpace() {
-          return SUMMARY.height + LAYOUT.sectionGap * 2;
+          return SUMMARY.height + LAYOUT.sectionGap * 2 + 40;
         }
       };
 
       const SUMMARY = {
-        width: 200,
-        height: 60,
-        radius: 3,
-        padding: 14
+        width: 210,
+        height: 85,
+        radius: 4,
+        padding: 16
       };
 
       // ============================================================
@@ -808,9 +813,9 @@ async function _generateOrderPDF(firebaseData) {
       // ============================================================
       const fechaOrden = new Date();
       const fechaFormateada = fechaOrden.toLocaleDateString('es-PE', {
-        weekday: 'short',
+        weekday: 'long',
         year: 'numeric',
-        month: 'short',
+        month: 'long',
         day: 'numeric',
         timeZone: 'America/Lima'
       });
@@ -825,46 +830,35 @@ async function _generateOrderPDF(firebaseData) {
       // 🔧 FUNCIONES DE DIBUJO
       // ============================================================
 
-      // -------- HEADER PRINCIPAL --------
+      // -------- HEADER PRINCIPAL - CON LÍNEAS DORADAS --------
       function drawMainHeader(yPos) {
         const headerHeight = LAYOUT.headerHeight;
         
-        doc.rect(M, yPos, PAGE_W - (M * 2), headerHeight)
+        // Línea dorada superior
+        doc.strokeColor(THEME.accent)
+           .lineWidth(0.18)
+           .moveTo(M, yPos)
+           .lineTo(PAGE_W - M, yPos)
+           .stroke();
+
+        // Fondo negro
+        doc.rect(M, yPos + 2, PAGE_W - (M * 2), headerHeight - 4)
            .fillColor(THEME.primary)
            .fill();
 
-        // Izquierda
-        doc.fillColor(THEME.accent)
+        // Título
+        doc.fillColor(THEME.white)
            .fontSize(TYPOGRAPHY.title)
            .font('Helvetica-Bold')
-           .text('GOLDINFINITI', M + LAYOUT.padding, yPos + LAYOUT.textOffset);
-
-        doc.fillColor(THEME.secondary)
-           .fontSize(TYPOGRAPHY.small)
-           .font('Helvetica')
-           .text('COMPROBANTE DE COMPRA', M + LAYOUT.padding, yPos + LAYOUT.textOffset + 15);
-
-        // Derecha - ✅ CON width
-        const rightX = PAGE_W - 200;
-        doc.fillColor(THEME.accent)
-           .fontSize(TYPOGRAPHY.subtitle)
-           .font('Helvetica-Bold')
-           .text(`#${order_id}`, rightX, yPos + LAYOUT.textOffset, {
-             width: 180,
-             align: 'right'
+           .text('COMPROBANTE DE COMPRA', 0, yPos + 8, {
+             width: PAGE_W,
+             align: 'center'
            });
 
-        doc.fillColor(THEME.secondary)
-           .fontSize(TYPOGRAPHY.small)
-           .font('Helvetica')
-           .text(`${fechaFormateada} ${horaFormateada}`, rightX, yPos + LAYOUT.textOffset + 15, {
-             width: 180,
-             align: 'right'
-           });
-
-        const lineY = yPos + headerHeight;
+        // Línea dorada inferior
+        const lineY = yPos + headerHeight - 2;
         doc.strokeColor(THEME.accent)
-           .lineWidth(0.15)
+           .lineWidth(0.18)
            .moveTo(M, lineY)
            .lineTo(PAGE_W - M, lineY)
            .stroke();
@@ -876,32 +870,27 @@ async function _generateOrderPDF(firebaseData) {
       function drawContinuationHeader(yPos) {
         const headerHeight = LAYOUT.continuationHeaderHeight;
         
-        doc.rect(M, yPos, PAGE_W - (M * 2), headerHeight)
+        doc.strokeColor(THEME.accent)
+           .lineWidth(0.18)
+           .moveTo(M, yPos)
+           .lineTo(PAGE_W - M, yPos)
+           .stroke();
+
+        doc.rect(M, yPos + 2, PAGE_W - (M * 2), headerHeight - 4)
            .fillColor(THEME.primary)
            .fill();
 
-        doc.fillColor(THEME.accent)
-           .fontSize(TYPOGRAPHY.title)
+        doc.fillColor(THEME.white)
+           .fontSize(TYPOGRAPHY.subtitle)
            .font('Helvetica-Bold')
-           .text('GOLDINFINITI', M + LAYOUT.padding, yPos + LAYOUT.textOffset - 1);
-
-        doc.fillColor(THEME.secondary)
-           .fontSize(TYPOGRAPHY.tiny)
-           .font('Helvetica')
-           .text(`#${order_id} (cont.)`, M + LAYOUT.padding, yPos + LAYOUT.textOffset + 11);
-
-        const rightX = PAGE_W - 200;
-        doc.fillColor(THEME.accent)
-           .fontSize(TYPOGRAPHY.small)
-           .font('Helvetica-Bold')
-           .text(`#${order_id}`, rightX, yPos + LAYOUT.textOffset - 1, {
-             width: 180,
-             align: 'right'
+           .text('COMPROBANTE DE COMPRA', 0, yPos + 7, {
+             width: PAGE_W,
+             align: 'center'
            });
 
-        const lineY = yPos + headerHeight;
+        const lineY = yPos + headerHeight - 2;
         doc.strokeColor(THEME.accent)
-           .lineWidth(0.15)
+           .lineWidth(0.18)
            .moveTo(M, lineY)
            .lineTo(PAGE_W - M, lineY)
            .stroke();
@@ -909,71 +898,153 @@ async function _generateOrderPDF(firebaseData) {
         return yPos + headerHeight + LAYOUT.sectionGap;
       }
 
-      // -------- LÍNEA DECORATIVA --------
-      function drawLine(yPos, thickness = 0.4) {
+      // -------- SECCIÓN TÍTULO - CON LÍNEA DORADA FINA --------
+      function drawSectionTitle(title, yPos, isMain = false) {
+        doc.fillColor(isMain ? THEME.primary : THEME.secondary)
+           .fontSize(isMain ? TYPOGRAPHY.subtitle : TYPOGRAPHY.section)
+           .font(isMain ? 'Helvetica-Bold' : 'Helvetica-Bold')
+           .text(title, M, yPos);
+
+        const lineY = yPos + (isMain ? 8 : 6);
         doc.strokeColor(THEME.accent)
-           .lineWidth(thickness)
-           .moveTo(M, yPos)
-           .lineTo(PAGE_W - M, yPos)
+           .lineWidth(0.18)
+           .moveTo(M, lineY)
+           .lineTo(PAGE_W - M, lineY)
            .stroke();
-        return yPos + LAYOUT.textOffset;
+
+        return yPos + (isMain ? 14 : 12);
       }
 
-      // -------- CLIENTE --------
+      // -------- INFORMACIÓN DE ORDEN - 2 COLUMNAS --------
+      function drawOrderInfo(yPos) {
+        yPos = drawSectionTitle('INFORMACIÓN DE LA ORDEN', yPos, true);
+
+        const col1 = M;
+        const col2 = M + (PAGE_W - (M * 2)) * 0.48;
+        const labelWidth = 90;
+        const valueX1 = col1 + labelWidth;
+        const valueX2 = col2 + labelWidth;
+
+        doc.fillColor(THEME.secondary)
+           .fontSize(TYPOGRAPHY.small)
+           .font('Helvetica');
+
+        // Columna izquierda
+        doc.text('Número de orden', col1, yPos);
+        doc.fillColor(THEME.primary)
+           .font('Helvetica-Bold')
+           .text(order_id, valueX1, yPos);
+
+        yPos += LAYOUT.fieldGap;
+
+        doc.fillColor(THEME.secondary)
+           .font('Helvetica');
+        doc.text('Fecha', col1, yPos);
+        doc.fillColor(THEME.primary)
+           .font('Helvetica-Bold')
+           .text(fechaFormateada, valueX1, yPos);
+
+        yPos += LAYOUT.fieldGap;
+
+        doc.fillColor(THEME.secondary)
+           .font('Helvetica');
+        doc.text('Hora', col1, yPos);
+        doc.fillColor(THEME.primary)
+           .font('Helvetica-Bold')
+           .text(horaFormateada, valueX1, yPos);
+
+        // Columna derecha - reiniciar y
+        let y2 = yPos - (LAYOUT.fieldGap * 2);
+
+        doc.fillColor(THEME.secondary)
+           .font('Helvetica');
+        doc.text('Estado', col2, y2);
+        doc.fillColor(THEME.success)
+           .font('Helvetica-Bold')
+           .text('● APROBADO', valueX2, y2);
+
+        y2 += LAYOUT.fieldGap;
+
+        doc.fillColor(THEME.secondary)
+           .font('Helvetica');
+        doc.text('Método', col2, y2);
+        doc.fillColor(THEME.primary)
+           .font('Helvetica-Bold')
+           .text('Visa - Débito', valueX2, y2);
+
+        y2 += LAYOUT.fieldGap;
+
+        doc.fillColor(THEME.secondary)
+           .font('Helvetica');
+        doc.text('Moneda', col2, y2);
+        doc.fillColor(THEME.primary)
+           .font('Helvetica-Bold')
+           .text('Soles (PEN)', valueX2, y2);
+
+        return yPos + LAYOUT.fieldGap + 6;
+      }
+
+      // -------- INFORMACIÓN DE CLIENTE - 2 COLUMNAS --------
       function drawClientInfo(clientData, yPos) {
-        const leftCol = M;
-        const rightCol = M + (PAGE_W - (M * 2)) * 0.45;
+        yPos = drawSectionTitle('INFORMACIÓN DEL CLIENTE', yPos, true);
 
-        doc.fillColor(THEME.secondary)
-           .fontSize(TYPOGRAPHY.small)
-           .font('Helvetica-Bold')
-           .text('CLIENTE', leftCol, yPos);
+        const col1 = M;
+        const col2 = M + (PAGE_W - (M * 2)) * 0.48;
+        const labelWidth = 90;
+        const valueX1 = col1 + labelWidth;
+        const valueX2 = col2 + labelWidth;
 
-        yPos += 10;
-
-        doc.fillColor(THEME.primary)
-           .fontSize(TYPOGRAPHY.body)
-           .font('Helvetica');
-
-        doc.text(clientData.nombre, leftCol, yPos);
-        yPos += 11;
-        doc.text(clientData.dni || '—', leftCol, yPos);
-
-        let y2 = yPos - 22;
-
-        doc.fillColor(THEME.secondary)
-           .fontSize(TYPOGRAPHY.small)
-           .font('Helvetica-Bold')
-           .text('ESTADO', rightCol, y2);
-
-        y2 += 10;
-        doc.fillColor(THEME.primary)
-           .fontSize(TYPOGRAPHY.body)
-           .font('Helvetica-Bold')
-           .text('APROBADO', rightCol, y2);
-
-        y2 += 14;
         doc.fillColor(THEME.secondary)
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica');
 
-        doc.text(clientData.email, rightCol, y2, {
-          width: (PAGE_W - (M * 2)) * 0.40,
-          ellipsis: true
-        });
+        // Columna izquierda
+        doc.text('Nombre completo', col1, yPos);
+        doc.fillColor(THEME.primary)
+           .font('Helvetica-Bold')
+           .text(clientData.nombre, valueX1, yPos);
 
-        return yPos + 28;
+        yPos += LAYOUT.fieldGap;
+
+        doc.fillColor(THEME.secondary)
+           .font('Helvetica');
+        doc.text('Documento', col1, yPos);
+        doc.fillColor(THEME.primary)
+           .font('Helvetica-Bold')
+           .text(clientData.dni || 'No especificado', valueX1, yPos);
+
+        // Columna derecha
+        let y2 = yPos - LAYOUT.fieldGap;
+
+        doc.fillColor(THEME.secondary)
+           .font('Helvetica');
+        doc.text('Correo electrónico', col2, y2);
+        doc.fillColor(THEME.primary)
+           .font('Helvetica-Bold')
+           .text(clientData.email, valueX2, y2);
+
+        y2 += LAYOUT.fieldGap;
+
+        doc.fillColor(THEME.secondary)
+           .font('Helvetica');
+        doc.text('Teléfono', col2, y2);
+        doc.fillColor(THEME.primary)
+           .font('Helvetica-Bold')
+           .text(clientData.telefono || 'No especificado', valueX2, y2);
+
+        return yPos + LAYOUT.fieldGap + 6;
       }
 
       // -------- CALCULAR COLUMNAS --------
       function calculateColumns() {
-        const available = PAGE_W - (M * 2) - (TABLE.paddingX * 8);
+        const available = PAGE_W - (M * 2) - (TABLE.paddingX * 10);
         const widths = {
           product: available * (COLUMN_RATIO.product / 100),
           color: available * (COLUMN_RATIO.color / 100),
           talla: available * (COLUMN_RATIO.talla / 100),
           cant: available * (COLUMN_RATIO.cant / 100),
-          total: available * (COLUMN_RATIO.total / 100)
+          price: available * (COLUMN_RATIO.price / 100),
+          subtotal: available * (COLUMN_RATIO.subtotal / 100)
         };
 
         let x = M;
@@ -988,6 +1059,8 @@ async function _generateOrderPDF(firebaseData) {
         cols.col4 = x;
         x += widths.cant + TABLE.paddingX * 2;
         cols.col5 = x;
+        x += widths.price + TABLE.paddingX * 2;
+        cols.col6 = x;
 
         return { cols, widths };
       }
@@ -1004,28 +1077,32 @@ async function _generateOrderPDF(firebaseData) {
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica-Bold');
 
-        doc.text('Producto', cols.col1 + TABLE.paddingX, yPos + TABLE.paddingY, {
+        doc.text('PRODUCTO', cols.col1 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.product
         });
-        doc.text('Color', cols.col2 + TABLE.paddingX, yPos + TABLE.paddingY, {
+        doc.text('COLOR', cols.col2 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.color
         });
-        doc.text('Talla', cols.col3 + TABLE.paddingX, yPos + TABLE.paddingY, {
+        doc.text('TALLA', cols.col3 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.talla
         });
-        doc.text('Cant.', cols.col4 + TABLE.paddingX, yPos + TABLE.paddingY, {
+        doc.text('CANT.', cols.col4 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.cant,
           align: 'center'
         });
-        doc.text('Total', cols.col5 + TABLE.paddingX, yPos + TABLE.paddingY, {
-          width: widths.total,
+        doc.text('PRECIO', cols.col5 + TABLE.paddingX, yPos + TABLE.paddingY, {
+          width: widths.price,
+          align: 'right'
+        });
+        doc.text('SUBTOTAL', cols.col6 + TABLE.paddingX, yPos + TABLE.paddingY, {
+          width: widths.subtotal,
           align: 'right'
         });
 
         doc.strokeColor(THEME.border)
            .lineWidth(0.15);
 
-        [cols.col2, cols.col3, cols.col4, cols.col5].forEach(x => {
+        [cols.col2, cols.col3, cols.col4, cols.col5, cols.col6].forEach(x => {
           doc.moveTo(x, yPos)
              .lineTo(x, yPos + TABLE.headerHeight)
              .stroke();
@@ -1063,7 +1140,9 @@ async function _generateOrderPDF(firebaseData) {
         const color = (producto.color || '—').substring(0, 12);
         const talla = (producto.talla || producto.size || '—').substring(0, 8);
         const cantidad = producto.cantidad || producto.quantity || 1;
-        const subtotal = producto.subtotal || (cantidad * (producto.precio || 0));
+        const precio = producto.precio || producto.precioOriginal || 0;
+        const subtotal = producto.subtotal || (cantidad * precio);
+        const sku = producto.sku || producto.codigo || '';
 
         const maxWidth = widths.product - TABLE.paddingX * 2;
         const displayName = prepareProductText(nombre, maxWidth);
@@ -1078,22 +1157,46 @@ async function _generateOrderPDF(firebaseData) {
            .fontSize(TYPOGRAPHY.body)
            .font('Helvetica');
 
+        // Producto
         doc.text(displayName, cols.col1 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.product
         });
 
+        // SKU - solo si existe y muy pequeño
+        if (sku) {
+          doc.fillColor(THEME.border)
+             .fontSize(TYPOGRAPHY.micro)
+             .font('Helvetica')
+             .text(`SKU: ${sku}`, cols.col1 + TABLE.paddingX, yPos + TABLE.paddingY + 8, {
+               width: widths.product
+             });
+        }
+
+        // Color
         doc.text(color, cols.col2 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.color
         });
+
+        // Talla
         doc.text(talla, cols.col3 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.talla
         });
+
+        // Cantidad
         doc.text(cantidad.toString(), cols.col4 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.cant,
           align: 'center'
         });
-        doc.text(`S/ ${subtotal.toFixed(2)}`, cols.col5 + TABLE.paddingX, yPos + TABLE.paddingY, {
-          width: widths.total,
+
+        // Precio unitario
+        doc.text(`S/ ${precio.toFixed(2)}`, cols.col5 + TABLE.paddingX, yPos + TABLE.paddingY, {
+          width: widths.price,
+          align: 'right'
+        });
+
+        // Subtotal
+        doc.text(`S/ ${subtotal.toFixed(2)}`, cols.col6 + TABLE.paddingX, yPos + TABLE.paddingY, {
+          width: widths.subtotal,
           align: 'right'
         });
 
@@ -1106,7 +1209,7 @@ async function _generateOrderPDF(firebaseData) {
         return yPos + TABLE.rowHeight;
       }
 
-      // -------- RESUMEN CORREGIDO - CON width EN CADA text() --------
+      // -------- RESUMEN DE PAGO - TODO DENTRO DE LA CAJA --------
       function drawSummary(summaryData, yPos) {
         const { subtotal, shipping, total } = summaryData;
         const boxX = PAGE_W - M - SUMMARY.width;
@@ -1114,22 +1217,28 @@ async function _generateOrderPDF(firebaseData) {
         const pad = SUMMARY.padding;
         const textWidth = boxW - (pad * 2);
 
+        // Título del resumen
+        yPos = drawSectionTitle('RESUMEN DE PAGO', yPos, true);
+
+        const boxY = yPos;
+
+        // Caja con borde dorado
         doc.fillColor(THEME.surface)
-           .roundedRect(boxX, yPos, boxW, SUMMARY.height, SUMMARY.radius)
+           .roundedRect(boxX, boxY, boxW, SUMMARY.height, SUMMARY.radius)
            .fill();
 
         doc.strokeColor(THEME.accent)
-           .lineWidth(0.15)
-           .roundedRect(boxX, yPos, boxW, SUMMARY.height, SUMMARY.radius)
+           .lineWidth(0.18)
+           .roundedRect(boxX, boxY, boxW, SUMMARY.height, SUMMARY.radius)
            .stroke();
 
-        let sy = yPos + 8;
+        let sy = boxY + 10;
 
         doc.fillColor(THEME.secondary)
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica');
 
-        // ✅ Subtotal - CON width
+        // Subtotal
         doc.text('Subtotal', boxX + pad, sy);
         doc.fillColor(THEME.primary)
            .font('Helvetica-Bold')
@@ -1138,10 +1247,10 @@ async function _generateOrderPDF(firebaseData) {
              align: 'right'
            });
 
-        sy += 13;
+        sy += 15;
 
+        // Envío
         if (shipping > 0) {
-          // ✅ Envío - CON width
           doc.fillColor(THEME.secondary)
              .font('Helvetica');
           doc.text('Envío', boxX + pad, sy);
@@ -1151,22 +1260,23 @@ async function _generateOrderPDF(firebaseData) {
                width: textWidth,
                align: 'right'
              });
-          sy += 13;
+          sy += 15;
         }
 
+        // Línea separadora
         doc.strokeColor(THEME.accent)
-           .lineWidth(0.15)
+           .lineWidth(0.18)
            .moveTo(boxX + pad, sy)
            .lineTo(boxX + boxW - pad, sy)
            .stroke();
 
         sy += 8;
 
-        // ✅ Total - CON width
+        // Total
         doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.subtitle)
            .font('Helvetica-Bold')
-           .text('Total', boxX + pad, sy);
+           .text('TOTAL', boxX + pad, sy);
         doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.title)
            .font('Helvetica-Bold')
@@ -1175,25 +1285,40 @@ async function _generateOrderPDF(firebaseData) {
              align: 'right'
            });
 
-        return yPos + SUMMARY.height + 8;
+        return boxY + SUMMARY.height + 14;
       }
 
-      // -------- FOOTER --------
+      // -------- FOOTER LUXURY --------
       function drawFooter() {
         const yPos = PAGE_H - LAYOUT.footerOffset - 20;
-        
+
+        // Línea dorada fina
+        doc.strokeColor(THEME.accent)
+           .lineWidth(0.18)
+           .moveTo(M, yPos)
+           .lineTo(PAGE_W - M, yPos)
+           .stroke();
+
         doc.fillColor(THEME.secondary)
-           .fontSize(TYPOGRAPHY.tiny)
+           .fontSize(TYPOGRAPHY.micro)
            .font('Helvetica')
-           .text('GOLDINFINITI', M, yPos, {
+           .text('Gracias por confiar en GOLDINFINITI', M, yPos + 6, {
              width: PAGE_W - (M * 2),
              align: 'center'
            });
 
         doc.fillColor(THEME.border)
-           .fontSize(TYPOGRAPHY.tiny - 1)
+           .fontSize(TYPOGRAPHY.micro - 0.5)
            .font('Helvetica')
-           .text(`ID: ${order_id}`, M, yPos + 10, {
+           .text(`ID del comprobante: ${order_id}`, M, yPos + 14, {
+             width: PAGE_W - (M * 2),
+             align: 'center'
+           });
+
+        doc.fillColor(THEME.border)
+           .fontSize(TYPOGRAPHY.micro - 1)
+           .font('Helvetica')
+           .text('Generado automáticamente', M, yPos + 20, {
              width: PAGE_W - (M * 2),
              align: 'center'
            });
@@ -1201,7 +1326,7 @@ async function _generateOrderPDF(firebaseData) {
 
       // -------- VERIFICAR ESPACIO --------
       function hasSpaceForSummary(yPos) {
-        const needed = SUMMARY.height + LAYOUT.sectionGap * 2;
+        const needed = SUMMARY.height + LAYOUT.sectionGap * 2 + 40;
         return (yPos + needed) < MAX_Y;
       }
 
@@ -1213,9 +1338,9 @@ async function _generateOrderPDF(firebaseData) {
 
       // Página 1
       currentY = drawMainHeader(currentY);
-      currentY = drawLine(currentY, 0.4);
+      currentY = drawOrderInfo(currentY);
       currentY = drawClientInfo(cliente, currentY);
-      currentY = drawLine(currentY, 0.15);
+      currentY = drawSectionTitle('DETALLE DE PRODUCTOS', currentY, true);
 
       let tableResult = drawTableHeaders(currentY);
       currentY = tableResult.y;
@@ -1232,6 +1357,8 @@ async function _generateOrderPDF(firebaseData) {
           currentY = M + 10;
           currentY = drawContinuationHeader(currentY);
           currentY += LAYOUT.textOffset;
+
+          currentY = drawSectionTitle('DETALLE DE PRODUCTOS', currentY, true);
 
           tableResult = drawTableHeaders(currentY);
           currentY = tableResult.y;
@@ -1253,7 +1380,6 @@ async function _generateOrderPDF(firebaseData) {
       }
 
       currentY += LAYOUT.sectionGap;
-      currentY = drawLine(currentY, 0.4);
       currentY = drawSummary({
         subtotal: resumen.subtotal,
         shipping: envio.costo || 0,
