@@ -715,7 +715,7 @@ async function _generateOrderPDF(firebaseData) {
         secondary: '#6b6b6b',
         accent: '#c8a64b',
         accentLight: '#e8d5a3',
-        surface: '#fafafa',
+        surface: '#f3f3f3',
         border: '#e8e8e8',
         white: '#ffffff',
         success: '#1a7a3a'
@@ -759,10 +759,7 @@ async function _generateOrderPDF(firebaseData) {
         headerHeight: 14,
         rowHeight: 18,
         paddingX: 6,
-        paddingY: 3,
-        get reservedSpace() {
-          return SUMMARY.height + LAYOUT.sectionGap * 2 + 40;
-        }
+        paddingY: 3
       };
 
       const SUMMARY = {
@@ -801,12 +798,14 @@ async function _generateOrderPDF(firebaseData) {
       });
 
       // ============================================================
-      // 📐 CONSTANTES DE PÁGINA
+      // 📐 CONSTANTES DE PÁGINA - CORREGIDAS
       // ============================================================
       const M = LAYOUT.margin;
       const PAGE_W = doc.page.width;
       const PAGE_H = doc.page.height;
-      const MAX_Y = PAGE_H - LAYOUT.bottomMargin;
+
+      // ✅ Footer ocupa ~30px, por eso restamos 75 para contenido
+      const CONTENT_BOTTOM = PAGE_H - 75;
 
       // ============================================================
       // 📅 FECHA
@@ -830,23 +829,20 @@ async function _generateOrderPDF(firebaseData) {
       // 🔧 FUNCIONES DE DIBUJO
       // ============================================================
 
-      // -------- HEADER PRINCIPAL - CON LÍNEAS DORADAS --------
+      // -------- HEADER PRINCIPAL --------
       function drawMainHeader(yPos) {
         const headerHeight = LAYOUT.headerHeight;
         
-        // Línea dorada superior
         doc.strokeColor(THEME.accent)
            .lineWidth(0.18)
            .moveTo(M, yPos)
            .lineTo(PAGE_W - M, yPos)
            .stroke();
 
-        // Fondo negro
         doc.rect(M, yPos + 2, PAGE_W - (M * 2), headerHeight - 4)
            .fillColor(THEME.primary)
            .fill();
 
-        // Título
         doc.fillColor(THEME.white)
            .fontSize(TYPOGRAPHY.title)
            .font('Helvetica-Bold')
@@ -855,7 +851,6 @@ async function _generateOrderPDF(firebaseData) {
              align: 'center'
            });
 
-        // Línea dorada inferior
         const lineY = yPos + headerHeight - 2;
         doc.strokeColor(THEME.accent)
            .lineWidth(0.18)
@@ -898,11 +893,11 @@ async function _generateOrderPDF(firebaseData) {
         return yPos + headerHeight + LAYOUT.sectionGap;
       }
 
-      // -------- SECCIÓN TÍTULO - CON LÍNEA DORADA FINA --------
+      // -------- SECCIÓN TÍTULO --------
       function drawSectionTitle(title, yPos, isMain = false) {
         doc.fillColor(isMain ? THEME.primary : THEME.secondary)
            .fontSize(isMain ? TYPOGRAPHY.subtitle : TYPOGRAPHY.section)
-           .font(isMain ? 'Helvetica-Bold' : 'Helvetica-Bold')
+           .font('Helvetica-Bold')
            .text(title, M, yPos);
 
         const lineY = yPos + (isMain ? 8 : 6);
@@ -929,7 +924,6 @@ async function _generateOrderPDF(firebaseData) {
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica');
 
-        // Columna izquierda
         doc.text('Número de orden', col1, yPos);
         doc.fillColor(THEME.primary)
            .font('Helvetica-Bold')
@@ -953,7 +947,6 @@ async function _generateOrderPDF(firebaseData) {
            .font('Helvetica-Bold')
            .text(horaFormateada, valueX1, yPos);
 
-        // Columna derecha - reiniciar y
         let y2 = yPos - (LAYOUT.fieldGap * 2);
 
         doc.fillColor(THEME.secondary)
@@ -998,7 +991,6 @@ async function _generateOrderPDF(firebaseData) {
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica');
 
-        // Columna izquierda
         doc.text('Nombre completo', col1, yPos);
         doc.fillColor(THEME.primary)
            .font('Helvetica-Bold')
@@ -1013,7 +1005,6 @@ async function _generateOrderPDF(firebaseData) {
            .font('Helvetica-Bold')
            .text(clientData.dni || 'No especificado', valueX1, yPos);
 
-        // Columna derecha
         let y2 = yPos - LAYOUT.fieldGap;
 
         doc.fillColor(THEME.secondary)
@@ -1069,11 +1060,11 @@ async function _generateOrderPDF(firebaseData) {
       function drawTableHeaders(yPos) {
         const { cols, widths } = calculateColumns();
 
-        doc.fillColor(THEME.surface)
+        doc.fillColor('#efefef')
            .rect(M, yPos, PAGE_W - (M * 2), TABLE.headerHeight)
            .fill();
 
-        doc.fillColor(THEME.secondary)
+        doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica-Bold');
 
@@ -1134,7 +1125,7 @@ async function _generateOrderPDF(firebaseData) {
         return truncated + '…';
       }
 
-      // -------- PRODUCTO --------
+      // -------- PRODUCTO - CORREGIDO --------
       function drawProductRow(producto, index, yPos, cols, widths) {
         const nombre = producto.nombre || producto.titulo || `Producto ${index + 1}`;
         const color = (producto.color || '—').substring(0, 12);
@@ -1153,16 +1144,16 @@ async function _generateOrderPDF(firebaseData) {
              .fill();
         }
 
+        // ✅ Restaurar color a PRIMARY antes de dibujar
         doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.body)
            .font('Helvetica');
 
-        // Producto
         doc.text(displayName, cols.col1 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.product
         });
 
-        // SKU - solo si existe y muy pequeño
+        // SKU - solo si existe
         if (sku) {
           doc.fillColor(THEME.border)
              .fontSize(TYPOGRAPHY.micro)
@@ -1170,31 +1161,32 @@ async function _generateOrderPDF(firebaseData) {
              .text(`SKU: ${sku}`, cols.col1 + TABLE.paddingX, yPos + TABLE.paddingY + 8, {
                width: widths.product
              });
+
+          // ✅ RESTAURAR COLOR Y FUENTE DESPUÉS DEL SKU
+          doc.fillColor(THEME.primary)
+             .fontSize(TYPOGRAPHY.body)
+             .font('Helvetica');
         }
 
-        // Color
+        // ✅ Ahora todos estos se dibujan en NEGRO
         doc.text(color, cols.col2 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.color
         });
 
-        // Talla
         doc.text(talla, cols.col3 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.talla
         });
 
-        // Cantidad
         doc.text(cantidad.toString(), cols.col4 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.cant,
           align: 'center'
         });
 
-        // Precio unitario
         doc.text(`S/ ${precio.toFixed(2)}`, cols.col5 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.price,
           align: 'right'
         });
 
-        // Subtotal
         doc.text(`S/ ${subtotal.toFixed(2)}`, cols.col6 + TABLE.paddingX, yPos + TABLE.paddingY, {
           width: widths.subtotal,
           align: 'right'
@@ -1209,7 +1201,7 @@ async function _generateOrderPDF(firebaseData) {
         return yPos + TABLE.rowHeight;
       }
 
-      // -------- RESUMEN DE PAGO - TODO DENTRO DE LA CAJA --------
+      // -------- RESUMEN DE PAGO --------
       function drawSummary(summaryData, yPos) {
         const { subtotal, shipping, total } = summaryData;
         const boxX = PAGE_W - M - SUMMARY.width;
@@ -1217,12 +1209,10 @@ async function _generateOrderPDF(firebaseData) {
         const pad = SUMMARY.padding;
         const textWidth = boxW - (pad * 2);
 
-        // Título del resumen
         yPos = drawSectionTitle('RESUMEN DE PAGO', yPos, true);
 
         const boxY = yPos;
 
-        // Caja con borde dorado
         doc.fillColor(THEME.surface)
            .roundedRect(boxX, boxY, boxW, SUMMARY.height, SUMMARY.radius)
            .fill();
@@ -1238,7 +1228,6 @@ async function _generateOrderPDF(firebaseData) {
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica');
 
-        // Subtotal
         doc.text('Subtotal', boxX + pad, sy);
         doc.fillColor(THEME.primary)
            .font('Helvetica-Bold')
@@ -1249,7 +1238,6 @@ async function _generateOrderPDF(firebaseData) {
 
         sy += 15;
 
-        // Envío
         if (shipping > 0) {
           doc.fillColor(THEME.secondary)
              .font('Helvetica');
@@ -1263,7 +1251,6 @@ async function _generateOrderPDF(firebaseData) {
           sy += 15;
         }
 
-        // Línea separadora
         doc.strokeColor(THEME.accent)
            .lineWidth(0.18)
            .moveTo(boxX + pad, sy)
@@ -1272,7 +1259,6 @@ async function _generateOrderPDF(firebaseData) {
 
         sy += 8;
 
-        // Total
         doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.subtitle)
            .font('Helvetica-Bold')
@@ -1288,11 +1274,10 @@ async function _generateOrderPDF(firebaseData) {
         return boxY + SUMMARY.height + 14;
       }
 
-      // -------- FOOTER LUXURY --------
+      // -------- FOOTER --------
       function drawFooter() {
         const yPos = PAGE_H - LAYOUT.footerOffset - 20;
 
-        // Línea dorada fina
         doc.strokeColor(THEME.accent)
            .lineWidth(0.18)
            .moveTo(M, yPos)
@@ -1324,19 +1309,14 @@ async function _generateOrderPDF(firebaseData) {
            });
       }
 
-      // -------- VERIFICAR ESPACIO --------
-      function hasSpaceForSummary(yPos) {
-        const needed = SUMMARY.height + LAYOUT.sectionGap * 2 + 40;
-        return (yPos + needed) < MAX_Y;
-      }
-
       // ============================================================
-      // 🏗️ CONSTRUCCIÓN DEL PDF - ORQUESTADOR
+      // 🏗️ CONSTRUCCIÓN DEL PDF - PAGINACIÓN CORREGIDA
       // ============================================================
 
       let currentY = M;
+      let newPageCreated = false;
 
-      // Página 1
+      // Página 1 - Contenido fijo
       currentY = drawMainHeader(currentY);
       currentY = drawOrderInfo(currentY);
       currentY = drawClientInfo(cliente, currentY);
@@ -1349,11 +1329,12 @@ async function _generateOrderPDF(firebaseData) {
 
       let rowIndex = 0;
 
-      // Dibujar productos con paginación inteligente
+      // ✅ PAGINACIÓN CORREGIDA - Usa CONTENT_BOTTOM
       for (let i = 0; i < productos.length; i++) {
-        if (currentY + TABLE.rowHeight > MAX_Y - TABLE.reservedSpace) {
+        if (currentY + TABLE.rowHeight > CONTENT_BOTTOM) {
           drawFooter();
           doc.addPage();
+          newPageCreated = true;
           currentY = M + 10;
           currentY = drawContinuationHeader(currentY);
           currentY += LAYOUT.textOffset;
@@ -1371,12 +1352,17 @@ async function _generateOrderPDF(firebaseData) {
         rowIndex++;
       }
 
-      if (!hasSpaceForSummary(currentY)) {
-        drawFooter();
-        doc.addPage();
-        currentY = M + 10;
-        currentY = drawContinuationHeader(currentY);
-        currentY += 10;
+      // ✅ RESUMEN - Calculado correctamente
+      const summaryHeight = 14 + SUMMARY.height + LAYOUT.sectionGap + 20;
+
+      if (currentY + summaryHeight > CONTENT_BOTTOM) {
+        if (!newPageCreated) {
+          drawFooter();
+          doc.addPage();
+          currentY = M + 10;
+          currentY = drawContinuationHeader(currentY);
+          currentY += 10;
+        }
       }
 
       currentY += LAYOUT.sectionGap;
