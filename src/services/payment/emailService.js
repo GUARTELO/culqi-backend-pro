@@ -694,7 +694,7 @@ www.goldinfiniti.com
 }
 
 // ========================
-// 12. GENERACIÓN DE PDF ADJUNTO PREMIUM - VERSIÓN ENTERPRISE
+// 12. GENERACIÓN DE PDF ADJUNTO PREMIUM - VERSIÓN CORREGIDA
 // ========================
 async function _generateOrderPDF(firebaseData) {
   return new Promise((resolve, reject) => {
@@ -761,7 +761,7 @@ async function _generateOrderPDF(firebaseData) {
       };
 
       const SUMMARY = {
-        width: 185,
+        width: 200,
         height: 60,
         radius: 3,
         padding: 14
@@ -822,7 +822,7 @@ async function _generateOrderPDF(firebaseData) {
       });
 
       // ============================================================
-      // 🔧 FUNCIONES DE DIBUJO - ARQUITECTURA LIMPIA
+      // 🔧 FUNCIONES DE DIBUJO
       // ============================================================
 
       // -------- HEADER PRINCIPAL --------
@@ -833,6 +833,7 @@ async function _generateOrderPDF(firebaseData) {
            .fillColor(THEME.primary)
            .fill();
 
+        // Izquierda
         doc.fillColor(THEME.accent)
            .fontSize(TYPOGRAPHY.title)
            .font('Helvetica-Bold')
@@ -843,15 +844,23 @@ async function _generateOrderPDF(firebaseData) {
            .font('Helvetica')
            .text('COMPROBANTE DE COMPRA', M + LAYOUT.padding, yPos + LAYOUT.textOffset + 15);
 
+        // Derecha - ✅ CON width
+        const rightX = PAGE_W - 200;
         doc.fillColor(THEME.accent)
            .fontSize(TYPOGRAPHY.subtitle)
            .font('Helvetica-Bold')
-           .text(`#${order_id}`, PAGE_W - M - LAYOUT.padding, yPos + LAYOUT.textOffset, { align: 'right' });
+           .text(`#${order_id}`, rightX, yPos + LAYOUT.textOffset, {
+             width: 180,
+             align: 'right'
+           });
 
         doc.fillColor(THEME.secondary)
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica')
-           .text(`${fechaFormateada} ${horaFormateada}`, PAGE_W - M - LAYOUT.padding, yPos + LAYOUT.textOffset + 15, { align: 'right' });
+           .text(`${fechaFormateada} ${horaFormateada}`, rightX, yPos + LAYOUT.textOffset + 15, {
+             width: 180,
+             align: 'right'
+           });
 
         const lineY = yPos + headerHeight;
         doc.strokeColor(THEME.accent)
@@ -881,10 +890,14 @@ async function _generateOrderPDF(firebaseData) {
            .font('Helvetica')
            .text(`#${order_id} (cont.)`, M + LAYOUT.padding, yPos + LAYOUT.textOffset + 11);
 
+        const rightX = PAGE_W - 200;
         doc.fillColor(THEME.accent)
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica-Bold')
-           .text(`#${order_id}`, PAGE_W - M - LAYOUT.padding, yPos + LAYOUT.textOffset - 1, { align: 'right' });
+           .text(`#${order_id}`, rightX, yPos + LAYOUT.textOffset - 1, {
+             width: 180,
+             align: 'right'
+           });
 
         const lineY = yPos + headerHeight;
         doc.strokeColor(THEME.accent)
@@ -1093,18 +1106,21 @@ async function _generateOrderPDF(firebaseData) {
         return yPos + TABLE.rowHeight;
       }
 
-      // -------- RESUMEN --------
+      // -------- RESUMEN CORREGIDO - CON width EN CADA text() --------
       function drawSummary(summaryData, yPos) {
         const { subtotal, shipping, total } = summaryData;
         const boxX = PAGE_W - M - SUMMARY.width;
+        const boxW = SUMMARY.width;
+        const pad = SUMMARY.padding;
+        const textWidth = boxW - (pad * 2);
 
         doc.fillColor(THEME.surface)
-           .roundedRect(boxX, yPos, SUMMARY.width, SUMMARY.height, SUMMARY.radius)
+           .roundedRect(boxX, yPos, boxW, SUMMARY.height, SUMMARY.radius)
            .fill();
 
         doc.strokeColor(THEME.accent)
            .lineWidth(0.15)
-           .roundedRect(boxX, yPos, SUMMARY.width, SUMMARY.height, SUMMARY.radius)
+           .roundedRect(boxX, yPos, boxW, SUMMARY.height, SUMMARY.radius)
            .stroke();
 
         let sy = yPos + 8;
@@ -1113,39 +1129,51 @@ async function _generateOrderPDF(firebaseData) {
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica');
 
-        doc.text('Subtotal', boxX + SUMMARY.padding, sy);
+        // ✅ Subtotal - CON width
+        doc.text('Subtotal', boxX + pad, sy);
         doc.fillColor(THEME.primary)
            .font('Helvetica-Bold')
-           .text(`S/ ${subtotal.toFixed(2)}`, boxX + SUMMARY.width - SUMMARY.padding, sy, { align: 'right' });
+           .text(`S/ ${subtotal.toFixed(2)}`, boxX + pad, sy, {
+             width: textWidth,
+             align: 'right'
+           });
 
         sy += 13;
 
         if (shipping > 0) {
+          // ✅ Envío - CON width
           doc.fillColor(THEME.secondary)
              .font('Helvetica');
-          doc.text('Envío', boxX + SUMMARY.padding, sy);
+          doc.text('Envío', boxX + pad, sy);
           doc.fillColor(THEME.primary)
              .font('Helvetica-Bold')
-             .text(`S/ ${shipping.toFixed(2)}`, boxX + SUMMARY.width - SUMMARY.padding, sy, { align: 'right' });
+             .text(`S/ ${shipping.toFixed(2)}`, boxX + pad, sy, {
+               width: textWidth,
+               align: 'right'
+             });
           sy += 13;
         }
 
         doc.strokeColor(THEME.accent)
            .lineWidth(0.15)
-           .moveTo(boxX + SUMMARY.padding, sy)
-           .lineTo(boxX + SUMMARY.width - SUMMARY.padding, sy)
+           .moveTo(boxX + pad, sy)
+           .lineTo(boxX + boxW - pad, sy)
            .stroke();
 
         sy += 8;
 
+        // ✅ Total - CON width
         doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.subtitle)
            .font('Helvetica-Bold')
-           .text('Total', boxX + SUMMARY.padding, sy);
+           .text('Total', boxX + pad, sy);
         doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.title)
            .font('Helvetica-Bold')
-           .text(`S/ ${total.toFixed(2)}`, boxX + SUMMARY.width - SUMMARY.padding, sy, { align: 'right' });
+           .text(`S/ ${total.toFixed(2)}`, boxX + pad, sy, {
+             width: textWidth,
+             align: 'right'
+           });
 
         return yPos + SUMMARY.height + 8;
       }
