@@ -803,7 +803,7 @@ async function _generateOrderPDF(firebaseData) {
       const M = LAYOUT.margin;
       const getPageWidth = () => doc.page.width;
       const getPageHeight = () => doc.page.height;
-      const getContentBottom = () => getPageHeight() - 55; // ✅ REDUCIDO DE 75 A 55
+      const getContentBottom = () => getPageHeight() - 55;
 
       // ============================================================
       // 📅 FECHA
@@ -1204,21 +1204,18 @@ async function _generateOrderPDF(firebaseData) {
         return yPos + TABLE.rowHeight;
       }
 
-      // -------- ALTURA REAL DEL RESUMEN - CORREGIDO --------
+      // -------- ALTURA REAL DEL RESUMEN --------
       function getSummaryHeight() {
-        // ✅ Solo la caja + un margen pequeño
         return SUMMARY.height + 35;
       }
 
-      // -------- RESUMEN DE PAGO - CON NÚMEROS DENTRO DEL RECUADRO --------
+      // -------- RESUMEN DE PAGO --------
       function drawSummary(summaryData, yPos) {
         const PAGE_W = getPageWidth();
         const { subtotal, shipping, total } = summaryData;
         const boxX = PAGE_W - M - SUMMARY.width;
         const boxW = SUMMARY.width;
         const pad = SUMMARY.padding;
-
-        // ✅ ANCHOS FIJOS PARA LABEL Y VALOR
         const labelWidth = 70;
         const valueWidth = 80;
 
@@ -1241,7 +1238,6 @@ async function _generateOrderPDF(firebaseData) {
            .fontSize(TYPOGRAPHY.small)
            .font('Helvetica');
 
-        // ✅ Subtotal - con posición fija
         doc.text('Subtotal', boxX + pad, sy);
         doc.fillColor(THEME.primary)
            .font('Helvetica-Bold')
@@ -1253,7 +1249,6 @@ async function _generateOrderPDF(firebaseData) {
 
         sy += 15;
 
-        // ✅ Envío - con posición fija
         if (shipping > 0) {
           doc.fillColor(THEME.secondary)
              .font('Helvetica');
@@ -1276,7 +1271,6 @@ async function _generateOrderPDF(firebaseData) {
 
         sy += 8;
 
-        // ✅ Total - con posición fija
         doc.fillColor(THEME.primary)
            .fontSize(TYPOGRAPHY.subtitle)
            .font('Helvetica-Bold')
@@ -1338,7 +1332,6 @@ async function _generateOrderPDF(firebaseData) {
       // ============================================================
 
       let currentY = M;
-      let pageHasContent = true;
 
       // Página 1
       currentY = drawMainHeader(currentY);
@@ -1353,14 +1346,11 @@ async function _generateOrderPDF(firebaseData) {
 
       let rowIndex = 0;
 
+      // ✅ PAGINACIÓN DE PRODUCTOS - SOLO CUANDO NO CABE
       for (let i = 0; i < productos.length; i++) {
         if (currentY + TABLE.rowHeight > getContentBottom()) {
-          if (pageHasContent) {
-            drawFooter();
-            pageHasContent = false;
-          }
+          drawFooter();
           doc.addPage();
-          pageHasContent = true;
 
           currentY = M + 10;
           currentY = drawContinuationHeader(currentY);
@@ -1379,17 +1369,12 @@ async function _generateOrderPDF(firebaseData) {
         rowIndex++;
       }
 
-      // ✅ VERIFICAR ESPACIO PARA RESUMEN - CORREGIDO
-      const CONTENT_BOTTOM = getContentBottom();
-      const remaining = CONTENT_BOTTOM - currentY;
+      // ✅ VERIFICAR ESPACIO PARA RESUMEN
+      const remaining = getContentBottom() - currentY;
 
       if (remaining < getSummaryHeight()) {
-        if (pageHasContent) {
-          drawFooter();
-          pageHasContent = false;
-        }
+        drawFooter();
         doc.addPage();
-        pageHasContent = true;
 
         currentY = M + 10;
         currentY = drawContinuationHeader(currentY);
