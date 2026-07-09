@@ -798,14 +798,12 @@ async function _generateOrderPDF(firebaseData) {
       });
 
       // ============================================================
-      // 📐 CONSTANTES DE PÁGINA
+      // 📐 CONSTANTES DE PÁGINA - DINÁMICAS
       // ============================================================
       const M = LAYOUT.margin;
-      const PAGE_W = doc.page.width;
-      const PAGE_H = doc.page.height;
-
-      // ✅ Espacio real disponible para contenido
-      const CONTENT_BOTTOM = PAGE_H - 75;
+      const getPageWidth = () => doc.page.width;
+      const getPageHeight = () => doc.page.height;
+      const getContentBottom = () => getPageHeight() - 75;
 
       // ============================================================
       // 📅 FECHA
@@ -832,6 +830,7 @@ async function _generateOrderPDF(firebaseData) {
       // -------- HEADER PRINCIPAL --------
       function drawMainHeader(yPos) {
         const headerHeight = LAYOUT.headerHeight;
+        const PAGE_W = getPageWidth();
         
         doc.strokeColor(THEME.accent)
            .lineWidth(0.18)
@@ -864,6 +863,7 @@ async function _generateOrderPDF(firebaseData) {
       // -------- HEADER DE CONTINUACIÓN --------
       function drawContinuationHeader(yPos) {
         const headerHeight = LAYOUT.continuationHeaderHeight;
+        const PAGE_W = getPageWidth();
         
         doc.strokeColor(THEME.accent)
            .lineWidth(0.18)
@@ -878,7 +878,7 @@ async function _generateOrderPDF(firebaseData) {
         doc.fillColor(THEME.white)
            .fontSize(TYPOGRAPHY.subtitle)
            .font('Helvetica-Bold')
-           .text('COMPROBANTE DE COMPRA', 0, yPos + 7, {
+           .text('COMPROBANTE DE COMPRA (cont.)', 0, yPos + 7, {
              width: PAGE_W,
              align: 'center'
            });
@@ -895,6 +895,8 @@ async function _generateOrderPDF(firebaseData) {
 
       // -------- SECCIÓN TÍTULO --------
       function drawSectionTitle(title, yPos, isMain = false) {
+        const PAGE_W = getPageWidth();
+        
         doc.fillColor(isMain ? THEME.primary : THEME.secondary)
            .fontSize(isMain ? TYPOGRAPHY.subtitle : TYPOGRAPHY.section)
            .font('Helvetica-Bold')
@@ -910,8 +912,9 @@ async function _generateOrderPDF(firebaseData) {
         return yPos + (isMain ? 14 : 12);
       }
 
-      // -------- INFORMACIÓN DE ORDEN - 2 COLUMNAS --------
+      // -------- INFORMACIÓN DE ORDEN --------
       function drawOrderInfo(yPos) {
+        const PAGE_W = getPageWidth();
         yPos = drawSectionTitle('INFORMACIÓN DE LA ORDEN', yPos, true);
 
         const col1 = M;
@@ -977,8 +980,9 @@ async function _generateOrderPDF(firebaseData) {
         return yPos + LAYOUT.fieldGap + 6;
       }
 
-      // -------- INFORMACIÓN DE CLIENTE - 2 COLUMNAS --------
+      // -------- INFORMACIÓN DE CLIENTE --------
       function drawClientInfo(clientData, yPos) {
+        const PAGE_W = getPageWidth();
         yPos = drawSectionTitle('INFORMACIÓN DEL CLIENTE', yPos, true);
 
         const col1 = M;
@@ -1028,6 +1032,7 @@ async function _generateOrderPDF(firebaseData) {
 
       // -------- CALCULAR COLUMNAS --------
       function calculateColumns() {
+        const PAGE_W = getPageWidth();
         const available = PAGE_W - (M * 2) - (TABLE.paddingX * 10);
         const widths = {
           product: available * (COLUMN_RATIO.product / 100),
@@ -1058,6 +1063,7 @@ async function _generateOrderPDF(firebaseData) {
 
       // -------- ENCABEZADOS TABLA --------
       function drawTableHeaders(yPos) {
+        const PAGE_W = getPageWidth();
         const { cols, widths } = calculateColumns();
 
         doc.fillColor('#efefef')
@@ -1127,6 +1133,7 @@ async function _generateOrderPDF(firebaseData) {
 
       // -------- PRODUCTO --------
       function drawProductRow(producto, index, yPos, cols, widths) {
+        const PAGE_W = getPageWidth();
         const nombre = producto.nombre || producto.titulo || `Producto ${index + 1}`;
         const color = (producto.color || '—').substring(0, 12);
         const talla = (producto.talla || producto.size || '—').substring(0, 8);
@@ -1197,28 +1204,29 @@ async function _generateOrderPDF(firebaseData) {
         return yPos + TABLE.rowHeight;
       }
 
-      // -------- ALTURA REAL DEL RESUMEN (CORREGIDO) --------
+      // -------- ALTURA REAL DEL RESUMEN --------
       function getSummaryHeight() {
         let h = 0;
 
-        h += LAYOUT.sectionGap;   // separación antes del resumen (14px)
-        h += 14;                  // título "RESUMEN DE PAGO"
-        h += 14;                  // espacio que devuelve drawSectionTitle
-        h += SUMMARY.height;      // caja (85px)
-        h += 14;                  // margen inferior
+        h += LAYOUT.sectionGap;
+        h += 14;
+        h += 14;
+        h += SUMMARY.height;
+        h += 14;
 
         return h;
       }
 
-      // -------- GARANTIZAR ESPACIO --------
+      // -------- GARANTIZAR ESPACIO - CORREGIDO --------
       function ensureSpace(requiredHeight) {
+        const CONTENT_BOTTOM = getContentBottom();
         const remaining = CONTENT_BOTTOM - currentY;
 
         if (remaining >= requiredHeight) {
           return;
         }
 
-        drawFooter();
+        // ✅ NO dibujar footer aquí - se dibujará al final
         doc.addPage();
 
         currentY = M + 10;
@@ -1228,6 +1236,7 @@ async function _generateOrderPDF(firebaseData) {
 
       // -------- RESUMEN DE PAGO --------
       function drawSummary(summaryData, yPos) {
+        const PAGE_W = getPageWidth();
         const { subtotal, shipping, total } = summaryData;
         const boxX = PAGE_W - M - SUMMARY.width;
         const boxW = SUMMARY.width;
@@ -1301,6 +1310,8 @@ async function _generateOrderPDF(firebaseData) {
 
       // -------- FOOTER --------
       function drawFooter() {
+        const PAGE_W = getPageWidth();
+        const PAGE_H = getPageHeight();
         const yPos = PAGE_H - LAYOUT.footerOffset - 20;
 
         doc.strokeColor(THEME.accent)
@@ -1314,15 +1325,17 @@ async function _generateOrderPDF(firebaseData) {
            .font('Helvetica')
            .text('Gracias por confiar en GOLDINFINITI', M, yPos + 6, {
              width: PAGE_W - (M * 2),
-             align: 'center'
+             align: 'center',
+             lineBreak: false
            });
 
         doc.fillColor(THEME.border)
            .fontSize(TYPOGRAPHY.micro - 0.5)
            .font('Helvetica')
-           .text(`ID del comprobante: ${order_id}`, M, yPos + 14, {
+           .text(`ID: ${order_id}`, M, yPos + 14, {
              width: PAGE_W - (M * 2),
-             align: 'center'
+             align: 'center',
+             lineBreak: false
            });
 
         doc.fillColor(THEME.border)
@@ -1330,17 +1343,18 @@ async function _generateOrderPDF(firebaseData) {
            .font('Helvetica')
            .text('Generado automáticamente', M, yPos + 20, {
              width: PAGE_W - (M * 2),
-             align: 'center'
+             align: 'center',
+             lineBreak: false
            });
       }
 
       // ============================================================
-      // 🏗️ CONSTRUCCIÓN DEL PDF - PAGINACIÓN PROFESIONAL
+      // 🏗️ CONSTRUCCIÓN DEL PDF
       // ============================================================
 
       let currentY = M;
 
-      // Contenido fijo de la página 1
+      // Página 1
       currentY = drawMainHeader(currentY);
       currentY = drawOrderInfo(currentY);
       currentY = drawClientInfo(cliente, currentY);
@@ -1353,9 +1367,8 @@ async function _generateOrderPDF(firebaseData) {
 
       let rowIndex = 0;
 
-      // ✅ PAGINACIÓN DE PRODUCTOS
       for (let i = 0; i < productos.length; i++) {
-        if (currentY + TABLE.rowHeight > CONTENT_BOTTOM) {
+        if (currentY + TABLE.rowHeight > getContentBottom()) {
           drawFooter();
           doc.addPage();
 
@@ -1376,8 +1389,18 @@ async function _generateOrderPDF(firebaseData) {
         rowIndex++;
       }
 
-      // ✅ GARANTIZAR ESPACIO PARA EL RESUMEN - CON getSummaryHeight() CORREGIDO
-      ensureSpace(getSummaryHeight());
+      // ✅ VERIFICAR ESPACIO PARA RESUMEN - SIN CREAR PÁGINAS EN BLANCO
+      const CONTENT_BOTTOM = getContentBottom();
+      const remaining = CONTENT_BOTTOM - currentY;
+
+      if (remaining < getSummaryHeight()) {
+        drawFooter();
+        doc.addPage();
+
+        currentY = M + 10;
+        currentY = drawContinuationHeader(currentY);
+        currentY += 10;
+      }
 
       currentY = drawSummary({
         subtotal: resumen.subtotal,
