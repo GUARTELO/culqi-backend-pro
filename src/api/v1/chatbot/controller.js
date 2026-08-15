@@ -1,55 +1,175 @@
 // ================================================================
-// CONTROLADOR DEL CHATBOT
+// CONTROLADOR DEL CHATBOT BRIONI
 // ================================================================
-// Ubicación: src/api/v1/chatbot/controller.js
+// Ubicación:
+// src/api/v1/chatbot/controller.js
+// ================================================================
+//
+// AISLAMIENTO FIREBASE
+// ================================================================
+//
+// Este controlador NO utiliza:
+//
+//     admin.firestore()
+//
+// Este controlador NO utiliza:
+//
+//     src/core/config/firebase.js
+//
+// Utiliza exclusivamente:
+//
+//     src/api/v1/chatbot/config/firebase.js
+//
+// Flujo:
+//
+// Controller
+//     │
+//     ▼
+// chatbotService
+//     │
+//     ├── ChatbotSession
+//     │
+//     └── chatbotFirebase
+//              │
+//              ▼
+//       admin.app('chatbot')
+//              │
+//              ▼
+//           Firestore
+//
 // ================================================================
 
-const chatbotService = require('../../../services/chatbotService');
+const chatbotService =
+    require('../../../services/chatbotService');
+
+const chatbotFirebase =
+    require('./config/firebase');
+
+// ================================================================
+// FIRESTORE EXCLUSIVO DEL CHATBOT
+// ================================================================
+//
+// IMPORTANTE:
+//
+// No utilizar:
+//
+//     admin.firestore()
+//
+// Se obtiene exclusivamente:
+//
+//     chatbotFirebase.getFirestore()
+//
+// ================================================================
+
+const firestore =
+    chatbotFirebase.getFirestore();
 
 // ============================================================
 // PROCESAR MENSAJE DEL USUARIO
 // ============================================================
-exports.processMessage = async (req, res) => {
-    try {
-        const { message, phone, channel } = req.body;
 
-        // Validaciones
+exports.processMessage = async (req, res) => {
+
+    try {
+
+        const {
+            message,
+            phone,
+            channel
+        } = req.body;
+
+        // ========================================================
+        // VALIDAR MENSAJE
+        // ========================================================
+
         if (!message) {
+
             return res.status(400).json({
+
                 success: false,
-                error: 'El mensaje es obligatorio',
-                code: 'MESSAGE_REQUIRED'
+
+                error:
+                    'El mensaje es obligatorio',
+
+                code:
+                    'MESSAGE_REQUIRED'
             });
         }
+
+        // ========================================================
+        // VALIDAR TELÉFONO
+        // ========================================================
 
         if (!phone) {
+
             return res.status(400).json({
+
                 success: false,
-                error: 'El teléfono es obligatorio',
-                code: 'PHONE_REQUIRED'
+
+                error:
+                    'El teléfono es obligatorio',
+
+                code:
+                    'PHONE_REQUIRED'
             });
         }
 
-        // Limpiar teléfono
-        const cleanPhone = phone.replace(/\D/g, '');
-        const channelType = channel || 'web';
+        // ========================================================
+        // LIMPIAR TELÉFONO
+        // ========================================================
 
-        console.log(`[ChatbotController] Mensaje de ${cleanPhone}: "${message}"`);
+        const cleanPhone =
+            String(phone).replace(/\D/g, '');
 
-        // Procesar mensaje
-        const response = await chatbotService.processMessage(message, cleanPhone, channelType);
+        const channelType =
+            channel || 'web';
 
-        res.json({
+        // ========================================================
+        // LOG
+        // ========================================================
+
+        console.log(
+            `[ChatbotController] Mensaje de ${cleanPhone}: "${message}"`
+        );
+
+        // ========================================================
+        // PROCESAR MENSAJE
+        // ========================================================
+
+        const response =
+            await chatbotService.processMessage(
+                message,
+                cleanPhone,
+                channelType
+            );
+
+        // ========================================================
+        // RESPUESTA
+        // ========================================================
+
+        return res.json({
+
             success: true,
-            response: response,
-            timestamp: new Date().toISOString()
+
+            response,
+
+            timestamp:
+                new Date().toISOString()
         });
 
     } catch (error) {
-        console.error('[ChatbotController] Error en processMessage:', error);
-        res.status(500).json({
+
+        console.error(
+            '[ChatbotController] Error en processMessage:',
+            error
+        );
+
+        return res.status(500).json({
+
             success: false,
-            error: 'Error procesando el mensaje'
+
+            error:
+                'Error procesando el mensaje'
         });
     }
 };
@@ -57,41 +177,93 @@ exports.processMessage = async (req, res) => {
 // ============================================================
 // CONSULTAR PEDIDO POR NÚMERO
 // ============================================================
+
 exports.getOrder = async (req, res) => {
+
     try {
-        const { orderNumber } = req.params;
+
+        const {
+            orderNumber
+        } = req.params;
+
+        // ========================================================
+        // VALIDAR
+        // ========================================================
 
         if (!orderNumber) {
+
             return res.status(400).json({
+
                 success: false,
-                error: 'Número de pedido obligatorio',
-                code: 'ORDER_NUMBER_REQUIRED'
+
+                error:
+                    'Número de pedido obligatorio',
+
+                code:
+                    'ORDER_NUMBER_REQUIRED'
             });
         }
 
-        // Validar formato
-        if (!/^(BR-?\d{4}-?\d{4}|BR-\d{4}-\d{4})$/i.test(orderNumber)) {
+        // ========================================================
+        // VALIDAR FORMATO
+        // ========================================================
+
+        if (
+            !/^(BR-?\d{4}-?\d{4}|BR-\d{4}-\d{4})$/i
+                .test(orderNumber)
+        ) {
+
             return res.status(400).json({
+
                 success: false,
-                error: 'Formato de pedido inválido. Ejemplo: BR-2026-1234',
-                code: 'INVALID_ORDER_FORMAT'
+
+                error:
+                    'Formato de pedido inválido. Ejemplo: BR-2026-1234',
+
+                code:
+                    'INVALID_ORDER_FORMAT'
             });
         }
 
-        const response = await chatbotService.getOrderStatus(orderNumber);
+        // ========================================================
+        // CONSULTAR SERVICIO
+        // ========================================================
 
-        res.json({
+        const response =
+            await chatbotService.getOrderStatus(
+                orderNumber
+            );
+
+        // ========================================================
+        // RESPUESTA
+        // ========================================================
+
+        return res.json({
+
             success: true,
-            response: response,
-            orderNumber: orderNumber.toUpperCase(),
-            timestamp: new Date().toISOString()
+
+            response,
+
+            orderNumber:
+                orderNumber.toUpperCase(),
+
+            timestamp:
+                new Date().toISOString()
         });
 
     } catch (error) {
-        console.error('[ChatbotController] Error en getOrder:', error);
-        res.status(500).json({
+
+        console.error(
+            '[ChatbotController] Error en getOrder:',
+            error
+        );
+
+        return res.status(500).json({
+
             success: false,
-            error: 'Error consultando el pedido'
+
+            error:
+                'Error consultando el pedido'
         });
     }
 };
@@ -99,81 +271,183 @@ exports.getOrder = async (req, res) => {
 // ============================================================
 // BUSCAR PRODUCTOS
 // ============================================================
+
 exports.searchProducts = async (req, res) => {
+
     try {
-        const { q } = req.query;
+
+        const {
+            q
+        } = req.query;
+
+        // ========================================================
+        // VALIDAR EXISTENCIA
+        // ========================================================
 
         if (!q) {
+
             return res.status(400).json({
+
                 success: false,
-                error: 'El término de búsqueda es obligatorio',
-                code: 'SEARCH_TERM_REQUIRED'
+
+                error:
+                    'El término de búsqueda es obligatorio',
+
+                code:
+                    'SEARCH_TERM_REQUIRED'
             });
         }
+
+        // ========================================================
+        // VALIDAR LONGITUD MÍNIMA
+        // ========================================================
 
         if (q.length < 2) {
+
             return res.status(400).json({
+
                 success: false,
-                error: 'La búsqueda debe tener al menos 2 caracteres',
-                code: 'SEARCH_TERM_TOO_SHORT'
+
+                error:
+                    'La búsqueda debe tener al menos 2 caracteres',
+
+                code:
+                    'SEARCH_TERM_TOO_SHORT'
             });
         }
+
+        // ========================================================
+        // VALIDAR LONGITUD MÁXIMA
+        // ========================================================
 
         if (q.length > 50) {
+
             return res.status(400).json({
+
                 success: false,
-                error: 'La búsqueda no puede exceder los 50 caracteres',
-                code: 'SEARCH_TERM_TOO_LONG'
+
+                error:
+                    'La búsqueda no puede exceder los 50 caracteres',
+
+                code:
+                    'SEARCH_TERM_TOO_LONG'
             });
         }
 
-        const response = await chatbotService.searchProducts(q);
+        // ========================================================
+        // BUSCAR
+        // ========================================================
 
-        res.json({
+        const response =
+            await chatbotService.searchProducts(q);
+
+        // ========================================================
+        // RESPUESTA
+        // ========================================================
+
+        return res.json({
+
             success: true,
-            response: response,
-            query: q,
-            timestamp: new Date().toISOString()
+
+            response,
+
+            query:
+                q,
+
+            timestamp:
+                new Date().toISOString()
         });
 
     } catch (error) {
-        console.error('[ChatbotController] Error en searchProducts:', error);
-        res.status(500).json({
+
+        console.error(
+            '[ChatbotController] Error en searchProducts:',
+            error
+        );
+
+        return res.status(500).json({
+
             success: false,
-            error: 'Error buscando productos'
+
+            error:
+                'Error buscando productos'
         });
     }
 };
 
 // ============================================================
-// NOTIFICAR A ASESOR HUMANO
+// NOTIFICAR ASESOR HUMANO
 // ============================================================
+
 exports.notifyHuman = async (req, res) => {
+
     try {
-        const { phone } = req.body;
+
+        const {
+            phone
+        } = req.body;
+
+        // ========================================================
+        // VALIDAR TELÉFONO
+        // ========================================================
 
         if (!phone) {
+
             return res.status(400).json({
+
                 success: false,
-                error: 'El teléfono es obligatorio',
-                code: 'PHONE_REQUIRED'
+
+                error:
+                    'El teléfono es obligatorio',
+
+                code:
+                    'PHONE_REQUIRED'
             });
         }
 
-        const cleanPhone = phone.replace(/\D/g, '');
-        const response = await chatbotService.transferToHuman(cleanPhone);
+        // ========================================================
+        // LIMPIAR TELÉFONO
+        // ========================================================
 
-        res.json({
+        const cleanPhone =
+            String(phone).replace(/\D/g, '');
+
+        // ========================================================
+        // TRANSFERIR
+        // ========================================================
+
+        const response =
+            await chatbotService.transferToHuman(
+                cleanPhone
+            );
+
+        // ========================================================
+        // RESPUESTA
+        // ========================================================
+
+        return res.json({
+
             success: true,
-            response: response,
-            timestamp: new Date().toISOString()
+
+            response,
+
+            timestamp:
+                new Date().toISOString()
         });
 
     } catch (error) {
-        console.error('[ChatbotController] Error en notifyHuman:', error);
-        res.status(500).json({
+
+        console.error(
+            '[ChatbotController] Error en notifyHuman:',
+            error
+        );
+
+        return res.status(500).json({
+
             success: false,
-            error: 'Error notificando al administrador'
+
+            error:
+                'Error notificando al administrador'
         });
     }
 };
@@ -181,33 +455,122 @@ exports.notifyHuman = async (req, res) => {
 // ============================================================
 // HEALTH CHECK
 // ============================================================
+//
+// IMPORTANTE:
+//
+// Antes:
+//
+//     const admin = require('firebase-admin');
+//     admin.firestore()
+//
+// Ahora:
+//
+//     firestore
+//
+// El Firestore utilizado aquí es exclusivamente:
+//
+//     admin.app('chatbot')
+//
+// ============================================================
+
 exports.healthCheck = async (req, res) => {
+
     try {
-        const admin = require('firebase-admin');
-        let firebaseStatus = 'ok';
+
+        let firebaseStatus =
+            'ok';
+
+        let firebaseError =
+            null;
+
+        // ========================================================
+        // VERIFICAR FIRESTORE DEL CHATBOT
+        // ========================================================
+
         try {
-            await admin.firestore().collection('chatbot_sessions').limit(1).get();
-        } catch (e) {
-            firebaseStatus = 'error';
+
+            await firestore
+                .collection('chatbot_sessions')
+                .limit(1)
+                .get();
+
+        } catch (error) {
+
+            firebaseStatus =
+                'error';
+
+            firebaseError =
+                error.message;
+
+            console.error(
+                '[ChatbotController] Firebase chatbot health error:',
+                error.message
+            );
         }
 
-        res.json({
-            success: true,
-            service: 'Chatbot Brioni',
-            status: 'operational',
-            version: '2.0.0',
-            timestamp: new Date().toISOString(),
+        // ========================================================
+        // ESTADO DE LA INSTANCIA
+        // ========================================================
+
+        const firebaseInstanceStatus =
+            chatbotFirebase.getStatus();
+
+        // ========================================================
+        // RESPUESTA
+        // ========================================================
+
+        return res.json({
+
+            success:
+                firebaseStatus === 'ok',
+
+            service:
+                'Chatbot Brioni',
+
+            status:
+                firebaseStatus === 'ok'
+                    ? 'operational'
+                    : 'degraded',
+
+            version:
+                '2.0.0',
+
+            timestamp:
+                new Date().toISOString(),
+
             checks: {
-                firebase: firebaseStatus,
-                email: process.env.EMAIL_USER ? 'configured' : 'not_configured'
-            }
+
+                firebase:
+                    firebaseStatus,
+
+                firebaseInstance:
+                    firebaseInstanceStatus,
+
+                email:
+                    process.env.EMAIL_USER
+                        ? 'configured'
+                        : 'not_configured'
+            },
+
+            ...(firebaseError && {
+
+                firebaseError
+            })
         });
 
     } catch (error) {
-        console.error('[ChatbotController] Error en healthCheck:', error);
-        res.status(500).json({
+
+        console.error(
+            '[ChatbotController] Error en healthCheck:',
+            error
+        );
+
+        return res.status(500).json({
+
             success: false,
-            error: 'Health check failed'
+
+            error:
+                'Health check failed'
         });
     }
 };
@@ -215,37 +578,113 @@ exports.healthCheck = async (req, res) => {
 // ============================================================
 // ESTADÍSTICAS
 // ============================================================
+//
+// Estas estadísticas utilizan:
+//
+//     chatbot_sessions
+//
+// dentro de la instancia:
+//
+//     admin.app('chatbot')
+//
+// ============================================================
+
 exports.getStats = async (req, res) => {
+
     try {
-        const admin = require('firebase-admin');
-        const firestore = admin.firestore();
-        const sessionsRef = firestore.collection('chatbot_sessions');
-        
-        const totalSnapshot = await sessionsRef.count().get();
-        const totalSessions = totalSnapshot.data().count || 0;
 
-        // Sesiones activas (última hora)
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        const activeSnapshot = await sessionsRef
-            .where('lastActivityAt', '>=', oneHourAgo)
-            .count()
-            .get();
-        const activeSessions = activeSnapshot.data().count || 0;
+        // ========================================================
+        // COLECCIÓN DEL CHATBOT
+        // ========================================================
 
-        res.json({
-            success: true,
+        const sessionsRef =
+            firestore.collection(
+                'chatbot_sessions'
+            );
+
+        // ========================================================
+        // TOTAL DE SESIONES
+        // ========================================================
+
+        const totalSnapshot =
+            await sessionsRef
+                .count()
+                .get();
+
+        const totalSessions =
+            totalSnapshot
+                .data()
+                .count || 0;
+
+        // ========================================================
+        // SESIONES ACTIVAS
+        // ÚLTIMA HORA
+        // ========================================================
+
+        const oneHourAgo =
+            new Date(
+                Date.now() -
+                60 * 60 * 1000
+            );
+
+        const activeSnapshot =
+            await sessionsRef
+                .where(
+                    'lastActivityAt',
+                    '>=',
+                    oneHourAgo
+                )
+                .count()
+                .get();
+
+        const activeSessions =
+            activeSnapshot
+                .data()
+                .count || 0;
+
+        // ========================================================
+        // ESTADO FIREBASE
+        // ========================================================
+
+        const firebaseStatus =
+            chatbotFirebase.getStatus();
+
+        // ========================================================
+        // RESPUESTA
+        // ========================================================
+
+        return res.json({
+
+            success:
+                true,
+
             stats: {
+
                 totalSessions,
+
                 activeSessions,
-                timestamp: new Date().toISOString()
-            }
+
+                timestamp:
+                    new Date().toISOString()
+            },
+
+            firebase:
+                firebaseStatus
         });
 
     } catch (error) {
-        console.error('[ChatbotController] Error en getStats:', error);
-        res.status(500).json({
+
+        console.error(
+            '[ChatbotController] Error en getStats:',
+            error
+        );
+
+        return res.status(500).json({
+
             success: false,
-            error: 'Error obteniendo estadísticas'
+
+            error:
+                'Error obteniendo estadísticas'
         });
     }
 };
