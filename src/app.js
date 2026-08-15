@@ -337,7 +337,7 @@ app.get('/', (req, res) => {
 // ================================================================
 // CHATBOT - NUEVO
 // ================================================================
-const chatbotRoutes = require('./src/api/v1/chatbot/routes');
+const chatbotRoutes = require('./api/v1/chatbot/routes');
 app.use('/api/v1/chatbot', chatbotRoutes);
 
 
