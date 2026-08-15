@@ -331,6 +331,19 @@ app.get('/', (req, res) => {
   });
 });
 
+
+
+
+// ================================================================
+// CHATBOT - NUEVO
+// ================================================================
+const chatbotRoutes = require('./src/api/v1/chatbot/routes');
+app.use('/api/v1/chatbot', chatbotRoutes);
+
+
+
+
+
 // ============================================
 // 4. MANEJO DE ERRORES (SISTEMA DE REPARACIÓN)
 // ============================================
