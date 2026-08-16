@@ -1,6 +1,8 @@
 // src/core/config/firebase.js - VERSIÓN SIMPLIFICADA Y SEGURA
 const admin = require('firebase-admin');
 
+const DEFAULT_APP_NAME = '[DEFAULT]';
+
 // Variables globales
 let firestore = null;
 let auth = null;
@@ -42,6 +44,13 @@ function createMockAuth() {
 }
 
 /**
+ * Verificar si Firebase principal [DEFAULT] ya existe
+ */
+function hasDefaultApp() {
+  return admin.apps.some(app => app.name === DEFAULT_APP_NAME);
+}
+
+/**
  * Inicializar Firebase de forma SEGURA (sin errores críticos)
  */
 const initializeFirebase = () => {
@@ -60,7 +69,7 @@ const initializeFirebase = () => {
       try {
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
         
-        if (!admin.apps.length) {
+        if (!hasDefaultApp()) {
           admin.initializeApp({
             credential: admin.credential.cert(serviceAccount),
             databaseURL: "https://mi-tienda-online-10630.firebaseio.com"
@@ -74,7 +83,7 @@ const initializeFirebase = () => {
     }
     
     // OPCIÓN 2: Archivo local (solo desarrollo)
-    if (!admin.apps.length) {
+    if (!hasDefaultApp()) {
       try {
         // Intentar cargar archivo local - RUTA CORREGIDA
         const serviceAccount = require('../../../config/firebase-service-account.json');
@@ -89,10 +98,10 @@ const initializeFirebase = () => {
     }
 
     // Si se pudo inicializar
-    if (admin.apps.length > 0) {
+    if (hasDefaultApp()) {
       firestore = admin.firestore();
       
-      // ✅ NUEVO: Ignorar undefined en Firestore (soluciona error pago.comprobante_url)
+      // Ignorar undefined en Firestore
       firestore.settings({ ignoreUndefinedProperties: true });
       
       auth = admin.auth();
@@ -134,10 +143,10 @@ const initializeFirebase = () => {
 initializeFirebase();
 
 module.exports = {
-  // ✅ Exportar las variables globales
-  firestore,    // Esto exporta Firestore real o mock
-  auth,         // Igual aquí
-  isConnected: isInitialized,  // Boolean
+  // Exportar las variables globales
+  firestore,
+  auth,
+  isConnected: isInitialized,
   
   // Información de diagnóstico
   getStatus: () => ({
