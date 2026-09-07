@@ -2595,10 +2595,25 @@ async processPaidOrder(orderId, source = 'manual') {
       };
     }
 
-    // 3. BUSCAR ORDEN EN FIREBASE
+       // 3. RESOLVER ID INTERNO DE GOLDINFINITI DESDE CULQI
+    // Culqi devuelve:
+    //   id           = ord_live_...
+    //   order_number = ORD-YYYYMM-XXXX
+    //
+    // Firebase usa numeroOrden = ORD-YYYYMM-XXXX
+    const firebaseOrderId =
+      culqiOrder.order_number || orderId;
+
+    logger.info(`🔗 Resolviendo orden Firebase`, {
+      culqiOrderId: orderId,
+      firebaseOrderId,
+      source
+    });
+
+    // 4. BUSCAR ORDEN EN FIREBASE POR CORRELATIVO
     let ordenSnapshot = await firestore
       .collection('ordenes')
-      .where('numeroOrden', '==', orderId)
+      .where('numeroOrden', '==', firebaseOrderId)
       .limit(1)
       .get();
 
@@ -2612,7 +2627,11 @@ async processPaidOrder(orderId, source = 'manual') {
     }
 
     if (ordenSnapshot.empty) {
-      logger.warn(`⚠️ Orden ${orderId} no encontrada en Firebase`);
+      logger.warn(`⚠️ Orden no encontrada en Firebase`, {
+        culqiOrderId: orderId,
+        firebaseOrderId,
+        source
+      });
 
       return {
         success: false,
