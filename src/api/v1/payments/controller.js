@@ -119,6 +119,7 @@ class PaymentController {
     this.getStats = this.getStats.bind(this);
     this.verifyPayment = this.verifyPayment.bind(this);
     this.getServiceInfo = this.getServiceInfo.bind(this);
+    this.getOrderStatus = this.getOrderStatus.bind(this);
     
     
     logger.info('🚀 PaymentController (Firebase + Reclamos) inicializado');
