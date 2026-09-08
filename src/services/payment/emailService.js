@@ -372,6 +372,7 @@ function _extractFirebaseData(paymentData) {
     order_id: paymentData.order_id || paymentData.id || metadata.orderId || `ORD-${Date.now()}`,
     fecha_creacion: paymentData.created_at || metadata.timestamp || new Date().toISOString(),
     culqi_id: paymentData.culqi_id || paymentData.id,
+    payment_method: paymentData.payment_method,
     cliente,
     productos: Array.isArray(productos) ? productos : [],
     resumen,
@@ -700,12 +701,13 @@ async function _generateOrderPDF(firebaseData) {
   return new Promise((resolve, reject) => {
     try {
       const {
-        order_id,
-        cliente,
-        productos,
-        resumen,
-        envio
-      } = firebaseData;
+  order_id,
+  cliente,
+  productos,
+  resumen,
+  envio,
+  payment_method
+} = firebaseData;
 
       // ============================================================
       // 🎨 SISTEMA DE DISEÑO LUXURY FINAL
@@ -904,71 +906,84 @@ async function _generateOrderPDF(firebaseData) {
 
       // -------- INFORMACIÓN DE ORDEN --------
       function drawOrderInfo(yPos) {
-        const PAGE_W = getPageWidth();
-        yPos = drawSectionTitle('INFORMACIÓN DE LA ORDEN', yPos, true);
+  const PAGE_W = getPageWidth();
+  yPos = drawSectionTitle('INFORMACIÓN DE LA ORDEN', yPos, true);
 
-        const col1 = M;
-        const col2 = M + (PAGE_W - (M * 2)) * 0.48;
-        const labelWidth = 90;
-        const valueX1 = col1 + labelWidth;
-        const valueX2 = col2 + labelWidth;
+  const col1 = M;
+  const col2 = M + (PAGE_W - (M * 2)) * 0.48;
+  const labelWidth = 90;
+  const valueX1 = col1 + labelWidth;
+  const valueX2 = col2 + labelWidth;
 
-        doc.fillColor(THEME.secondary)
-           .fontSize(TYPOGRAPHY.small)
-           .font('Helvetica');
+  doc.fillColor(THEME.secondary)
+     .fontSize(TYPOGRAPHY.small)
+     .font('Helvetica');
 
-        doc.text('Número de orden', col1, yPos);
-        doc.fillColor(THEME.primary)
-           .font('Helvetica-Bold')
-           .text(order_id, valueX1, yPos);
+  doc.text('Número de orden', col1, yPos);
+  doc.fillColor(THEME.primary)
+     .font('Helvetica-Bold')
+     .text(order_id, valueX1, yPos);
 
-        yPos += LAYOUT.fieldGap;
+  yPos += LAYOUT.fieldGap;
 
-        doc.fillColor(THEME.secondary)
-           .font('Helvetica');
-        doc.text('Fecha', col1, yPos);
-        doc.fillColor(THEME.primary)
-           .font('Helvetica-Bold')
-           .text(fechaFormateada, valueX1, yPos);
+  doc.fillColor(THEME.secondary)
+     .font('Helvetica');
+  doc.text('Fecha', col1, yPos);
+  doc.fillColor(THEME.primary)
+     .font('Helvetica-Bold')
+     .text(fechaFormateada, valueX1, yPos);
 
-        yPos += LAYOUT.fieldGap;
+  yPos += LAYOUT.fieldGap;
 
-        doc.fillColor(THEME.secondary)
-           .font('Helvetica');
-        doc.text('Hora', col1, yPos);
-        doc.fillColor(THEME.primary)
-           .font('Helvetica-Bold')
-           .text(horaFormateada, valueX1, yPos);
+  doc.fillColor(THEME.secondary)
+     .font('Helvetica');
+  doc.text('Hora', col1, yPos);
+  doc.fillColor(THEME.primary)
+     .font('Helvetica-Bold')
+     .text(horaFormateada, valueX1, yPos);
 
-        let y2 = yPos - (LAYOUT.fieldGap * 2);
+  let y2 = yPos - (LAYOUT.fieldGap * 2);
 
-        doc.fillColor(THEME.secondary)
-           .font('Helvetica');
-        doc.text('Estado', col2, y2);
-        doc.fillColor(THEME.success)
-           .font('Helvetica-Bold')
-           .text('● APROBADO', valueX2, y2);
+  doc.fillColor(THEME.secondary)
+     .font('Helvetica');
+  doc.text('Estado', col2, y2);
+  doc.fillColor(THEME.success)
+     .font('Helvetica-Bold')
+     .text('● APROBADO', valueX2, y2);
 
-        y2 += LAYOUT.fieldGap;
+  y2 += LAYOUT.fieldGap;
 
-        doc.fillColor(THEME.secondary)
-           .font('Helvetica');
-        doc.text('Método', col2, y2);
-        doc.fillColor(THEME.primary)
-           .font('Helvetica-Bold')
-           .text('Visa - Débito', valueX2, y2);
+  const metodoPagoTexto = {
+    yape: 'Yape',
+    card: 'Tarjeta',
+    tarjeta: 'Tarjeta',
+    pago_efectivo: 'PagoEfectivo',
+    pagoEfectivo: 'PagoEfectivo',
+    billetera: 'Billetera Digital',
+    bancaMovil: 'Banca Móvil',
+    cuotealo: 'Cuotéalo',
+    agente: 'Agente',
+    transferencia: 'Transferencia'
+  }[payment_method] || payment_method || 'No especificado';
 
-        y2 += LAYOUT.fieldGap;
+  doc.fillColor(THEME.secondary)
+     .font('Helvetica');
+  doc.text('Método', col2, y2);
+  doc.fillColor(THEME.primary)
+     .font('Helvetica-Bold')
+     .text(metodoPagoTexto, valueX2, y2);
 
-        doc.fillColor(THEME.secondary)
-           .font('Helvetica');
-        doc.text('Moneda', col2, y2);
-        doc.fillColor(THEME.primary)
-           .font('Helvetica-Bold')
-           .text('Soles (PEN)', valueX2, y2);
+  y2 += LAYOUT.fieldGap;
 
-        return yPos + LAYOUT.fieldGap + 6;
-      }
+  doc.fillColor(THEME.secondary)
+     .font('Helvetica');
+  doc.text('Moneda', col2, y2);
+  doc.fillColor(THEME.primary)
+     .font('Helvetica-Bold')
+     .text('Soles (PEN)', valueX2, y2);
+
+  return yPos + LAYOUT.fieldGap + 6;
+}
 
       // -------- INFORMACIÓN DE CLIENTE --------
       function drawClientInfo(clientData, yPos) {

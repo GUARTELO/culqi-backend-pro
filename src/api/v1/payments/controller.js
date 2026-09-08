@@ -340,19 +340,19 @@ async _generarIdDiarioComoFrontend() {
        * =======================
        */
       const { 
-        token, 
-        amount, 
-        email, 
-        // Datos específicos de Firebase
-        cliente,
-        comprobante,
-        envio,
-        productos,
-        resumen,
-        metadata,
-        id: ordenId 
-      } = req.body;
-
+    token, 
+    amount, 
+    email,
+    payment_method,
+    // Datos específicos de Firebase
+    cliente,
+    comprobante,
+    envio,
+    productos,
+    resumen,
+    metadata,
+    id: ordenId 
+} = req.body;
       // ========== 🔍 CAMBIO 1: VERIFICAR DNI ==========
       logger.info('🔍 DNI RECIBIDO - VERIFICACIÓN:', {
         cliente_dni: cliente?.dni,
@@ -480,18 +480,19 @@ logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
        * =======================
        */
       const emailData = this._prepareEmailData(
-        paymentId,
-        culqiResult,
-        {
-          cliente,
-          comprobante,
-          envio,
-          productos,
-          resumen,
-          metadata,
-          ordenId: ordenIdCorregido
-        }
-      );
+    paymentId,
+    culqiResult,
+    {
+        cliente,
+        comprobante,
+        envio,
+        productos,
+        resumen,
+        metadata,
+        ordenId: ordenIdCorregido,
+        payment_method
+    }
+);
 
       /* =======================
        * 5. ENVIAR EMAIL DE CONFIRMACIÓN
@@ -1345,7 +1346,8 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
 
 
   _prepareEmailData(paymentId, culqiResult, firebaseData) {
-    const { cliente, comprobante, envio, productos, resumen, metadata, ordenId } = firebaseData;
+
+    const { cliente, comprobante, envio, productos, resumen, metadata, ordenId, payment_method } = firebaseData;
     
     const productosFormateados = Array.isArray(productos) ? productos.map(p => ({
       nombre: p.nombre || p.titulo || 'Producto',
@@ -1380,6 +1382,7 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
       customer_dni: String(cliente.dni || '').replace(/\D/g, ''),
       
       order_id: ordenId,
+      payment_method: payment_method,
       firebase_doc_id: metadata?.firebaseDocId,
       fecha_creacion: metadata?.timestamp || new Date().toISOString(),
       
@@ -2595,7 +2598,7 @@ async processPaidOrder(orderId, source = 'manual') {
       };
     }
 
-       // 3. RESOLVER ID INTERNO DE GOLDINFINITI DESDE CULQI
+    // 3. RESOLVER ID INTERNO DE GOLDINFINITI DESDE CULQI
     // Culqi devuelve:
     //   id           = ord_live_...
     //   order_number = ORD-YYYYMM-XXXX
