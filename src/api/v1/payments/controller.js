@@ -2909,7 +2909,8 @@ async processPaidOrder(orderId, source = 'manual') {
         'charge.completed',      // Tarjeta, YAPE, QR, Billeteras, Cuotealo
         'order.paid',            // PagoEfectivo (cuando pagan el CIP)
         'transfer.completed',    // Banca Móvil, Transferencias bancarias
-        'payment.completed'      // Evento genérico (fallback)
+        'payment.completed',     // Evento genérico (fallback)
+        'order.status.changed'    // Culqi: cambio de estado de una Order
       ];
 
       // Ignorar eventos irrelevantes
@@ -2927,7 +2928,8 @@ async processPaidOrder(orderId, source = 'manual') {
         orderId =
           event.data.order_id ||
           event.data.metadata?.order_id ||
-          event.data.metadata?.internal_ref;
+          event.data.metadata?.internal_ref ||
+          event.data.id;
         // ✅ ELIMINADO: event.data.id (peligroso)
       }
 
@@ -3014,3 +3016,4 @@ async processPaidOrder(orderId, source = 'manual') {
 // Crear y exportar instancia
 const paymentController = new PaymentController();
 module.exports = paymentController;
+
