@@ -2920,39 +2920,106 @@ async processPaidOrder(orderId, source = 'manual') {
       }
 
       // =========================================================
-      // PASO 2: EXTRAER ORDER ID (SIN event.data.id - PELIGROSO)
-      // =========================================================
-      let orderId = null;
+// PASO 2: EXTRAER CULQI ORDER ID
+// =========================================================
+// IMPORTANTE:
+// - Nunca usar event.id a ciegas.
+// - event.id puede ser un evt_... o un ID de otro objeto.
+// - Para procesar una orden solo aceptamos ord_live_... / ord_test_...
+// - Primero usamos el cuerpo JSON original conservado en req.rawBody.
+// - Luego usamos req.body como respaldo.
+// =========================================================
 
-      // Culqi order.status.changed puede enviar el ID directamente en la raíz
-      orderId = event?.id || null;
+let orderId = null;
 
-      if (!orderId && event?.data) {
-        orderId =
-          event.data.order_id ||
-          event.data.metadata?.order_id ||
-          event.data.metadata?.internal_ref ||
-          event.data.id;
-        // ✅ ELIMINADO: event.data.id (peligroso)
-      }
+const isCulqiOrderId = (value) =>
+  typeof value === 'string' &&
+  /^ord_(live|test)_[A-Za-z0-9]+$/.test(value);
 
-      if (!orderId && event?.order) {
-        orderId =
-          event.order.id ||
-          event.order.metadata?.order_id ||
-          event.order.metadata?.internal_ref;
-      }
+const extractCulqiOrderId = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
 
-      if (!orderId) {
-        logger.warn(`⚠️ No se pudo obtener orderId`, { eventType: event?.type });
-        return res.status(200).json({ received: true, warning: 'orderId not found' });
-      }
+  const candidates = [
+    // Webhook cuyo cuerpo es directamente una Order
+    payload.id,
 
-      logger.info(`🎯 Webhook recibido para orden: ${orderId}`, {
-        orderId,
-        eventType: event?.type
-      });
+    // Order ID directo
+    payload.order_id,
 
+    // Payloads envueltos
+    payload.data?.order_id,
+    payload.data?.order?.id,
+    payload.data?.order?.order_id,
+
+    // Metadata que pueda contener la referencia de la Order
+    payload.data?.metadata?.order_id,
+    payload.data?.metadata?.internal_ref,
+
+    // Otro posible envoltorio
+    payload.order?.id,
+    payload.order?.order_id,
+    payload.order?.metadata?.order_id,
+    payload.order?.metadata?.internal_ref
+  ];
+
+  return candidates.find(isCulqiOrderId) || null;
+};
+
+// ---------------------------------------------------------
+// 1. FUENTE PRIMARIA: BODY ORIGINAL RECIBIDO DESDE CULQI
+// ---------------------------------------------------------
+if (req.rawBody) {
+  try {
+    const rawPayload = JSON.parse(req.rawBody.toString('utf8'));
+
+    orderId = extractCulqiOrderId(rawPayload);
+  } catch (rawError) {
+    logger.warn(`⚠️ No se pudo interpretar rawBody del webhook`, {
+      requestId,
+      error: rawError.message
+    });
+  }
+}
+
+// ---------------------------------------------------------
+// 2. RESPALDO: BODY PROCESADO POR EXPRESS
+// ---------------------------------------------------------
+if (!orderId) {
+  orderId = extractCulqiOrderId(event);
+}
+
+// ---------------------------------------------------------
+// 3. PROTECCIÓN DEFINITIVA
+// ---------------------------------------------------------
+// Nunca permitir que un event ID, charge ID, payment ID,
+// transfer ID u otro identificador llegue a processPaidOrder().
+if (orderId && !isCulqiOrderId(orderId)) {
+  logger.warn(`⚠️ ID rechazado: no corresponde a una Order de Culqi`, {
+    requestId,
+    orderId,
+    eventType: event?.type
+  });
+
+  orderId = null;
+}
+
+logger.info(`🎯 Webhook recibido para orden: ${orderId}`, {
+  orderId,
+  eventType: event?.type
+});
+
+if (!orderId) {
+  logger.warn(`⚠️ No se pudo obtener orderId`, {
+    eventType: event?.type
+  });
+
+  return res.status(200).json({
+    received: true,
+    warning: 'orderId not found'
+  });
+}
       // =========================================================
       // 🔥 PASO 3: PROCESAR EN SEGUNDO PLANO (NO BLOQUEANTE)
       // SIN await - para evitar timeouts y reintentos de Culqi
