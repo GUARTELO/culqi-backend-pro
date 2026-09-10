@@ -2927,7 +2927,7 @@ async processPaidOrder(orderId, source = 'manual') {
       // Culqi order.status.changed puede enviar el ID directamente en la raíz
       orderId = event?.id || null;
 
-      if (event?.data) {
+      if (!orderId && event?.data) {
         orderId =
           event.data.order_id ||
           event.data.metadata?.order_id ||
