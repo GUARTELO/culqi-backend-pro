@@ -2964,9 +2964,60 @@ const extractCulqiOrderId = (payload) => {
     payload.order?.metadata?.internal_ref
   ];
 
-  return candidates.find(isCulqiOrderId) || null;
-};
+  // ---------------------------------------------------------
+  // 1. RUTAS CONOCIDAS: prioridad máxima
+  // ---------------------------------------------------------
+  const directOrderId = candidates.find(isCulqiOrderId);
 
+  if (directOrderId) {
+    return directOrderId;
+  }
+
+  // ---------------------------------------------------------
+  // 2. RESPALDO CONTROLADO
+  // ---------------------------------------------------------
+  // Algunos payloads de webhook pueden variar en su estructura.
+  // Buscamos recursivamente únicamente como respaldo, manteniendo
+  // límites estrictos para evitar recorridos excesivos.
+  // ---------------------------------------------------------
+  const visited = new Set();
+  const MAX_DEPTH = 8;
+  const MAX_NODES = 500;
+  let nodesVisited = 0;
+
+  const findOrderId = (value, depth) => {
+    if (
+      value === null ||
+      typeof value !== 'object' ||
+      depth > MAX_DEPTH ||
+      nodesVisited >= MAX_NODES ||
+      visited.has(value)
+    ) {
+      return null;
+    }
+
+    visited.add(value);
+    nodesVisited += 1;
+
+    for (const child of Object.values(value)) {
+      if (typeof child === 'string' && isCulqiOrderId(child)) {
+        return child;
+      }
+
+      if (child && typeof child === 'object') {
+        const found = findOrderId(child, depth + 1);
+
+        if (found) {
+          return found;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  return findOrderId(payload, 0);
+};
 // ---------------------------------------------------------
 // 1. FUENTE PRIMARIA: BODY ORIGINAL RECIBIDO DESDE CULQI
 // ---------------------------------------------------------
