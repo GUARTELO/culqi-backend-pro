@@ -2885,244 +2885,325 @@ async processPaidOrder(orderId, source = 'manual') {
 
 
 
-   /* ============================================================
-   * WEBHOOK PARA CULQI - PRODUCCIÓN (ASYNC NO BLOQUEANTE)
-   * Soporta TODOS los métodos de pago:
-   * - Tarjeta, YAPE, QR, PagoEfectivo, Cuotealo, Billeteras, Banca Móvil
-   * ============================================================
-   */
   async handleCulqiWebhook(req, res) {
     const requestId = req.id || `webhook_${Date.now()}`;
 
     try {
-      const event = req.body;
+      /*
+       * =========================================================
+       * PASO 1: OBTENER EL PAYLOAD REAL DE CULQI
+       * =========================================================
+       *
+       * rawBody fue conservado por express en app.js.
+       * Lo usamos como fuente primaria para evitar depender de
+       * transformaciones posteriores del body.
+       */
+      let event = req.body;
 
-      logger.info(`📨 Webhook recibido`, {
-        requestId,
-        eventType: event?.type
-      });
-
-      // =========================================================
-      // PASO 1: TODOS LOS EVENTOS DE PAGO EXITOSO
-      // =========================================================
-      const successfulEvents = [
-        'charge.completed',      // Tarjeta, YAPE, QR, Billeteras, Cuotealo
-        'order.paid',            // PagoEfectivo (cuando pagan el CIP)
-        'transfer.completed',    // Banca Móvil, Transferencias bancarias
-        'payment.completed',     // Evento genérico (fallback)
-        'order.status.changed'    // Culqi: cambio de estado de una Order
-      ];
-
-      // Ignorar eventos irrelevantes
-      if (!successfulEvents.includes(event?.type)) {
-        logger.info(`⏭️ Evento ignorado`, { type: event?.type });
-        return res.status(200).json({ received: true, ignored: true });
-      }
-
-      // =========================================================
-// PASO 2: EXTRAER CULQI ORDER ID
-// =========================================================
-// IMPORTANTE:
-// - Nunca usar event.id a ciegas.
-// - event.id puede ser un evt_... o un ID de otro objeto.
-// - Para procesar una orden solo aceptamos ord_live_... / ord_test_...
-// - Primero usamos el cuerpo JSON original conservado en req.rawBody.
-// - Luego usamos req.body como respaldo.
-// =========================================================
-
-let orderId = null;
-
-const isCulqiOrderId = (value) =>
-  typeof value === 'string' &&
-  /^ord_(live|test)_[A-Za-z0-9]+$/.test(value);
-
-const extractCulqiOrderId = (payload) => {
-  if (!payload || typeof payload !== 'object') {
-    return null;
-  }
-
-  const candidates = [
-    // Webhook cuyo cuerpo es directamente una Order
-    payload.id,
-
-    // Order ID directo
-    payload.order_id,
-
-    // Payloads envueltos
-    payload.data?.order_id,
-    payload.data?.order?.id,
-    payload.data?.order?.order_id,
-
-    // Metadata que pueda contener la referencia de la Order
-    payload.data?.metadata?.order_id,
-    payload.data?.metadata?.internal_ref,
-
-    // Otro posible envoltorio
-    payload.order?.id,
-    payload.order?.order_id,
-    payload.order?.metadata?.order_id,
-    payload.order?.metadata?.internal_ref
-  ];
-
-  // ---------------------------------------------------------
-  // 1. RUTAS CONOCIDAS: prioridad máxima
-  // ---------------------------------------------------------
-  const directOrderId = candidates.find(isCulqiOrderId);
-
-  if (directOrderId) {
-    return directOrderId;
-  }
-
-  // ---------------------------------------------------------
-  // 2. RESPALDO CONTROLADO
-  // ---------------------------------------------------------
-  // Algunos payloads de webhook pueden variar en su estructura.
-  // Buscamos recursivamente únicamente como respaldo, manteniendo
-  // límites estrictos para evitar recorridos excesivos.
-  // ---------------------------------------------------------
-  const visited = new Set();
-  const MAX_DEPTH = 8;
-  const MAX_NODES = 500;
-  let nodesVisited = 0;
-
-  const findOrderId = (value, depth) => {
-    if (
-      value === null ||
-      typeof value !== 'object' ||
-      depth > MAX_DEPTH ||
-      nodesVisited >= MAX_NODES ||
-      visited.has(value)
-    ) {
-      return null;
-    }
-
-    visited.add(value);
-    nodesVisited += 1;
-
-    for (const child of Object.values(value)) {
-      if (typeof child === 'string' && isCulqiOrderId(child)) {
-        return child;
-      }
-
-      if (child && typeof child === 'object') {
-        const found = findOrderId(child, depth + 1);
-
-        if (found) {
-          return found;
+      if (Buffer.isBuffer(req.rawBody) && req.rawBody.length > 0) {
+        try {
+          event = JSON.parse(req.rawBody.toString('utf8'));
+        } catch {
+          event = req.body;
         }
       }
-    }
 
-    return null;
-  };
+      /*
+       * =========================================================
+       * PASO 2: VALIDAR FORMATO DE ORDER CULQI
+       * =========================================================
+       */
+      const isCulqiOrderId = (value) =>
+        typeof value === 'string' &&
+        /^ord_(live|test)_[A-Za-z0-9]+$/.test(value);
 
-  return findOrderId(payload, 0);
-};
-// ---------------------------------------------------------
-// 1. FUENTE PRIMARIA: BODY ORIGINAL RECIBIDO DESDE CULQI
-// ---------------------------------------------------------
-if (req.rawBody) {
-  try {
-    const rawPayload = JSON.parse(req.rawBody.toString('utf8'));
+      /*
+       * =========================================================
+       * PASO 3: DETERMINAR TIPO DE EVENTO
+       * =========================================================
+       *
+       * Culqi puede enviar:
+       *
+       * A) Evento envuelto:
+       *    { type: "order.status.changed", ... }
+       *
+       * B) Objeto Order directamente:
+       *    { object: "order", id: "ord_live_...", state: "paid" }
+       *
+       * En el segundo caso no existe event.type.
+       */
+      const eventType =
+        event?.type ||
+        event?.eventType ||
+        (
+          event?.object === 'order'
+            ? 'order.status.changed'
+            : null
+        );
 
-    orderId = extractCulqiOrderId(rawPayload);
-  } catch (rawError) {
-    logger.warn(`⚠️ No se pudo interpretar rawBody del webhook`, {
-      requestId,
-      error: rawError.message
-    });
-  }
-}
+      /*
+       * =========================================================
+       * PASO 4: IDENTIFICAR SI ES UNA ORDER DIRECTA
+       * =========================================================
+       */
+      const isRootOrder =
+        event?.object === 'order' &&
+        isCulqiOrderId(event?.id);
 
-// ---------------------------------------------------------
-// 2. RESPALDO: BODY PROCESADO POR EXPRESS
-// ---------------------------------------------------------
-if (!orderId) {
-  orderId = extractCulqiOrderId(event);
-}
+      /*
+       * =========================================================
+       * PASO 5: EVENTOS QUE NOS INTERESAN
+       * =========================================================
+       */
+      const successfulEvents = [
+        'charge.completed',
+        'order.paid',
+        'order.status.changed',
+        'transfer.completed',
+        'payment.completed'
+      ];
 
-// ---------------------------------------------------------
-// 3. PROTECCIÓN DEFINITIVA
-// ---------------------------------------------------------
-// Nunca permitir que un event ID, charge ID, payment ID,
-// transfer ID u otro identificador llegue a processPaidOrder().
-if (orderId && !isCulqiOrderId(orderId)) {
-  logger.warn(`⚠️ ID rechazado: no corresponde a una Order de Culqi`, {
-    requestId,
-    orderId,
-    eventType: event?.type
-  });
-
-  orderId = null;
-}
-
-logger.info(`🎯 Webhook recibido para orden: ${orderId}`, {
-  orderId,
-  eventType: event?.type
-});
-
-if (!orderId) {
-  logger.warn(`⚠️ No se pudo obtener orderId`, {
-    eventType: event?.type
-  });
-
-  return res.status(200).json({
-    received: true,
-    warning: 'orderId not found'
-  });
-}
-      // =========================================================
-      // 🔥 PASO 3: PROCESAR EN SEGUNDO PLANO (NO BLOQUEANTE)
-      // SIN await - para evitar timeouts y reintentos de Culqi
-      // =========================================================
-      this.processPaidOrder(orderId, `webhook:${event?.type}`)
-        .then(result => {
-          const emailSent = (result?.emailSent === true) || 
-                           (result?.alreadySent === true) ||
-                           (result?.success === true);
-          
-          if (emailSent) {
-            logger.info(`✅ Emails procesados correctamente desde webhook`, {
-              orderId,
-              eventType: event?.type,
-              emailSent
-            });
-          } else {
-            logger.warn(`⚠️ Webhook procesado sin envío de email`, {
-              orderId,
-              eventType: event?.type,
-              result
-            });
-          }
-        })
-        .catch(err => {
-          logger.error(`❌ Error en procesamiento async del webhook`, {
-            orderId,
-            eventType: event?.type,
-            error: err.message
-          });
+      /*
+       * Un objeto Order raíz es válido aunque no tenga event.type.
+       */
+      if (!isRootOrder && !successfulEvents.includes(eventType)) {
+        logger.info(`⏭️ Evento Culqi ignorado`, {
+          requestId,
+          eventType
         });
 
-      // =========================================================
-      // 🔥 PASO 4: RESPONDER INMEDIATAMENTE (EVITA REINTENTOS)
-      // =========================================================
+        return res.status(200).json({
+          received: true,
+          ignored: true
+        });
+      }
+
+      /*
+       * =========================================================
+       * PASO 6: EXTRAER EL CULQI ORDER ID
+       * =========================================================
+       *
+       * Prioridad:
+       *
+       * 1. event.id
+       * 2. order_id
+       * 3. estructuras conocidas de eventos
+       * 4. búsqueda recursiva controlada
+       */
+      const extractCulqiOrderId = (payload) => {
+        if (!payload || typeof payload !== 'object') {
+          return null;
+        }
+
+        const candidates = [
+          payload.id,
+          payload.order_id,
+
+          payload.data?.id,
+          payload.data?.order_id,
+
+          payload.data?.object?.id,
+
+          payload.data?.order?.id,
+          payload.data?.order?.order_id,
+
+          payload.data?.metadata?.order_id,
+          payload.data?.metadata?.internal_ref,
+
+          payload.order?.id,
+          payload.order?.order_id,
+
+          payload.order?.metadata?.order_id,
+          payload.order?.metadata?.internal_ref
+        ];
+
+        const directOrderId = candidates.find(isCulqiOrderId);
+
+        if (directOrderId) {
+          return directOrderId;
+        }
+
+        /*
+         * Respaldo controlado para estructuras futuras o variantes
+         * de payload.
+         */
+        const visited = new Set();
+        const MAX_DEPTH = 8;
+        const MAX_NODES = 500;
+        let nodesVisited = 0;
+
+        const findOrderId = (value, depth) => {
+          if (
+            value === null ||
+            typeof value !== 'object' ||
+            depth > MAX_DEPTH ||
+            nodesVisited >= MAX_NODES ||
+            visited.has(value)
+          ) {
+            return null;
+          }
+
+          visited.add(value);
+          nodesVisited += 1;
+
+          for (const child of Object.values(value)) {
+            if (
+              typeof child === 'string' &&
+              isCulqiOrderId(child)
+            ) {
+              return child;
+            }
+
+            if (
+              child &&
+              typeof child === 'object'
+            ) {
+              const found = findOrderId(
+                child,
+                depth + 1
+              );
+
+              if (found) {
+                return found;
+              }
+            }
+          }
+
+          return null;
+        };
+
+        return findOrderId(payload, 0);
+      };
+
+      const orderId = extractCulqiOrderId(event);
+
+      /*
+       * =========================================================
+       * PASO 7: VALIDACIÓN DEFINITIVA
+       * =========================================================
+       *
+       * Nunca enviar un event ID, charge ID, payment ID, etc.
+       * a processPaidOrder().
+       */
+      if (!orderId) {
+        logger.warn(`⚠️ No se pudo obtener orderId`, {
+          requestId,
+          eventType
+        });
+
+        return res.status(200).json({
+          received: true,
+          warning: 'orderId not found'
+        });
+      }
+
+      if (!isCulqiOrderId(orderId)) {
+        logger.warn(
+          `⚠️ ID rechazado: no corresponde a una Order de Culqi`,
+          {
+            requestId,
+            orderId,
+            eventType
+          }
+        );
+
+        return res.status(200).json({
+          received: true,
+          warning: 'invalid orderId'
+        });
+      }
+
+      logger.info(`🎯 Webhook recibido para orden: ${orderId}`, {
+        requestId,
+        orderId,
+        eventType
+      });
+
+      /*
+       * =========================================================
+       * PASO 8: PROCESAMIENTO ASÍNCRONO
+       * =========================================================
+       *
+       * processPaidOrder() vuelve a consultar Culqi.
+       *
+       * Por lo tanto:
+       *
+       * webhook recibido
+       *       ↓
+       * consulta real a Culqi
+       *       ↓
+       * state === "paid"
+       *       ↓
+       * recién entonces se procesa la confirmación.
+       */
+      this.processPaidOrder(
+        orderId,
+        `webhook:${eventType}`
+      )
+        .then(result => {
+          const emailSent =
+            result?.emailSent === true ||
+            result?.alreadySent === true ||
+            result?.success === true;
+
+          if (emailSent) {
+            logger.info(
+              `✅ Emails procesados correctamente desde webhook`,
+              {
+                requestId,
+                orderId,
+                eventType,
+                emailSent
+              }
+            );
+          } else {
+            logger.warn(
+              `⚠️ Webhook procesado sin envío de email`,
+              {
+                requestId,
+                orderId,
+                eventType,
+                result
+              }
+            );
+          }
+        })
+        .catch(error => {
+          logger.error(
+            `❌ Error en procesamiento async del webhook`,
+            {
+              requestId,
+              orderId,
+              eventType,
+              error: error.message
+            }
+          );
+        });
+
+      /*
+       * =========================================================
+       * PASO 9: RESPUESTA INMEDIATA A CULQI
+       * =========================================================
+       */
       return res.status(200).json({
         received: true,
         processed: true,
         async: true,
-        orderId: orderId,
-        eventType: event?.type,
+        orderId,
+        eventType,
         timestamp: new Date().toISOString()
       });
 
     } catch (error) {
-      // =========================================================
-      // PASO 5: MANEJO DE ERRORES - SIEMPRE RESPONDER 200
-      // =========================================================
-      logger.error(`❌ Error crítico en webhook`, {
+      /*
+       * =========================================================
+       * PASO 10: ERROR CONTROLADO
+       * =========================================================
+       */
+      logger.error(`❌ Error crítico en webhook Culqi`, {
+        requestId,
         error: error.message,
-        stack: error.stack,
-        requestId
+        stack: error.stack
       });
 
       return res.status(200).json({
