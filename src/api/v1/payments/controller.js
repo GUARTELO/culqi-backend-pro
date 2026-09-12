@@ -2889,127 +2889,672 @@ async processPaidOrder(orderId, source = 'manual') {
     const requestId = req.id || `webhook_${Date.now()}`;
 
 
-    // ============================================================
-    // 🕵️ ESPÍA QUIRÚRGICO CULQI — INICIO
-    // SOLO OBSERVACIÓN.
-    // NO MODIFICA req, res, Firebase, Culqi NI EL FLUJO.
-    // NO INTERCEPTA. NO BLOQUEA. NO DECIDE.
-    // SOLO REGISTRA LO QUE RECIBE EL WEBHOOK.
-    // ============================================================
-    (() => {
-        try {
-            const body = req?.body;
-            const raw = req?.rawBody;
+   // ============================================================
+// 🕵️ ESPÍA QUIRÚRGICO CULQI — INICIO
+// SOLO OBSERVACIÓN / DIAGNÓSTICO.
+// ============================================================
+// 🔒 GARANTÍA:
+// - NO modifica req
+// - NO modifica res
+// - NO modifica req.body
+// - NO modifica req.rawBody
+// - NO modifica event
+// - NO modifica Firebase
+// - NO llama a Culqi
+// - NO llama a getOrder()
+// - NO envía emails
+// - NO hace await
+// - NO intercepta
+// - NO bloquea
+// - NO decide
+// - NO altera el flujo normal del webhook
+//
+// Si el espía falla por cualquier motivo, el webhook CONTINÚA.
+// ============================================================
 
-            const safeStringify = (value) => {
-                try {
-                    return JSON.stringify(value);
-                } catch (error) {
-                    return `[NO_SERIALIZABLE: ${error.message}]`;
-                }
-            };
+(() => {
+    try {
+        const body = req?.body;
+        const raw = req?.rawBody;
 
-            const root = body && typeof body === 'object'
+        const safeStringify = (value) => {
+            try {
+                return JSON.stringify(value);
+            } catch (error) {
+                return `[NO_SERIALIZABLE: ${error.message}]`;
+            }
+        };
+
+        const root =
+            body && typeof body === 'object'
                 ? body
                 : {};
 
-            const rawText = Buffer.isBuffer(raw)
-                ? raw.toString('utf8')
-                : typeof raw === 'string'
-                    ? raw
-                    : null;
+        // --------------------------------------------------------
+        // RAW BODY
+        // --------------------------------------------------------
+        const rawText = Buffer.isBuffer(raw)
+            ? raw.toString('utf8')
+            : typeof raw === 'string'
+                ? raw
+                : null;
 
-            logger.info(`🕵️ [CULQI-SPY] ===== WEBHOOK ENTRANTE =====`, {
-                requestId,
+        // --------------------------------------------------------
+        // DATA TAL COMO LLEGA
+        // --------------------------------------------------------
+        const rawData = root?.data ?? null;
 
-                // Información HTTP
-                method: req?.method || null,
-                originalUrl: req?.originalUrl || null,
-                contentType: req?.headers?.['content-type'] || null,
+        const dataType =
+            rawData === null
+                ? 'null'
+                : Array.isArray(rawData)
+                    ? 'array'
+                    : typeof rawData;
 
-                // Estado de recepción
-                bodyExiste: !!body,
-                bodyTipo: typeof body,
-                rawBodyExiste: !!raw,
-                rawBodyEsBuffer: Buffer.isBuffer(raw),
-                rawBodyLength: rawText ? rawText.length : 0,
+        // --------------------------------------------------------
+        // DATA PARSEADO SOLO PARA DIAGNÓSTICO
+        //
+        // IMPORTANTE:
+        // Esto crea una COPIA diagnóstica.
+        // NO modifica root.data.
+        // NO modifica req.body.
+        // --------------------------------------------------------
+        let diagnosticData = null;
+        let dataParseError = null;
 
-                // Campos ROOT exactamente como llegan
-                root_object: root?.object ?? null,
-                root_type: root?.type ?? null,
-                root_eventType: root?.eventType ?? null,
-                root_id: root?.id ?? null,
-                root_order_id: root?.order_id ?? null,
-                root_order_number: root?.order_number ?? null,
-                root_state: root?.state ?? null,
-                root_amount: root?.amount ?? null,
-                root_currency: root?.currency_code ?? null,
-                root_payment_code: root?.payment_code ?? null,
-                root_qr: root?.qr ? '[PRESENTE]' : null,
-                root_url_pe: root?.url_pe ? '[PRESENTE]' : null,
-
-                // Estructuras internas
-                data_exists: !!root?.data,
-                data_id: root?.data?.id ?? null,
-                data_order_id: root?.data?.order_id ?? null,
-                data_object: root?.data?.object ?? null,
-
-                order_exists: !!root?.order,
-                order_id: root?.order?.id ?? null,
-                order_order_id: root?.order?.order_id ?? null,
-                order_number: root?.order?.order_number ?? null,
-                order_state: root?.order?.state ?? null,
-
-                // Metadata
-                root_metadata: root?.metadata
-                    ? safeStringify(root.metadata)
-                    : null,
-
-                data_metadata: root?.data?.metadata
-                    ? safeStringify(root.data.metadata)
-                    : null,
-
-                order_metadata: root?.order?.metadata
-                    ? safeStringify(root.order.metadata)
-                    : null,
-
-                // Raw body solamente para diagnóstico
-                rawBodyPreview: rawText
-                    ? rawText.substring(0, 3000)
-                    : null,
-
-                // TODAS las claves reales del ROOT
-                root_keys: Object.keys(root),
-
-                spy_timestamp: new Date().toISOString()
-            });
-
-            logger.info(
-                `🕵️ [CULQI-SPY] ===== FIN WEBHOOK ENTRANTE =====`,
-                { requestId }
-            );
-
-        } catch (spyError) {
-            // =====================================================
-            // EL ESPÍA JAMÁS PUEDE AFECTAR EL WEBHOOK
-            // =====================================================
+        if (typeof rawData === 'string') {
             try {
-                logger.warn(
-                    `🕵️ [CULQI-SPY] Error interno del espía — FLUJO CONTINÚA`,
-                    {
-                        requestId,
-                        error: spyError?.message || 'unknown'
-                    }
-                );
-            } catch (_) {
-                // Absolutamente nada.
+                diagnosticData = JSON.parse(rawData);
+            } catch (error) {
+                dataParseError = error?.message || 'JSON inválido';
+            }
+        } else if (
+            rawData &&
+            typeof rawData === 'object'
+        ) {
+            try {
+                diagnosticData =
+                    JSON.parse(
+                        JSON.stringify(rawData)
+                    );
+            } catch (error) {
+                diagnosticData = null;
+                dataParseError =
+                    error?.message ||
+                    'No se pudo copiar data';
             }
         }
-    })();
-    // ============================================================
-    // 🕵️ ESPÍA QUIRÚRGICO CULQI — FIN
-    // TODO LO ANTERIOR ES SOLO OBSERVACIÓN.
-    // ============================================================
+
+        const data =
+            diagnosticData &&
+            typeof diagnosticData === 'object'
+                ? diagnosticData
+                : {};
+
+        // --------------------------------------------------------
+        // ORDER ANIDADA SI EXISTIERA
+        // --------------------------------------------------------
+        const nestedOrder =
+            data?.order &&
+            typeof data.order === 'object'
+                ? data.order
+                : null;
+
+        // --------------------------------------------------------
+        // DETECCIÓN DIAGNÓSTICA DEL ESTADO
+        // --------------------------------------------------------
+        const webhookState =
+            data?.state ??
+            nestedOrder?.state ??
+            root?.state ??
+            null;
+
+        const webhookIsPaid =
+            webhookState === 'paid';
+
+        // --------------------------------------------------------
+        // TIMESTAMPS DE CULQI
+        // --------------------------------------------------------
+        const creationDate =
+            data?.creation_date ??
+            nestedOrder?.creation_date ??
+            root?.creation_date ??
+            null;
+
+        const updatedAt =
+            data?.updated_at ??
+            nestedOrder?.updated_at ??
+            root?.updated_at ??
+            null;
+
+        const paidAt =
+            data?.paid_at ??
+            nestedOrder?.paid_at ??
+            root?.paid_at ??
+            null;
+
+        const expirationDate =
+            data?.expiration_date ??
+            nestedOrder?.expiration_date ??
+            root?.expiration_date ??
+            null;
+
+        const timestampToIso = (value) => {
+            if (
+                value === null ||
+                value === undefined
+            ) {
+                return null;
+            }
+
+            const numericValue =
+                Number(value);
+
+            if (
+                Number.isFinite(numericValue)
+            ) {
+                const milliseconds =
+                    numericValue < 100000000000
+                        ? numericValue * 1000
+                        : numericValue;
+
+                const date =
+                    new Date(milliseconds);
+
+                if (
+                    !Number.isNaN(
+                        date.getTime()
+                    )
+                ) {
+                    return date.toISOString();
+                }
+            }
+
+            const date =
+                new Date(value);
+
+            return Number.isNaN(
+                date.getTime()
+            )
+                ? null
+                : date.toISOString();
+        };
+
+        // --------------------------------------------------------
+        // IDENTIFICACIÓN DE ORDEN
+        // --------------------------------------------------------
+        const diagnosticOrderId =
+            data?.id ??
+            data?.order_id ??
+            nestedOrder?.id ??
+            nestedOrder?.order_id ??
+            root?.order_id ??
+            root?.id ??
+            null;
+
+        // --------------------------------------------------------
+        // INFORMACIÓN COMPLETA DE LA ORDEN
+        // --------------------------------------------------------
+        logger.info(
+            `🕵️ [CULQI-SPY] ===== WEBHOOK ENTRANTE =====`,
+            {
+                requestId,
+
+                // =================================================
+                // HTTP
+                // =================================================
+                http: {
+                    method:
+                        req?.method || null,
+
+                    originalUrl:
+                        req?.originalUrl || null,
+
+                    url:
+                        req?.url || null,
+
+                    contentType:
+                        req?.headers?.[
+                            'content-type'
+                        ] || null,
+
+                    contentLength:
+                        req?.headers?.[
+                            'content-length'
+                        ] || null,
+
+                    userAgent:
+                        req?.headers?.[
+                            'user-agent'
+                        ] || null
+                },
+
+                // =================================================
+                // RECEPCIÓN
+                // =================================================
+                reception: {
+                    bodyExiste: !!body,
+
+                    bodyTipo:
+                        typeof body,
+
+                    rawBodyExiste:
+                        !!raw,
+
+                    rawBodyEsBuffer:
+                        Buffer.isBuffer(raw),
+
+                    rawBodyLength:
+                        rawText
+                            ? rawText.length
+                            : 0
+                },
+
+                // =================================================
+                // ROOT
+                // =================================================
+                root: {
+                    object:
+                        root?.object ?? null,
+
+                    type:
+                        root?.type ?? null,
+
+                    eventType:
+                        root?.eventType ?? null,
+
+                    id:
+                        root?.id ?? null,
+
+                    order_id:
+                        root?.order_id ?? null,
+
+                    order_number:
+                        root?.order_number ?? null,
+
+                    state:
+                        root?.state ?? null,
+
+                    amount:
+                        root?.amount ?? null,
+
+                    currency_code:
+                        root?.currency_code ?? null,
+
+                    payment_code:
+                        root?.payment_code ?? null,
+
+                    creation_date:
+                        root?.creation_date ?? null,
+
+                    updated_at:
+                        root?.updated_at ?? null,
+
+                    paid_at:
+                        root?.paid_at ?? null,
+
+                    expiration_date:
+                        root?.expiration_date ??
+                        null,
+
+                    qr:
+                        root?.qr
+                            ? '[PRESENTE]'
+                            : null,
+
+                    url_pe:
+                        root?.url_pe
+                            ? '[PRESENTE]'
+                            : null,
+
+                    metadata:
+                        root?.metadata
+                            ? safeStringify(
+                                root.metadata
+                            )
+                            : null
+                },
+
+                // =================================================
+                // DATA
+                // =================================================
+                data: {
+                    existe:
+                        !!rawData,
+
+                    tipo:
+                        dataType,
+
+                    fueParseadoDesdeString:
+                        typeof rawData === 'string',
+
+                    parseError:
+                        dataParseError,
+
+                    keys:
+                        Object.keys(data),
+
+                    object:
+                        data?.object ?? null,
+
+                    id:
+                        data?.id ?? null,
+
+                    order_id:
+                        data?.order_id ?? null,
+
+                    order_number:
+                        data?.order_number ?? null,
+
+                    state:
+                        data?.state ?? null,
+
+                    amount:
+                        data?.amount ?? null,
+
+                    currency_code:
+                        data?.currency_code ??
+                        null,
+
+                    payment_code:
+                        data?.payment_code ??
+                        null,
+
+                    creation_date:
+                        data?.creation_date ??
+                        null,
+
+                    updated_at:
+                        data?.updated_at ??
+                        null,
+
+                    paid_at:
+                        data?.paid_at ?? null,
+
+                    expiration_date:
+                        data?.expiration_date ??
+                        null,
+
+                    available_on:
+                        data?.available_on ??
+                        null,
+
+                    total_fee:
+                        data?.total_fee ?? null,
+
+                    net_amount:
+                        data?.net_amount ?? null,
+
+                    qr:
+                        data?.qr
+                            ? '[PRESENTE]'
+                            : null,
+
+                    url_pe:
+                        data?.url_pe
+                            ? '[PRESENTE]'
+                            : null,
+
+                    metadata:
+                        data?.metadata
+                            ? safeStringify(
+                                data.metadata
+                            )
+                            : null
+                },
+
+                // =================================================
+                // ORDER ANIDADA
+                // =================================================
+                nestedOrder: {
+                    existe:
+                        !!nestedOrder,
+
+                    id:
+                        nestedOrder?.id ??
+                        null,
+
+                    order_id:
+                        nestedOrder?.order_id ??
+                        null,
+
+                    order_number:
+                        nestedOrder?.order_number ??
+                        null,
+
+                    state:
+                        nestedOrder?.state ??
+                        null,
+
+                    amount:
+                        nestedOrder?.amount ??
+                        null,
+
+                    currency_code:
+                        nestedOrder?.currency_code ??
+                        null,
+
+                    payment_code:
+                        nestedOrder?.payment_code ??
+                        null,
+
+                    metadata:
+                        nestedOrder?.metadata
+                            ? safeStringify(
+                                nestedOrder.metadata
+                            )
+                            : null
+                },
+
+                // =================================================
+                // RESUMEN DIAGNÓSTICO
+                // =================================================
+                diagnosis: {
+                    diagnosticOrderId,
+
+                    webhookState,
+
+                    webhookIsPaid,
+
+                    webhookAmount:
+                        data?.amount ??
+                        root?.amount ??
+                        null,
+
+                    webhookAmountPEN:
+                        Number.isFinite(
+                            Number(
+                                data?.amount
+                            )
+                        )
+                            ? Number(
+                                data.amount
+                            ) / 100
+                            : null,
+
+                    webhookOrderNumber:
+                        data?.order_number ??
+                        root?.order_number ??
+                        null,
+
+                    webhookPaymentCode:
+                        data?.payment_code ??
+                        root?.payment_code ??
+                        null,
+
+                    webhookCurrency:
+                        data?.currency_code ??
+                        root?.currency_code ??
+                        null
+                },
+
+                // =================================================
+                // TIEMPOS
+                // =================================================
+                culqiTimes: {
+                    creation_date:
+                        creationDate,
+
+                    creation_date_iso:
+                        timestampToIso(
+                            creationDate
+                        ),
+
+                    updated_at:
+                        updatedAt,
+
+                    updated_at_iso:
+                        timestampToIso(
+                            updatedAt
+                        ),
+
+                    paid_at:
+                        paidAt,
+
+                    paid_at_iso:
+                        timestampToIso(
+                            paidAt
+                        ),
+
+                    expiration_date:
+                        expirationDate,
+
+                    expiration_date_iso:
+                        timestampToIso(
+                            expirationDate
+                        )
+                },
+
+                // =================================================
+                // METADATA
+                // =================================================
+                metadata: {
+                    root:
+                        root?.metadata
+                            ? safeStringify(
+                                root.metadata
+                            )
+                            : null,
+
+                    data:
+                        data?.metadata
+                            ? safeStringify(
+                                data.metadata
+                            )
+                            : null,
+
+                    nestedOrder:
+                        nestedOrder?.metadata
+                            ? safeStringify(
+                                nestedOrder.metadata
+                            )
+                            : null
+                },
+
+                // =================================================
+                // RAW BODY
+                // =================================================
+                rawBodyPreview:
+                    rawText
+                        ? rawText.substring(
+                            0,
+                            5000
+                        )
+                        : null,
+
+                // =================================================
+                // ESTRUCTURA
+                // =================================================
+                structure: {
+                    root_keys:
+                        Object.keys(root),
+
+                    data_keys:
+                        Object.keys(data),
+
+                    nestedOrder_keys:
+                        nestedOrder
+                            ? Object.keys(
+                                nestedOrder
+                            )
+                            : []
+                },
+
+                // =================================================
+                // TIEMPO LOCAL DEL BACKEND
+                // =================================================
+                spy_timestamp:
+                    new Date().toISOString()
+            }
+        );
+
+        logger.info(
+            `🕵️ [CULQI-SPY] ===== FIN WEBHOOK ENTRANTE =====`,
+            {
+                requestId,
+
+                // Resumen mínimo duplicado
+                // para encontrarlo fácilmente en logs.
+                orderId:
+                    diagnosticOrderId,
+
+                state:
+                    webhookState,
+
+                isPaid:
+                    webhookIsPaid,
+
+                amount:
+                    data?.amount ??
+                    root?.amount ??
+                    null,
+
+                orderNumber:
+                    data?.order_number ??
+                    root?.order_number ??
+                    null,
+
+                paidAt:
+                    paidAt,
+
+                updatedAt:
+                    updatedAt,
+
+                spy_timestamp:
+                    new Date().toISOString()
+            }
+        );
+
+    } catch (spyError) {
+
+        // ========================================================
+        // 🔒 ABSOLUTA PROTECCIÓN DEL FLUJO
+        // ========================================================
+        // El espía NUNCA puede lanzar el error hacia afuera.
+        // El webhook continúa exactamente como estaba.
+        // ========================================================
+
+        try {
+            logger.warn(
+                `🕵️ [CULQI-SPY] Error interno del espía — FLUJO CONTINÚA`,
+                {
+                    requestId,
+                    error:
+                        spyError?.message ||
+                        'unknown'
+                }
+            );
+        } catch (_) {
+            // Absolutamente nada.
+        }
+    }
+})();
+
+// ============================================================
+// 🕵️ ESPÍA QUIRÚRGICO CULQI — FIN
+// TODO LO ANTERIOR ES SOLO OBSERVACIÓN.
+// EL FLUJO ORIGINAL CONTINÚA SIN MODIFICACIÓN.
+// ============================================================
 
 
 
