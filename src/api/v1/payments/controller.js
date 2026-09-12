@@ -2888,6 +2888,131 @@ async processPaidOrder(orderId, source = 'manual') {
   async handleCulqiWebhook(req, res) {
     const requestId = req.id || `webhook_${Date.now()}`;
 
+
+    // ============================================================
+    // 🕵️ ESPÍA QUIRÚRGICO CULQI — INICIO
+    // SOLO OBSERVACIÓN.
+    // NO MODIFICA req, res, Firebase, Culqi NI EL FLUJO.
+    // NO INTERCEPTA. NO BLOQUEA. NO DECIDE.
+    // SOLO REGISTRA LO QUE RECIBE EL WEBHOOK.
+    // ============================================================
+    (() => {
+        try {
+            const body = req?.body;
+            const raw = req?.rawBody;
+
+            const safeStringify = (value) => {
+                try {
+                    return JSON.stringify(value);
+                } catch (error) {
+                    return `[NO_SERIALIZABLE: ${error.message}]`;
+                }
+            };
+
+            const root = body && typeof body === 'object'
+                ? body
+                : {};
+
+            const rawText = Buffer.isBuffer(raw)
+                ? raw.toString('utf8')
+                : typeof raw === 'string'
+                    ? raw
+                    : null;
+
+            logger.info(`🕵️ [CULQI-SPY] ===== WEBHOOK ENTRANTE =====`, {
+                requestId,
+
+                // Información HTTP
+                method: req?.method || null,
+                originalUrl: req?.originalUrl || null,
+                contentType: req?.headers?.['content-type'] || null,
+
+                // Estado de recepción
+                bodyExiste: !!body,
+                bodyTipo: typeof body,
+                rawBodyExiste: !!raw,
+                rawBodyEsBuffer: Buffer.isBuffer(raw),
+                rawBodyLength: rawText ? rawText.length : 0,
+
+                // Campos ROOT exactamente como llegan
+                root_object: root?.object ?? null,
+                root_type: root?.type ?? null,
+                root_eventType: root?.eventType ?? null,
+                root_id: root?.id ?? null,
+                root_order_id: root?.order_id ?? null,
+                root_order_number: root?.order_number ?? null,
+                root_state: root?.state ?? null,
+                root_amount: root?.amount ?? null,
+                root_currency: root?.currency_code ?? null,
+                root_payment_code: root?.payment_code ?? null,
+                root_qr: root?.qr ? '[PRESENTE]' : null,
+                root_url_pe: root?.url_pe ? '[PRESENTE]' : null,
+
+                // Estructuras internas
+                data_exists: !!root?.data,
+                data_id: root?.data?.id ?? null,
+                data_order_id: root?.data?.order_id ?? null,
+                data_object: root?.data?.object ?? null,
+
+                order_exists: !!root?.order,
+                order_id: root?.order?.id ?? null,
+                order_order_id: root?.order?.order_id ?? null,
+                order_number: root?.order?.order_number ?? null,
+                order_state: root?.order?.state ?? null,
+
+                // Metadata
+                root_metadata: root?.metadata
+                    ? safeStringify(root.metadata)
+                    : null,
+
+                data_metadata: root?.data?.metadata
+                    ? safeStringify(root.data.metadata)
+                    : null,
+
+                order_metadata: root?.order?.metadata
+                    ? safeStringify(root.order.metadata)
+                    : null,
+
+                // Raw body solamente para diagnóstico
+                rawBodyPreview: rawText
+                    ? rawText.substring(0, 3000)
+                    : null,
+
+                // TODAS las claves reales del ROOT
+                root_keys: Object.keys(root),
+
+                spy_timestamp: new Date().toISOString()
+            });
+
+            logger.info(
+                `🕵️ [CULQI-SPY] ===== FIN WEBHOOK ENTRANTE =====`,
+                { requestId }
+            );
+
+        } catch (spyError) {
+            // =====================================================
+            // EL ESPÍA JAMÁS PUEDE AFECTAR EL WEBHOOK
+            // =====================================================
+            try {
+                logger.warn(
+                    `🕵️ [CULQI-SPY] Error interno del espía — FLUJO CONTINÚA`,
+                    {
+                        requestId,
+                        error: spyError?.message || 'unknown'
+                    }
+                );
+            } catch (_) {
+                // Absolutamente nada.
+            }
+        }
+    })();
+    // ============================================================
+    // 🕵️ ESPÍA QUIRÚRGICO CULQI — FIN
+    // TODO LO ANTERIOR ES SOLO OBSERVACIÓN.
+    // ============================================================
+
+
+
     try {
       /*
        * =========================================================
@@ -3218,4 +3343,3 @@ async processPaidOrder(orderId, source = 'manual') {
 // Crear y exportar instancia
 const paymentController = new PaymentController();
 module.exports = paymentController;
-
