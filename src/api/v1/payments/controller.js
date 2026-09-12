@@ -3108,32 +3108,65 @@ async processPaidOrder(orderId, source = 'manual') {
        * PASO 6: EXTRAER EL CULQI ORDER ID
        * =========================================================
        *
-       * Prioridad:
+       * Culqi puede enviar event.data como objeto o como string JSON.
+       * En el webhook real recibido, data llega como string JSON.
        *
-       * 1. event.id
-       * 2. order_id
-       * 3. estructuras conocidas de eventos
-       * 4. búsqueda recursiva controlada
+       * Por eso primero normalizamos data localmente y luego
+       * buscamos el order ID en las estructuras conocidas.
        */
       const extractCulqiOrderId = (payload) => {
         if (!payload || typeof payload !== 'object') {
           return null;
         }
 
+        /*
+         * =========================================================
+         * NORMALIZAR PAYLOAD.DATA
+         * =========================================================
+         *
+         * Caso 1:
+         * data: {
+         *   object: "order",
+         *   id: "ord_test_..."
+         * }
+         *
+         * Caso 2:
+         * data: "{\"object\":\"order\",\"id\":\"ord_test_...\"}"
+         *
+         * En el webhook real de Culqi ocurre el caso 2.
+         *
+         * IMPORTANTE:
+         * No modificamos payload.data.
+         * Solo creamos una variable local.
+         */
+        let dataPayload = payload.data;
+
+        if (typeof dataPayload === 'string') {
+          try {
+            dataPayload = JSON.parse(dataPayload);
+          } catch {
+            /*
+             * Si data no contiene JSON válido, continuamos
+             * con las demás estructuras sin romper el webhook.
+             */
+            dataPayload = null;
+          }
+        }
+
         const candidates = [
           payload.id,
           payload.order_id,
 
-          payload.data?.id,
-          payload.data?.order_id,
+          dataPayload?.id,
+          dataPayload?.order_id,
 
-          payload.data?.object?.id,
+          dataPayload?.object?.id,
 
-          payload.data?.order?.id,
-          payload.data?.order?.order_id,
+          dataPayload?.order?.id,
+          dataPayload?.order?.order_id,
 
-          payload.data?.metadata?.order_id,
-          payload.data?.metadata?.internal_ref,
+          dataPayload?.metadata?.order_id,
+          dataPayload?.metadata?.internal_ref,
 
           payload.order?.id,
           payload.order?.order_id,
@@ -3149,8 +3182,10 @@ async processPaidOrder(orderId, source = 'manual') {
         }
 
         /*
-         * Respaldo controlado para estructuras futuras o variantes
-         * de payload.
+         * =========================================================
+         * RESPALDO CONTROLADO PARA ESTRUCTURAS FUTURAS
+         * O VARIANTES DE PAYLOAD
+         * =========================================================
          */
         const visited = new Set();
         const MAX_DEPTH = 8;
