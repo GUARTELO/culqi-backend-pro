@@ -3889,9 +3889,60 @@ return {
        *       ↓
        * recién entonces se procesa la confirmación.
        */
+      let webhookData = event?.data || null;
+
+      if (typeof webhookData === 'string') {
+        try {
+          webhookData = JSON.parse(webhookData);
+        } catch {
+          webhookData = null;
+        }
+      }
+
+      const webhookOrder =
+        webhookData?.object ||
+        webhookData?.order ||
+        webhookData ||
+        event;
+
+      const webhookContext = {
+        requestId,
+        state:
+          webhookOrder?.state ||
+          event?.state ||
+          null,
+        amount:
+          webhookOrder?.amount ??
+          event?.amount ??
+          null,
+        currency_code:
+          webhookOrder?.currency_code ||
+          event?.currency_code ||
+          null,
+        order_number:
+          webhookOrder?.order_number ||
+          event?.order_number ||
+          null,
+        event_id:
+          event?.event_id ||
+          event?.eventId ||
+          webhookData?.event_id ||
+          webhookData?.eventId ||
+          null,
+        event_type: eventType,
+        paid_at:
+          webhookOrder?.paid_at ||
+          event?.paid_at ||
+          null,
+        updated_at:
+          webhookOrder?.updated_at ||
+          event?.updated_at ||
+          null
+      };
+
       this.processWebhookPaidOrder(
         orderId,
-        event
+        webhookContext
       )
         .then(result => {
           const emailSent =
