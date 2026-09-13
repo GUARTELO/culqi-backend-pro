@@ -2823,7 +2823,725 @@ async processPaidOrder(orderId, source = 'manual') {
    * OBTENER ESTADO DE UNA ORDEN (PARA POLLING DE YAPE/PLIN)
    * ============================================================
    */
-  async getOrderStatus(req, res) {
+  async processWebhookPaidOrder(orderId, webhookContext = {}) {
+    const requestId =
+      webhookContext.requestId ||
+      `webhook_paid_${orderId}_${Date.now()}`;
+
+    try {
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
+
+      const isCulqiOrderId = (value) =>
+        typeof value === 'string' &&
+        /^ord_(live|test)_[A-Za-z0-9]+$/.test(value);
+
+      if (!isCulqiOrderId(orderId)) {
+        logger.warn(`⚠️ Webhook paid rechazado: orderId inválido`, {
+          requestId,
+          orderId
+        });
+
+        return {
+          success: false,
+          confirmed: false,
+          state: 'invalid_order_id',
+          message: 'orderId de Culqi inválido'
+        };
+      }
+
+      const webhookState = String(
+        webhookContext.state || ''
+      ).toLowerCase();
+
+      if (webhookState !== 'paid') {
+        logger.info(`⏭️ Webhook no corresponde a estado paid`, {
+          requestId,
+          orderId,
+          state: webhookState
+        });
+
+        return {
+          success: false,
+          confirmed: false,
+          state: webhookState || 'unknown',
+          message: 'El webhook no está marcado como paid'
+        };
+      }
+
+      const webhookAmount = Number(
+        webhookContext.amount
+      );
+
+      if (
+        !Number.isFinite(webhookAmount) ||
+        webhookAmount <= 0
+      ) {
+        logger.warn(`⚠️ Webhook paid rechazado: monto inválido`, {
+          requestId,
+          orderId,
+          amount: webhookContext.amount
+        });
+
+        return {
+          success: false,
+          confirmed: false,
+          state: 'invalid_amount',
+          message: 'Monto del webhook inválido'
+        };
+      }
+
+      const webhookCurrency = String(
+        webhookContext.currency_code ||
+        webhookContext.currency ||
+        'PEN'
+      ).toUpperCase();
+
+      if (webhookCurrency !== 'PEN') {
+        logger.warn(`⚠️ Webhook paid rechazado: moneda no soportada`, {
+          requestId,
+          orderId,
+          currency: webhookCurrency
+        });
+
+        return {
+          success: false,
+          confirmed: false,
+          state: 'invalid_currency',
+          message: `Moneda no soportada: ${webhookCurrency}`
+        };
+      }
+
+      const webhookOrderNumber =
+        webhookContext.order_number ||
+        webhookContext.orderNumber ||
+        null;
+
+      const eventId =
+        webhookContext.event_id ||
+        webhookContext.eventId ||
+        null;
+
+      const eventType =
+        webhookContext.event_type ||
+        webhookContext.eventType ||
+        'order.status.changed';
+
+      const paidAt =
+        webhookContext.paid_at ||
+        webhookContext.paidAt ||
+        null;
+
+      const updatedAt =
+        webhookContext.updated_at ||
+        webhookContext.updatedAt ||
+        null;
+
+      const receivedAt = new Date().toISOString();
+
+      logger.info(`🎯 Confirmación webhook paid recibida`, {
+        requestId,
+        orderId,
+        eventId,
+        eventType,
+        order_number: webhookOrderNumber,
+        state: webhookState,
+        amount: webhookAmount,
+        currency: webhookCurrency,
+        paid_at: paidAt,
+        updated_at: updatedAt
+      });
+
+      // ========================================================
+      // RESOLUCION DE LA ORDEN FIREBASE
+      // ========================================================
+
+      let ordenSnapshot = null;
+
+      if (webhookOrderNumber) {
+        ordenSnapshot = await firestore
+          .collection('ordenes')
+          .where('numeroOrden', '==', webhookOrderNumber)
+          .limit(1)
+          .get();
+      }
+
+      if (!ordenSnapshot || ordenSnapshot.empty) {
+        ordenSnapshot = await firestore
+          .collection('ordenes')
+          .where('culqi_order_id', '==', orderId)
+          .limit(1)
+          .get();
+      }
+
+      if (!ordenSnapshot || ordenSnapshot.empty) {
+        logger.warn(`⚠️ Orden Firebase no encontrada para webhook paid`, {
+          requestId,
+          orderId,
+          order_number: webhookOrderNumber,
+          eventId
+        });
+
+        return {
+          success: false,
+          confirmed: false,
+          state: 'firebase_order_not_found',
+          message: 'Orden no encontrada en Firebase'
+        };
+      }
+
+      const ordenRef = ordenSnapshot.docs[0].ref;
+      const ordenData = ordenSnapshot.docs[0].data();
+
+      const firebaseOrderNumber =
+        ordenData.numeroOrden ||
+        ordenData.id ||
+        webhookOrderNumber ||
+        orderId;
+
+      logger.info(`🔗 Orden Firebase encontrada`, {
+        requestId,
+        orderId,
+        firebaseOrderNumber,
+        firebaseDocId: ordenRef.id,
+        eventId
+      });
+
+      // ========================================================
+      // VALIDACION DE MONTO
+      // ========================================================
+
+      const totalFirebase = Number(
+        ordenData.resumen?.total || 0
+      );
+
+      const totalWebhook = webhookAmount / 100;
+
+      if (
+        !Number.isFinite(totalFirebase) ||
+        totalFirebase <= 0
+      ) {
+        logger.error(`❌ Orden Firebase sin monto válido`, {
+          requestId,
+          orderId,
+          firebaseOrderNumber,
+          totalFirebase
+        });
+
+        return {
+          success: false,
+          confirmed: false,
+          state: 'invalid_firebase_amount',
+          message: 'Monto de Firebase inválido'
+        };
+      }
+
+      if (
+        Math.abs(totalFirebase - totalWebhook) > 0.01
+      ) {
+        const errorMsg =
+          `Monto no coincide. Firebase S/${totalFirebase} | ` +
+          `Webhook Culqi S/${totalWebhook}`;
+
+        logger.error(`❌ ${errorMsg}`, {
+          requestId,
+          orderId,
+          firebaseOrderNumber,
+          eventId,
+          totalFirebase,
+          totalWebhook
+        });
+
+        return {
+          success: false,
+          confirmed: false,
+          state: 'amount_mismatch',
+          message: errorMsg
+        };
+      }
+
+      logger.info(`✅ Monto webhook validado`, {
+        requestId,
+        orderId,
+        firebaseOrderNumber,
+        amount: totalWebhook,
+        currency: webhookCurrency
+      });
+
+      // ========================================================
+      // RECONCILIACION CON GET CULQI
+      // ========================================================
+      //
+      // IMPORTANTE:
+      // Si GET devuelve pending, NO se cancela la confirmacion.
+      // El webhook paid ya fue validado.
+      //
+      // GET solamente nos sirve para registrar la discrepancia.
+      // ========================================================
+
+      let reconciliationState = 'not_checked';
+      let reconciliationError = null;
+
+      try {
+        const culqiOrder = await culqiService.getOrder(orderId);
+
+        reconciliationState =
+          String(culqiOrder?.state || 'unknown').toLowerCase();
+
+        logger.info(`🔎 Reconciliación GET Culqi`, {
+          requestId,
+          orderId,
+          webhookState,
+          getState: reconciliationState
+        });
+
+        if (reconciliationState !== 'paid') {
+          logger.warn(`⚠️ Discrepancia webhook/GET Culqi`, {
+            requestId,
+            orderId,
+            webhookState,
+            getState: reconciliationState,
+            eventId
+          });
+        }
+      } catch (getError) {
+        reconciliationState = 'get_error';
+        reconciliationError = getError.message;
+
+        logger.warn(`⚠️ GET Culqi falló durante reconciliación`, {
+          requestId,
+          orderId,
+          error: getError.message
+        });
+      }
+
+      // ========================================================
+      // IDEMPOTENCIA DE EMAIL
+      // ========================================================
+
+      let emailYaProcesado = false;
+      let emailEnProceso = false;
+      let clienteEmailYaEnviado = false;
+      let adminEmailYaEnviado = false;
+
+      await firestore.runTransaction(async (transaction) => {
+        const freshSnapshot = await transaction.get(ordenRef);
+
+        if (!freshSnapshot.exists) {
+          throw new Error(
+            `Orden Firebase desapareció durante la transacción: ${ordenRef.id}`
+          );
+        }
+
+        const freshData = freshSnapshot.data();
+
+        clienteEmailYaEnviado =
+          freshData.metadata?.email_enviado === true;
+
+        adminEmailYaEnviado =
+          freshData.metadata?.admin_email_enviado === true;
+
+        if (
+          clienteEmailYaEnviado &&
+          adminEmailYaEnviado
+        ) {
+          emailYaProcesado = true;
+          return;
+        }
+
+        if (
+          freshData.metadata?.email_processing === true
+        ) {
+          const processingTime =
+            freshData.metadata?.email_processing_at;
+
+          const now = new Date();
+
+          const processingDuration = processingTime
+            ? now - new Date(processingTime)
+            : 0;
+
+          if (
+            processingDuration < 5 * 60 * 1000
+          ) {
+            emailEnProceso = true;
+            return;
+          }
+        }
+
+        transaction.update(ordenRef, {
+          'metadata.email_processing': true,
+          'metadata.email_processing_at': receivedAt,
+          'metadata.processing_source': 'webhook',
+
+          'metadata.webhook_confirmed': true,
+          'metadata.webhook_event_id': eventId,
+          'metadata.webhook_event_type': eventType,
+          'metadata.webhook_state': webhookState,
+          'metadata.webhook_amount': webhookAmount,
+          'metadata.webhook_currency': webhookCurrency,
+          'metadata.webhook_paid_at': paidAt,
+          'metadata.webhook_updated_at': updatedAt,
+          'metadata.webhook_received_at': receivedAt,
+          'metadata.culqi_get_state': reconciliationState
+        });
+      });
+
+      if (emailYaProcesado) {
+        logger.info(`⏭️ Cliente y administrador ya tienen email enviado`, {
+          requestId,
+          orderId,
+          firebaseOrderNumber,
+          eventId
+        });
+
+        return {
+          success: true,
+          confirmed: true,
+          emailSent: true,
+          alreadySent: true,
+          state: 'paid',
+          reconciliationState,
+          message: 'Pago confirmado; ambos emails ya fueron procesados'
+        };
+      }
+
+      if (emailEnProceso) {
+        logger.info(`⏳ Emails en proceso por otro webhook`, {
+          requestId,
+          orderId,
+          firebaseOrderNumber,
+          eventId
+        });
+
+        return {
+          success: true,
+          confirmed: true,
+          emailSent: false,
+          alreadySent: true,
+          state: 'paid',
+          reconciliationState,
+          message: 'Pago confirmado; emails actualmente en proceso'
+        };
+      }
+
+      // DATOS PARA EMAIL
+      // ========================================================
+      //
+      // IMPORTANTE:
+      // emailService espera amount en CENTAVOS.
+      // Por eso aquí usamos webhookAmount directamente.
+      // ========================================================
+
+      const emailData = {
+        id: orderId,
+        culqi_id: orderId,
+        amount: webhookAmount,
+        currency: webhookCurrency,
+        status: 'succeeded',
+
+        customer_email:
+          ordenData.cliente?.email || '',
+
+        customer_name:
+          `${ordenData.cliente?.nombre || ''} ` +
+          `${ordenData.cliente?.apellido || ''}`.trim(),
+
+        customer_phone:
+          ordenData.cliente?.telefono || '',
+
+        customer_dni:
+          String(
+            ordenData.cliente?.dni || ''
+          ).replace(/\D/g, ''),
+
+        order_id:
+          ordenData.numeroOrden ||
+          ordenData.id ||
+          firebaseOrderNumber,
+
+        productos:
+          ordenData.productos || [],
+
+        resumen:
+          ordenData.resumen || {},
+
+        comprobante:
+          ordenData.comprobante || {},
+
+        envio:
+          ordenData.envio || {},
+
+        metadata: {
+          ...(ordenData.metadata || {}),
+          payment_processed: true,
+          payment_timestamp: receivedAt,
+          confirmed_via: 'webhook',
+          webhook_event_id: eventId,
+          webhook_event_type: eventType,
+          webhook_state: webhookState,
+          webhook_amount: webhookAmount,
+          webhook_currency: webhookCurrency,
+          webhook_paid_at: paidAt,
+          webhook_updated_at: updatedAt,
+          culqi_get_state: reconciliationState
+        }
+      };
+
+      // ========================================================
+      // ========================================================
+// EMAIL CLIENTE
+// ========================================================
+
+let clienteEmailEnviado = clienteEmailYaEnviado;
+let clienteEmailResult = null;
+
+if (!clienteEmailYaEnviado) {
+  logger.info(`📧 Enviando email de confirmación al cliente por webhook`, {
+    requestId,
+    orderId,
+    firebaseOrderNumber,
+    eventId
+  });
+
+  try {
+    clienteEmailResult =
+      await this._sendFirebaseEmail(emailData);
+
+    if (
+      clienteEmailResult?.success === true
+    ) {
+      clienteEmailEnviado = true;
+
+      logger.info(`✅ Email cliente enviado por webhook`, {
+        requestId,
+        orderId,
+        firebaseOrderNumber,
+        eventId
+      });
+    } else {
+      logger.warn(`⚠️ Email cliente no confirmado como enviado`, {
+        requestId,
+        orderId,
+        firebaseOrderNumber,
+        eventId,
+        error:
+          clienteEmailResult?.error ||
+          'Resultado de email no exitoso'
+      });
+    }
+  } catch (emailError) {
+    clienteEmailResult = {
+      success: false,
+      error: emailError.message
+    };
+
+    logger.error(`❌ Error enviando email cliente`, {
+      requestId,
+      orderId,
+      firebaseOrderNumber,
+      eventId,
+      error: emailError.message
+    });
+  }
+} else {
+  logger.info(`⏭️ Email cliente ya enviado anteriormente`, {
+    requestId,
+    orderId,
+    firebaseOrderNumber,
+    eventId
+  });
+}
+
+      // ========================================================
+// NOTIFICACION ADMIN
+// ========================================================
+
+let adminEmailEnviado = adminEmailYaEnviado;
+
+if (
+  !adminEmailYaEnviado &&
+  emailServiceAvailable &&
+  emailService.sendPaymentNotification
+) {
+  try {
+    const notificationData = {
+      ...emailData,
+
+      email_result: {
+        success: clienteEmailEnviado,
+        timestamp:
+          clienteEmailResult?.timestamp ||
+          receivedAt,
+        source: 'webhook'
+      },
+
+      metadata: {
+        ...(emailData.metadata || {}),
+        webhook_processed: true,
+        source: 'webhook',
+        notification_type: 'admin_alert'
+      }
+    };
+
+    const adminResult =
+      await emailService.sendPaymentNotification(
+        notificationData
+      );
+
+    if (
+      adminResult?.success === false
+    ) {
+      throw new Error(
+        adminResult.error ||
+        'Notificación administrativa no confirmada'
+      );
+    }
+
+    adminEmailEnviado = true;
+
+    logger.info(`📧 Notificación admin enviada`, {
+      requestId,
+      orderId,
+      firebaseOrderNumber,
+      eventId
+    });
+  } catch (adminError) {
+    logger.warn(`⚠️ Error enviando email admin (no crítico)`, {
+      requestId,
+      orderId,
+      firebaseOrderNumber,
+      eventId,
+      error: adminError.message
+    });
+  }
+} else if (adminEmailYaEnviado) {
+  logger.info(`⏭️ Email admin ya enviado anteriormente`, {
+    requestId,
+    orderId,
+    firebaseOrderNumber,
+    eventId
+  });
+} else {
+  logger.warn(`⚠️ Servicio de email admin no disponible`, {
+    requestId,
+    orderId,
+    firebaseOrderNumber,
+    eventId
+  });
+}
+
+      // ========================================================
+// RESULTADO FINAL
+// ========================================================
+
+const ambosEmailsEnviados =
+  clienteEmailEnviado &&
+  adminEmailEnviado;
+
+const emailError =
+  !clienteEmailEnviado
+    ? (
+        clienteEmailResult?.error ||
+        'Email cliente pendiente'
+      )
+    : !adminEmailEnviado
+      ? 'Email administrador pendiente'
+      : null;
+
+await ordenRef.update({
+  'metadata.email_enviado': clienteEmailEnviado,
+  'metadata.admin_email_enviado': adminEmailEnviado,
+
+  'metadata.email_processing': false,
+  'metadata.email_processing_at': receivedAt,
+
+  'metadata.pago_confirmado': true,
+  'metadata.confirmed_via': 'webhook',
+  'metadata.confirmed_at': receivedAt,
+
+  'metadata.webhook_event_id': eventId,
+  'metadata.webhook_event_type': eventType,
+  'metadata.culqi_get_state': reconciliationState,
+
+  ...(clienteEmailEnviado
+    ? {
+        'metadata.email_timestamp': receivedAt
+      }
+    : {}),
+
+  ...(emailError
+    ? {
+        'metadata.email_error': emailError
+      }
+    : {}),
+
+  'pago.estado': 'completado',
+  'pago.culqi_order_id': orderId,
+  'pago.confirmed_via': 'webhook',
+  'pago.confirmed_at': receivedAt
+});
+
+if (ambosEmailsEnviados) {
+  logger.info(`✅ Pago confirmado y ambos emails enviados por webhook`, {
+    requestId,
+    orderId,
+    firebaseOrderNumber,
+    eventId
+  });
+
+  return {
+    success: true,
+    confirmed: true,
+    emailSent: true,
+    alreadySent: false,
+    state: 'paid',
+    reconciliationState,
+    message: 'Pago confirmado y emails enviados',
+    messageId:
+      clienteEmailResult?.messageId || null
+  };
+}
+
+logger.warn(`⚠️ Pago confirmado; queda al menos un email pendiente`, {
+  requestId,
+  orderId,
+  firebaseOrderNumber,
+  eventId,
+  clienteEmailEnviado,
+  adminEmailEnviado,
+  emailError
+});
+
+return {
+  success: false,
+  confirmed: true,
+  emailSent: false,
+  alreadySent: false,
+  state: 'paid',
+  reconciliationState,
+  message: 'Pago confirmado pero queda email pendiente',
+  error: emailError
+};
+
+    } catch (error) {
+      logger.error(`❌ Error en processWebhookPaidOrder`, {
+        requestId,
+        orderId,
+        error: error.message,
+        stack: error.stack
+      });
+
+      return {
+        success: false,
+        confirmed: false,
+        state: 'error',
+        error: error.message
+      };
+    }
+  }
+
+        async getOrderStatus(req, res) {
     const { orderId } = req.params;
 
     try {
@@ -2887,677 +3605,7 @@ async processPaidOrder(orderId, source = 'manual') {
 
   async handleCulqiWebhook(req, res) {
     const requestId = req.id || `webhook_${Date.now()}`;
-
-
-   // ============================================================
-// 🕵️ ESPÍA QUIRÚRGICO CULQI — INICIO
-// SOLO OBSERVACIÓN / DIAGNÓSTICO.
-// ============================================================
-// 🔒 GARANTÍA:
-// - NO modifica req
-// - NO modifica res
-// - NO modifica req.body
-// - NO modifica req.rawBody
-// - NO modifica event
-// - NO modifica Firebase
-// - NO llama a Culqi
-// - NO llama a getOrder()
-// - NO envía emails
-// - NO hace await
-// - NO intercepta
-// - NO bloquea
-// - NO decide
-// - NO altera el flujo normal del webhook
-//
-// Si el espía falla por cualquier motivo, el webhook CONTINÚA.
-// ============================================================
-
-(() => {
-    try {
-        const body = req?.body;
-        const raw = req?.rawBody;
-
-        const safeStringify = (value) => {
-            try {
-                return JSON.stringify(value);
-            } catch (error) {
-                return `[NO_SERIALIZABLE: ${error.message}]`;
-            }
-        };
-
-        const root =
-            body && typeof body === 'object'
-                ? body
-                : {};
-
-        // --------------------------------------------------------
-        // RAW BODY
-        // --------------------------------------------------------
-        const rawText = Buffer.isBuffer(raw)
-            ? raw.toString('utf8')
-            : typeof raw === 'string'
-                ? raw
-                : null;
-
-        // --------------------------------------------------------
-        // DATA TAL COMO LLEGA
-        // --------------------------------------------------------
-        const rawData = root?.data ?? null;
-
-        const dataType =
-            rawData === null
-                ? 'null'
-                : Array.isArray(rawData)
-                    ? 'array'
-                    : typeof rawData;
-
-        // --------------------------------------------------------
-        // DATA PARSEADO SOLO PARA DIAGNÓSTICO
-        //
-        // IMPORTANTE:
-        // Esto crea una COPIA diagnóstica.
-        // NO modifica root.data.
-        // NO modifica req.body.
-        // --------------------------------------------------------
-        let diagnosticData = null;
-        let dataParseError = null;
-
-        if (typeof rawData === 'string') {
-            try {
-                diagnosticData = JSON.parse(rawData);
-            } catch (error) {
-                dataParseError = error?.message || 'JSON inválido';
-            }
-        } else if (
-            rawData &&
-            typeof rawData === 'object'
-        ) {
-            try {
-                diagnosticData =
-                    JSON.parse(
-                        JSON.stringify(rawData)
-                    );
-            } catch (error) {
-                diagnosticData = null;
-                dataParseError =
-                    error?.message ||
-                    'No se pudo copiar data';
-            }
-        }
-
-        const data =
-            diagnosticData &&
-            typeof diagnosticData === 'object'
-                ? diagnosticData
-                : {};
-
-        // --------------------------------------------------------
-        // ORDER ANIDADA SI EXISTIERA
-        // --------------------------------------------------------
-        const nestedOrder =
-            data?.order &&
-            typeof data.order === 'object'
-                ? data.order
-                : null;
-
-        // --------------------------------------------------------
-        // DETECCIÓN DIAGNÓSTICA DEL ESTADO
-        // --------------------------------------------------------
-        const webhookState =
-            data?.state ??
-            nestedOrder?.state ??
-            root?.state ??
-            null;
-
-        const webhookIsPaid =
-            webhookState === 'paid';
-
-        // --------------------------------------------------------
-        // TIMESTAMPS DE CULQI
-        // --------------------------------------------------------
-        const creationDate =
-            data?.creation_date ??
-            nestedOrder?.creation_date ??
-            root?.creation_date ??
-            null;
-
-        const updatedAt =
-            data?.updated_at ??
-            nestedOrder?.updated_at ??
-            root?.updated_at ??
-            null;
-
-        const paidAt =
-            data?.paid_at ??
-            nestedOrder?.paid_at ??
-            root?.paid_at ??
-            null;
-
-        const expirationDate =
-            data?.expiration_date ??
-            nestedOrder?.expiration_date ??
-            root?.expiration_date ??
-            null;
-
-        const timestampToIso = (value) => {
-            if (
-                value === null ||
-                value === undefined
-            ) {
-                return null;
-            }
-
-            const numericValue =
-                Number(value);
-
-            if (
-                Number.isFinite(numericValue)
-            ) {
-                const milliseconds =
-                    numericValue < 100000000000
-                        ? numericValue * 1000
-                        : numericValue;
-
-                const date =
-                    new Date(milliseconds);
-
-                if (
-                    !Number.isNaN(
-                        date.getTime()
-                    )
-                ) {
-                    return date.toISOString();
-                }
-            }
-
-            const date =
-                new Date(value);
-
-            return Number.isNaN(
-                date.getTime()
-            )
-                ? null
-                : date.toISOString();
-        };
-
-        // --------------------------------------------------------
-        // IDENTIFICACIÓN DE ORDEN
-        // --------------------------------------------------------
-        const diagnosticOrderId =
-            data?.id ??
-            data?.order_id ??
-            nestedOrder?.id ??
-            nestedOrder?.order_id ??
-            root?.order_id ??
-            root?.id ??
-            null;
-
-        // --------------------------------------------------------
-        // INFORMACIÓN COMPLETA DE LA ORDEN
-        // --------------------------------------------------------
-        logger.info(
-            `🕵️ [CULQI-SPY] ===== WEBHOOK ENTRANTE =====`,
-            {
-                requestId,
-
-                // =================================================
-                // HTTP
-                // =================================================
-                http: {
-                    method:
-                        req?.method || null,
-
-                    originalUrl:
-                        req?.originalUrl || null,
-
-                    url:
-                        req?.url || null,
-
-                    contentType:
-                        req?.headers?.[
-                            'content-type'
-                        ] || null,
-
-                    contentLength:
-                        req?.headers?.[
-                            'content-length'
-                        ] || null,
-
-                    userAgent:
-                        req?.headers?.[
-                            'user-agent'
-                        ] || null
-                },
-
-                // =================================================
-                // RECEPCIÓN
-                // =================================================
-                reception: {
-                    bodyExiste: !!body,
-
-                    bodyTipo:
-                        typeof body,
-
-                    rawBodyExiste:
-                        !!raw,
-
-                    rawBodyEsBuffer:
-                        Buffer.isBuffer(raw),
-
-                    rawBodyLength:
-                        rawText
-                            ? rawText.length
-                            : 0
-                },
-
-                // =================================================
-                // ROOT
-                // =================================================
-                root: {
-                    object:
-                        root?.object ?? null,
-
-                    type:
-                        root?.type ?? null,
-
-                    eventType:
-                        root?.eventType ?? null,
-
-                    id:
-                        root?.id ?? null,
-
-                    order_id:
-                        root?.order_id ?? null,
-
-                    order_number:
-                        root?.order_number ?? null,
-
-                    state:
-                        root?.state ?? null,
-
-                    amount:
-                        root?.amount ?? null,
-
-                    currency_code:
-                        root?.currency_code ?? null,
-
-                    payment_code:
-                        root?.payment_code ?? null,
-
-                    creation_date:
-                        root?.creation_date ?? null,
-
-                    updated_at:
-                        root?.updated_at ?? null,
-
-                    paid_at:
-                        root?.paid_at ?? null,
-
-                    expiration_date:
-                        root?.expiration_date ??
-                        null,
-
-                    qr:
-                        root?.qr
-                            ? '[PRESENTE]'
-                            : null,
-
-                    url_pe:
-                        root?.url_pe
-                            ? '[PRESENTE]'
-                            : null,
-
-                    metadata:
-                        root?.metadata
-                            ? safeStringify(
-                                root.metadata
-                            )
-                            : null
-                },
-
-                // =================================================
-                // DATA
-                // =================================================
-                data: {
-                    existe:
-                        !!rawData,
-
-                    tipo:
-                        dataType,
-
-                    fueParseadoDesdeString:
-                        typeof rawData === 'string',
-
-                    parseError:
-                        dataParseError,
-
-                    keys:
-                        Object.keys(data),
-
-                    object:
-                        data?.object ?? null,
-
-                    id:
-                        data?.id ?? null,
-
-                    order_id:
-                        data?.order_id ?? null,
-
-                    order_number:
-                        data?.order_number ?? null,
-
-                    state:
-                        data?.state ?? null,
-
-                    amount:
-                        data?.amount ?? null,
-
-                    currency_code:
-                        data?.currency_code ??
-                        null,
-
-                    payment_code:
-                        data?.payment_code ??
-                        null,
-
-                    creation_date:
-                        data?.creation_date ??
-                        null,
-
-                    updated_at:
-                        data?.updated_at ??
-                        null,
-
-                    paid_at:
-                        data?.paid_at ?? null,
-
-                    expiration_date:
-                        data?.expiration_date ??
-                        null,
-
-                    available_on:
-                        data?.available_on ??
-                        null,
-
-                    total_fee:
-                        data?.total_fee ?? null,
-
-                    net_amount:
-                        data?.net_amount ?? null,
-
-                    qr:
-                        data?.qr
-                            ? '[PRESENTE]'
-                            : null,
-
-                    url_pe:
-                        data?.url_pe
-                            ? '[PRESENTE]'
-                            : null,
-
-                    metadata:
-                        data?.metadata
-                            ? safeStringify(
-                                data.metadata
-                            )
-                            : null
-                },
-
-                // =================================================
-                // ORDER ANIDADA
-                // =================================================
-                nestedOrder: {
-                    existe:
-                        !!nestedOrder,
-
-                    id:
-                        nestedOrder?.id ??
-                        null,
-
-                    order_id:
-                        nestedOrder?.order_id ??
-                        null,
-
-                    order_number:
-                        nestedOrder?.order_number ??
-                        null,
-
-                    state:
-                        nestedOrder?.state ??
-                        null,
-
-                    amount:
-                        nestedOrder?.amount ??
-                        null,
-
-                    currency_code:
-                        nestedOrder?.currency_code ??
-                        null,
-
-                    payment_code:
-                        nestedOrder?.payment_code ??
-                        null,
-
-                    metadata:
-                        nestedOrder?.metadata
-                            ? safeStringify(
-                                nestedOrder.metadata
-                            )
-                            : null
-                },
-
-                // =================================================
-                // RESUMEN DIAGNÓSTICO
-                // =================================================
-                diagnosis: {
-                    diagnosticOrderId,
-
-                    webhookState,
-
-                    webhookIsPaid,
-
-                    webhookAmount:
-                        data?.amount ??
-                        root?.amount ??
-                        null,
-
-                    webhookAmountPEN:
-                        Number.isFinite(
-                            Number(
-                                data?.amount
-                            )
-                        )
-                            ? Number(
-                                data.amount
-                            ) / 100
-                            : null,
-
-                    webhookOrderNumber:
-                        data?.order_number ??
-                        root?.order_number ??
-                        null,
-
-                    webhookPaymentCode:
-                        data?.payment_code ??
-                        root?.payment_code ??
-                        null,
-
-                    webhookCurrency:
-                        data?.currency_code ??
-                        root?.currency_code ??
-                        null
-                },
-
-                // =================================================
-                // TIEMPOS
-                // =================================================
-                culqiTimes: {
-                    creation_date:
-                        creationDate,
-
-                    creation_date_iso:
-                        timestampToIso(
-                            creationDate
-                        ),
-
-                    updated_at:
-                        updatedAt,
-
-                    updated_at_iso:
-                        timestampToIso(
-                            updatedAt
-                        ),
-
-                    paid_at:
-                        paidAt,
-
-                    paid_at_iso:
-                        timestampToIso(
-                            paidAt
-                        ),
-
-                    expiration_date:
-                        expirationDate,
-
-                    expiration_date_iso:
-                        timestampToIso(
-                            expirationDate
-                        )
-                },
-
-                // =================================================
-                // METADATA
-                // =================================================
-                metadata: {
-                    root:
-                        root?.metadata
-                            ? safeStringify(
-                                root.metadata
-                            )
-                            : null,
-
-                    data:
-                        data?.metadata
-                            ? safeStringify(
-                                data.metadata
-                            )
-                            : null,
-
-                    nestedOrder:
-                        nestedOrder?.metadata
-                            ? safeStringify(
-                                nestedOrder.metadata
-                            )
-                            : null
-                },
-
-                // =================================================
-                // RAW BODY
-                // =================================================
-                rawBodyPreview:
-                    rawText
-                        ? rawText.substring(
-                            0,
-                            5000
-                        )
-                        : null,
-
-                // =================================================
-                // ESTRUCTURA
-                // =================================================
-                structure: {
-                    root_keys:
-                        Object.keys(root),
-
-                    data_keys:
-                        Object.keys(data),
-
-                    nestedOrder_keys:
-                        nestedOrder
-                            ? Object.keys(
-                                nestedOrder
-                            )
-                            : []
-                },
-
-                // =================================================
-                // TIEMPO LOCAL DEL BACKEND
-                // =================================================
-                spy_timestamp:
-                    new Date().toISOString()
-            }
-        );
-
-        logger.info(
-            `🕵️ [CULQI-SPY] ===== FIN WEBHOOK ENTRANTE =====`,
-            {
-                requestId,
-
-                // Resumen mínimo duplicado
-                // para encontrarlo fácilmente en logs.
-                orderId:
-                    diagnosticOrderId,
-
-                state:
-                    webhookState,
-
-                isPaid:
-                    webhookIsPaid,
-
-                amount:
-                    data?.amount ??
-                    root?.amount ??
-                    null,
-
-                orderNumber:
-                    data?.order_number ??
-                    root?.order_number ??
-                    null,
-
-                paidAt:
-                    paidAt,
-
-                updatedAt:
-                    updatedAt,
-
-                spy_timestamp:
-                    new Date().toISOString()
-            }
-        );
-
-    } catch (spyError) {
-
-        // ========================================================
-        // 🔒 ABSOLUTA PROTECCIÓN DEL FLUJO
-        // ========================================================
-        // El espía NUNCA puede lanzar el error hacia afuera.
-        // El webhook continúa exactamente como estaba.
-        // ========================================================
-
-        try {
-            logger.warn(
-                `🕵️ [CULQI-SPY] Error interno del espía — FLUJO CONTINÚA`,
-                {
-                    requestId,
-                    error:
-                        spyError?.message ||
-                        'unknown'
-                }
-            );
-        } catch (_) {
-            // Absolutamente nada.
-        }
-    }
-})();
-
-// ============================================================
-// 🕵️ ESPÍA QUIRÚRGICO CULQI — FIN
-// TODO LO ANTERIOR ES SOLO OBSERVACIÓN.
-// EL FLUJO ORIGINAL CONTINÚA SIN MODIFICACIÓN.
-// ============================================================
-
-
-
+    
     try {
       /*
        * =========================================================
@@ -3841,9 +3889,9 @@ async processPaidOrder(orderId, source = 'manual') {
        *       ↓
        * recién entonces se procesa la confirmación.
        */
-      this.processPaidOrder(
+      this.processWebhookPaidOrder(
         orderId,
-        `webhook:${eventType}`
+        event
       )
         .then(result => {
           const emailSent =
