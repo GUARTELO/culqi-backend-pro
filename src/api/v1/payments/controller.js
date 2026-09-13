@@ -3900,10 +3900,11 @@ return {
       }
 
       const webhookOrder =
-        webhookData?.object ||
-        webhookData?.order ||
-        webhookData ||
-        event;
+        webhookData?.object === 'order'
+          ? webhookData
+          : webhookData?.order ||
+            webhookData ||
+            event;
 
       const webhookContext = {
         requestId,
