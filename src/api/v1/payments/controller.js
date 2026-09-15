@@ -2713,7 +2713,6 @@ async processPaidOrder(orderId, source = 'manual') {
       amount: totalCulqi,  // ← Mismo formato que usa _sendFirebaseEmail
       currency: culqiOrder.currency_code || culqiOrder.currency || 'PEN',
       status: 'succeeded',
-      payment_method: ordenData.metadata?.payment_method,
       customer_email: ordenData.cliente?.email || '',
       customer_name: `${ordenData.cliente?.nombre || ''} ${ordenData.cliente?.apellido || ''}`.trim(),
       customer_phone: ordenData.cliente?.telefono || '',
