@@ -2523,6 +2523,7 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
   async createOrderCheckout(req, res) {
     const startTime = Date.now();
     const { orderId } = req.params;
+    const { payment_method, firebase_order_id } = req.body || {};
 
     try {
       if (!orderId) {
@@ -2532,6 +2533,46 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
         });
       }
 
+      // ============================================================
+      // 👛 BILLETERA DIGITAL
+      // Guardar el método seleccionado ANTES de generar el checkout.
+      // NO modifica estado de pago.
+      // ============================================================
+      if (payment_method === 'billetera') {
+        if (!firebase_order_id) {
+          return res.status(400).json({
+            success: false,
+            error: 'firebase_order_id requerido para Billetera Digital'
+          });
+        }
+
+        const firebase = require('../../../core/config/firebase');
+        const firestore = firebase.firestore;
+
+        const querySnapshot = await firestore
+          .collection('ordenes')
+          .where('id', '==', firebase_order_id)
+          .limit(1)
+          .get();
+
+        if (querySnapshot.empty) {
+          return res.status(404).json({
+            success: false,
+            error: `Orden Firebase no encontrada: ${firebase_order_id}`
+          });
+        }
+
+        const docRef = querySnapshot.docs[0].ref;
+
+        await docRef.update({
+          'metadata.payment_method': 'billetera'
+        });
+
+        logger.info('👛 Método Billetera Digital guardado en Firebase', {
+          firebase_order_id,
+          payment_method: 'billetera'
+        });
+      }
       logger.info(`📲 Generando checkout QR para orden: ${orderId}`);
       const checkout = await culqiService.createOrderCheckout(orderId);
 
@@ -3239,7 +3280,7 @@ async processPaidOrder(orderId, source = 'manual') {
         amount: webhookAmount,
         currency: webhookCurrency,
         status: 'succeeded',
-
+        payment_method: ordenData.metadata?.payment_method,
         customer_email:
           ordenData.cliente?.email || '',
 
