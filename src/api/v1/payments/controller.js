@@ -1814,7 +1814,6 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
         'metadata.email_enviado': emailResult.success,
         'metadata.email_timestamp': emailResult.timestamp || new Date().toISOString(),
         'metadata.estado_pago': 'completado',
-        'metadata.payment_method': payment_method,
         'metadata.metodo_pago': 'culqi',
         'metadata.ultima_actualizacion': new Date().toISOString(),
         
