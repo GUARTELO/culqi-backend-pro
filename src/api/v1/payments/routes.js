@@ -91,6 +91,9 @@ router.post('/orders/:orderId/checkout', paymentController.createOrderCheckout);
 // ✅ WEBHOOK PARA CULQI (YAPE, QR, PAGOEFECTIVO)
 router.post('/culqi-webhook', paymentController.handleCulqiWebhook.bind(paymentController));
 
+// Webhook independiente para Banca Móvil / Internet
+router.post('/culqi-webhook-banca', paymentController.handleBancaMobileWebhook.bind(paymentController));
+
 // ======================================================
 // RUTAS DE SALUD Y CONFIGURACIÓN
 // ======================================================

@@ -2573,6 +2573,50 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
           payment_method: 'billetera'
         });
       }
+      // ============================================================
+      // 🏦 BANCA MÓVIL
+      // Guardar el método seleccionado antes de la confirmación.
+      // NO confirma el pago.
+      // NO modifica el flujo de Billetera.
+      // ============================================================
+      if (payment_method === 'bancaMovil') {
+        if (!firebase_order_id) {
+          return res.status(400).json({
+            success: false,
+            error: 'firebase_order_id requerido para Banca Móvil'
+          });
+        }
+
+        const firebase = require('../../../core/config/firebase');
+        const firestore = firebase.firestore;
+
+        const querySnapshot = await firestore
+          .collection('ordenes')
+          .where('id', '==', firebase_order_id)
+          .limit(1)
+          .get();
+
+        if (querySnapshot.empty) {
+          return res.status(404).json({
+            success: false,
+            error: `Orden Firebase no encontrada: ${firebase_order_id}`
+          });
+        }
+
+        const docRef = querySnapshot.docs[0].ref;
+
+        await docRef.update({
+          'metadata.payment_method': 'bancaMovil',
+          'metadata.culqi_order_id': orderId
+        });
+
+        logger.info('🏦 Método Banca Móvil guardado en Firebase', {
+          firebase_order_id,
+          orderId,
+          payment_method: 'bancaMovil'
+        });
+      }
+
       logger.info(`📲 Generando checkout QR para orden: ${orderId}`);
       const checkout = await culqiService.createOrderCheckout(orderId);
 
@@ -3644,6 +3688,158 @@ return {
 
 
 
+  async handleBancaMobileWebhook(req, res) {
+    const requestId = req.id || `banca_webhook_${Date.now()}`;
+
+    try {
+      const rawBody = req.rawBody || req.body;
+      const payload = typeof rawBody === 'string'
+        ? JSON.parse(rawBody)
+        : rawBody;
+
+      const event = payload?.data?.object || payload?.data || payload;
+      const orderId =
+        event?.id ||
+        event?.order_id ||
+        event?.order?.id ||
+        payload?.order_id ||
+        payload?.order?.id;
+
+      const eventType =
+        payload?.type ||
+        payload?.event_type ||
+        payload?.data?.type ||
+        'unknown';
+
+      if (!orderId || !/^ord_(live|test)_[A-Za-z0-9]+$/.test(orderId)) {
+        logger.warn('🏦 Banca Webhook: orderId inválido o ausente', {
+          requestId,
+          eventType,
+          orderId
+        });
+
+        return res.status(200).json({
+          success: true,
+          processed: false,
+          reason: 'order_id_invalid_or_missing'
+        });
+      }
+
+      logger.info('🏦 Banca Webhook recibido', {
+        requestId,
+        eventType,
+        orderId
+      });
+
+      const order = await culqiService.getOrder(orderId);
+
+      if (!order || order.state !== 'paid') {
+        logger.info('🏦 Banca Webhook: pago aún no confirmado', {
+          requestId,
+          orderId,
+          state: order?.state || null
+        });
+
+        return res.status(200).json({
+          success: true,
+          processed: false,
+          state: order?.state || null
+        });
+      }
+
+      const firebase = require('../../../core/config/firebase');
+      const firestore = firebase.firestore;
+
+      let firebaseOrder = null;
+
+      const byCulqi = await firestore
+        .collection('ordenes')
+        .where('metadata.culqi_order_id', '==', orderId)
+        .limit(1)
+        .get();
+
+      if (!byCulqi.empty) {
+        firebaseOrder = byCulqi.docs[0];
+      }
+
+      if (!firebaseOrder) {
+        const byNumero = await firestore
+          .collection('ordenes')
+          .where('numeroOrden', '==', order.order_number)
+          .limit(1)
+          .get();
+
+        if (!byNumero.empty) {
+          firebaseOrder = byNumero.docs[0];
+        }
+      }
+
+      if (!firebaseOrder) {
+        logger.warn('🏦 Banca Webhook: orden Firebase no encontrada', {
+          requestId,
+          orderId,
+          order_number: order.order_number || null
+        });
+
+        return res.status(200).json({
+          success: true,
+          processed: false,
+          reason: 'firebase_order_not_found'
+        });
+      }
+
+      const firebaseData = firebaseOrder.data();
+
+      if (firebaseData?.metadata?.payment_method !== 'bancaMovil') {
+        logger.warn('🏦 Banca Webhook: orden no marcada como Banca Móvil', {
+          requestId,
+          orderId,
+          firebase_order_id: firebaseOrder.id,
+          payment_method: firebaseData?.metadata?.payment_method || null
+        });
+
+        return res.status(200).json({
+          success: true,
+          processed: false,
+          reason: 'not_banca_movil'
+        });
+      }
+
+      const webhookContext = {
+        state: 'paid',
+        amount: order.amount,
+        currency_code: order.currency_code,
+        order_number: order.order_number,
+        event_id: payload?.id || null,
+        event_type: eventType,
+        paid_at: order.paid_at || null,
+        updated_at: order.updated_at || null
+      };
+
+      const result = await this.processWebhookPaidOrder(
+        orderId,
+        webhookContext
+      );
+
+      return res.status(200).json({
+        success: true,
+        processed: true,
+        ...result
+      });
+
+    } catch (error) {
+      logger.error('❌ Error en Webhook Banca Móvil', {
+        requestId,
+        error: error.message,
+        stack: error.stack
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Error procesando webhook Banca Móvil'
+      });
+    }
+  }
   async handleCulqiWebhook(req, res) {
     const requestId = req.id || `webhook_${Date.now()}`;
     
@@ -4064,3 +4260,5 @@ return {
 // Crear y exportar instancia
 const paymentController = new PaymentController();
 module.exports = paymentController;
+
+
