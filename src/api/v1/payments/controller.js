@@ -672,7 +672,7 @@ logger.info(`✅ Pago Culqi exitoso ${paymentId}`, {
           nombre: "GOLDINFINITI TECH CORP",
           ruc: "20613360281",
           direccion: "Av. Principal 123, Lima, Perú",
-          telefono: "+51 968 786 648"
+          telefono: "+51 991 757 055"
         },
         
         // Información legal
@@ -2504,7 +2504,7 @@ _prepareCulqiData(token, amount, email, cliente, metadata, req, orderId) {
       
       support: {
         email: 'contacto@goldinfiniti.com',
-        phone: '+51 968 786 648',
+        phone: '+51 991 757 055',
         dashboard: 'https://culqi-backend-pro.onrender.com/api/v1/payments/stats'
       },
       
